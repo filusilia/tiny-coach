@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application
+    x:Class="AegisCoach.Native.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AegisCoach.Native.Converters">
+  <Application.Resources>
+    <ResourceDictionary>
+    <local:SeverityToBrushConverter x:Key="SeverityBrushConverter" />
+      <SolidColorBrush x:Key="AppBackgroundBrush" Color="{ThemeResource SystemChromeMediumLowColor}" />
+      <SolidColorBrush x:Key="ChromeBackgroundBrush" Color="{ThemeResource SystemChromeLowColor}" />
+      <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{ThemeResource SystemAltHighColor}" />
+      <SolidColorBrush x:Key="SubtlePanelBrush" Color="{ThemeResource SystemAltLowColor}" />
+      <SolidColorBrush x:Key="BorderBrush" Color="{ThemeResource SystemBaseLowColor}" />
+      <SolidColorBrush x:Key="SubtleBorderBrush" Color="{ThemeResource SystemBaseLowColor}" />
+      <SolidColorBrush x:Key="PrimaryTextBrush" Color="{ThemeResource SystemBaseHighColor}" />
+      <SolidColorBrush x:Key="SecondaryTextBrush" Color="{ThemeResource SystemBaseMediumHighColor}" />
+      <SolidColorBrush x:Key="TertiaryTextBrush" Color="{ThemeResource SystemBaseMediumColor}" />
+      <SolidColorBrush x:Key="AccentBrush" Color="{ThemeResource SystemAccentColor}" />
+      <SolidColorBrush x:Key="AccentTextBrush" Color="{ThemeResource SystemAccentColorDark1}" />
+      <SolidColorBrush x:Key="OnAccentBrush" Color="{ThemeResource SystemAltHighColor}" />
+      <SolidColorBrush x:Key="HeroOverlayBrush" Color="#66000000" />
+      <SolidColorBrush x:Key="ScepterBrush" Color="{ThemeResource SystemAccentColorDark2}" />
+      <SolidColorBrush x:Key="ShardBrush" Color="{ThemeResource SystemAccentColorLight1}" />
+      <SolidColorBrush x:Key="InfoBrush" Color="{ThemeResource SystemAccentColor}" />
+      <SolidColorBrush x:Key="WarningBrush" Color="#C47724" />
+      <SolidColorBrush x:Key="CriticalBrush" Color="#C42B1C" />
+      <ResourceDictionary.MergedDictionaries>
+        <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>
+
+
+

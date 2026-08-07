@@ -1,0 +1,641 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="AegisCoach.Native.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    xmlns:local="using:AegisCoach.Native.Converters"
+    Title="神盾教练">
+  <Window.SystemBackdrop>
+    <MicaBackdrop />
+  </Window.SystemBackdrop>
+
+  <Grid x:Name="RootGrid" Background="{ThemeResource AppBackgroundBrush}">
+    <NavigationView
+        x:Name="AppNavigation"
+        IsBackButtonVisible="Collapsed"
+        IsSettingsVisible="False"
+        IsPaneToggleButtonVisible="True"
+        PaneDisplayMode="Left"
+        CompactPaneLength="64"
+        OpenPaneLength="220"
+        PaneTitle="神盾教练"
+        SelectionChanged="AppNavigation_SelectionChanged">
+      <NavigationView.MenuItems>
+        <NavigationViewItem Content="英雄资料" Tag="heroes" IsSelected="True">
+          <NavigationViewItem.Icon><SymbolIcon Symbol="People" /></NavigationViewItem.Icon>
+        </NavigationViewItem>
+        <NavigationViewItem Content="物品资料" Tag="items">
+          <NavigationViewItem.Icon><SymbolIcon Symbol="Shop" /></NavigationViewItem.Icon>
+        </NavigationViewItem>
+        <NavigationViewItem Content="实时教练" Tag="coach">
+          <NavigationViewItem.Icon><SymbolIcon Symbol="Play" /></NavigationViewItem.Icon>
+        </NavigationViewItem>
+        <NavigationViewItem Content="赛后分析" Tag="analysis" IsEnabled="False">
+          <NavigationViewItem.Icon><SymbolIcon Symbol="Document" /></NavigationViewItem.Icon>
+        </NavigationViewItem>
+      </NavigationView.MenuItems>
+
+      <NavigationView.Content>
+        <Grid>
+        <Grid x:Name="HeroPage" Padding="24,20,24,24" RowSpacing="14">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0" ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="英雄资料库" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="26" FontWeight="SemiBold" />
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,5,0,0">
+                <TextBlock Text="力量 · 敏捷 · 智力 · 全才" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                <TextBlock x:Name="HeroCountText" Text="正在同步数据" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="13" />
+              </StackPanel>
+            </StackPanel>
+            <TextBlock Grid.Column="1" x:Name="SourceStatusText" Text="官方中文数据 + OpenDota · 目标版本 v7.41e" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+          </Grid>
+
+          <Grid Grid.Row="1" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchBox" Grid.Column="0" Height="38" MinWidth="180" PlaceholderText="搜索英雄名称" TextChanged="SearchBox_TextChanged" />
+            <ComboBox x:Name="RankBox" Grid.Column="1" Width="120" Height="38" ItemsSource="{Binding RankOptions}" SelectionChanged="RankBox_SelectionChanged" />
+            <ComboBox x:Name="SortBox" Grid.Column="2" Width="104" Height="38" ItemsSource="{Binding SortOptions}" SelectionChanged="SortBox_SelectionChanged" />
+            <Button Grid.Column="3" Width="38" Height="38" Padding="0" Click="RefreshButton_Click" ToolTipService.ToolTip="刷新英雄、技能与胜率数据"><SymbolIcon Symbol="Refresh" /></Button>
+          </Grid>
+
+          <Grid Grid.Row="2" ColumnSpacing="12">
+            <TextBlock x:Name="RankCaptionText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" VerticalAlignment="Center" />
+            <TextBlock x:Name="ResultCountText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <InfoBar x:Name="ErrorBar" IsOpen="False" IsClosable="False" Severity="Error" HorizontalAlignment="Center" MaxWidth="680" />
+          </Grid>
+
+          <Grid Grid.Row="3" x:Name="HeroWorkspace" ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" MinWidth="360" />
+              <ColumnDefinition Width="420" MinWidth="320" MaxWidth="480" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0" x:Name="HeroListHost" RowSpacing="10">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <Grid Grid.Row="0">
+                <TextBlock Text="英雄选择" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="比赛开始时的英雄标签" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+              </Grid>
+              <ListView Grid.Row="1" x:Name="AttributeTabs" Height="52" ItemsSource="{Binding HeroSections}" SelectionMode="Single" SelectionChanged="AttributeTabs_SelectionChanged" BorderThickness="0" Padding="0" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollMode="Enabled" ScrollViewer.VerticalScrollMode="Disabled">
+                <ListView.ItemsPanel>
+                  <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ListView.ItemsPanel>
+                <ListView.ItemContainerStyle>
+                  <Style TargetType="ListViewItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0,0,8,0" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                  </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                  <DataTemplate>
+                    <Border Width="138" Height="44" Padding="12,6" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="2">
+                      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Border Width="4" Height="24" Background="{ThemeResource AccentBrush}" CornerRadius="2" />
+                        <StackPanel>
+                          <TextBlock Text="{Binding Title}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding Subtitle}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="9" Margin="0,1,0,0" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListView.ItemTemplate>
+              </ListView>
+              <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <GridView x:Name="HeroGrid" ItemsSource="{Binding VisibleAttributeHeroes}" SelectionMode="Single" IsItemClickEnabled="False" SelectionChanged="HeroGrid_SelectionChanged" HorizontalAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" Padding="0">
+                  <GridView.ItemsPanel>
+                    <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                  </GridView.ItemsPanel>
+                  <GridView.ItemTemplate>
+                    <DataTemplate>
+                      <Border Width="{Binding CardWidth}" Margin="0,0,12,10" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="2">
+                        <StackPanel>
+                          <Grid>
+                            <Image Height="{Binding ImageHeight}" Source="{Binding DisplayImage}" Stretch="UniformToFill" />
+                            <Border VerticalAlignment="Top" HorizontalAlignment="Left" Background="{ThemeResource AccentBrush}" Padding="6,3">
+                              <TextBlock Text="{Binding AttributeLabel}" Foreground="{ThemeResource OnAccentBrush}" FontSize="9" FontWeight="SemiBold" />
+                            </Border>
+                          </Grid>
+                          <Border Padding="6,8" Background="{ThemeResource PanelBackgroundBrush}" CornerRadius="0,0,2,2">
+                            <Grid>
+                              <StackPanel Margin="0,0,58,0">
+                                <TextBlock Text="{Binding Name}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding AttackLabel}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" Margin="0,2,0,0" />
+                              </StackPanel>
+                              <StackPanel HorizontalAlignment="Right">
+                                <TextBlock Text="胜率" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Right" />
+                                <TextBlock Text="{Binding WinRateText}" Foreground="{ThemeResource AccentTextBrush}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                              </StackPanel>
+                            </Grid>
+                          </Border>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </GridView.ItemTemplate>
+                </GridView>
+              </ScrollViewer>
+            </Grid>
+
+            <Border Grid.Column="1" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="2">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                  <Grid Height="180">
+                    <Image x:Name="HeroImage" Stretch="UniformToFill" />
+                    <Border Background="{ThemeResource HeroOverlayBrush}" />
+                    <StackPanel VerticalAlignment="Bottom" Margin="18,0,18,16">
+                      <TextBlock x:Name="HeroMetaText" Foreground="{ThemeResource OnAccentBrush}" FontSize="10" />
+                      <TextBlock x:Name="HeroNameText" Foreground="{ThemeResource OnAccentBrush}" FontSize="24" FontWeight="SemiBold" Margin="0,3,0,0" />
+                    </StackPanel>
+                  </Grid>
+                  <Border BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,17">
+                    <StackPanel>
+                      <TextBlock Text="胜率" Foreground="{ThemeResource AccentBrush}" FontSize="10" FontWeight="Bold" />
+                      <TextBlock Text="各分段胜率" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,14" />
+                      <ListView x:Name="RankList" ItemsSource="{Binding SelectedRankMetrics}" IsItemClickEnabled="False" SelectionMode="None" BorderThickness="0" Padding="0">
+                        <ListView.ItemTemplate>
+                          <DataTemplate>
+                            <Grid Margin="0,0,0,12">
+                              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                              <Grid.ColumnDefinitions><ColumnDefinition Width="54" /><ColumnDefinition Width="*" /><ColumnDefinition Width="62" /></Grid.ColumnDefinitions>
+                              <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Label}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                              <ProgressBar Grid.Row="0" Grid.Column="1" Maximum="100" Value="{Binding WinRate}" Height="8" VerticalAlignment="Center" />
+                              <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding WinRateText}" Foreground="{ThemeResource AccentTextBrush}" FontSize="15" FontWeight="SemiBold" TextAlignment="Right" VerticalAlignment="Center" />
+                              <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SampleText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" Margin="0,3,0,0" />
+                            </Grid>
+                          </DataTemplate>
+                        </ListView.ItemTemplate>
+                      </ListView>
+                    </StackPanel>
+                  </Border>
+                  <Border BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,17">
+                    <StackPanel>
+                      <Grid>
+                        <StackPanel>
+                          <TextBlock Text="技能" Foreground="{ThemeResource AccentBrush}" FontSize="10" FontWeight="Bold" />
+                      <TextBlock Text="技能信息" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,14" />
+                        </StackPanel>
+                        <TextBlock x:Name="AbilityStatusText" Text="" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                      </Grid>
+                      <ListView x:Name="AbilityList" ItemsSource="{Binding SelectedAbilities}" IsItemClickEnabled="False" SelectionMode="None" BorderThickness="0" Padding="0">
+                        <ListView.ItemTemplate>
+                          <DataTemplate>
+                            <Border Padding="0,12" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="0,1,0,0">
+                              <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="46" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Image Grid.Column="0" Source="{Binding Image}" Width="46" Height="46" Stretch="UniformToFill" VerticalAlignment="Top" />
+                                <StackPanel Grid.Column="1" Margin="11,0,0,0">
+                          <TextBlock Text="{Binding Name}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                  <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,3,0,0">
+                            <TextBlock Text="{Binding CooldownText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" />
+                            <TextBlock Text="{Binding ManaCostText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" />
+                                  </StackPanel>
+                          <TextBlock Text="{Binding Description}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" TextWrapping="Wrap" LineHeight="20" Margin="0,7,0,0" />
+                          <TextBlock Text="{Binding TagsText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,7,0,0" />
+                          <TextBlock Text="{Binding Lore}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,7,0,0" />
+                                  <ItemsControl ItemsSource="{Binding Notes}" Margin="0,3,0,0">
+                                    <ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" /></DataTemplate></ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                  <TextBlock Text="{Binding ScepterText}" Foreground="{ThemeResource ScepterBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                  <TextBlock Text="{Binding ShardText}" Foreground="{ThemeResource ShardBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                </StackPanel>
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </ListView.ItemTemplate>
+                      </ListView>
+                    </StackPanel>
+                  </Border>
+                  <Border x:Name="TalentBorder" Visibility="Collapsed" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,17">
+                    <StackPanel>
+                      <TextBlock Text="天赋选择" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+                      <TextBlock Text="数值来自当前官方资料，左右为可选分支" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" Margin="0,4,0,10" />
+                      <ItemsControl ItemsSource="{Binding SelectedTalents}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Grid Margin="0,0,0,7" ColumnSpacing="8">
+                              <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                              <TextBlock Grid.Column="0" Text="{Binding LevelText}" Foreground="{ThemeResource AccentTextBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                              <TextBlock Grid.Column="1" Text="{Binding SideText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                              <Border Grid.Column="2" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" Padding="9,7">
+                                <TextBlock Text="{Binding Text}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                              </Border>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                  <Border x:Name="BuildBorder" Visibility="Collapsed" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,17">
+                    <StackPanel>
+                      <Grid>
+                        <TextBlock Text="推荐出装" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock x:Name="BuildStatusText" Text="" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                      </Grid>
+                      <TextBlock Text="按当前分段最近30天的出场率排序；不是固定购买顺序" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" Margin="0,4,0,10" TextWrapping="Wrap" />
+                      <ItemsControl ItemsSource="{Binding SelectedBuilds}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border Width="86" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" Padding="7" Margin="0,0,7,7">
+                              <StackPanel>
+                                <Grid>
+                                  <TextBlock Text="{Binding Order}" Foreground="{ThemeResource AccentTextBrush}" FontSize="11" FontWeight="Bold" />
+                                  <TextBlock Text="{Binding Phase}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Right" />
+                                </Grid>
+                                <Image Source="{Binding Image}" Width="48" Height="48" HorizontalAlignment="Center" Margin="0,5" />
+                                <TextBlock Text="{Binding Name}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="11" TextWrapping="Wrap" MaxLines="2" />
+                                <TextBlock Text="{Binding StatsText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="9" TextWrapping="Wrap" Margin="0,4,0,0" />
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                  <Border BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,17">
+                    <StackPanel>
+                      <TextBlock Text="实战提示" Foreground="{ThemeResource AccentBrush}" FontSize="10" FontWeight="Bold" />
+                      <TextBlock Text="实战小技巧" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,4" />
+                      <TextBlock Text="编辑整理 · 不是官方数值" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" Margin="0,0,0,10" />
+                      <ItemsControl ItemsSource="{Binding SelectedWikiTips}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,8">
+                              <StackPanel>
+                                <TextBlock Text="{Binding Title}" Foreground="{ThemeResource AccentTextBrush}" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Text}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </Border>
+          </Grid>
+        </Grid>
+
+        <Grid x:Name="ItemPage" Visibility="Collapsed" Padding="24,20,24,24" RowSpacing="14">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0" ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="物品资料库" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="26" FontWeight="SemiBold" />
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,5,0,0">
+                <TextBlock Text="物品名称 · 中文说明 · 最近30天统计" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                <TextBlock x:Name="ItemCountText" Text="正在同步数据" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="13" />
+              </StackPanel>
+            </StackPanel>
+            <TextBlock Grid.Column="1" x:Name="ItemSourceStatusText" Text="官方中文资料 + OpenDota · 目标版本 v7.41e" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+          </Grid>
+
+          <Grid Grid.Row="1" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="ItemSearchBox" Grid.Column="0" Height="38" MinWidth="220" PlaceholderText="搜索物品名称" TextChanged="ItemSearchBox_TextChanged" />
+            <ComboBox x:Name="ItemCategoryBox" Grid.Column="1" Height="38" SelectionChanged="ItemCategory_SelectionChanged" />
+            <Button Grid.Column="2" Width="38" Height="38" Padding="0" Click="ItemRefreshButton_Click" ToolTipService.ToolTip="刷新物品资料与统计"><SymbolIcon Symbol="Refresh" /></Button>
+          </Grid>
+
+          <Grid Grid.Row="2">
+            <TextBlock x:Name="ItemResultCountText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" VerticalAlignment="Center" />
+            <InfoBar x:Name="ItemErrorBar" IsOpen="False" IsClosable="False" Severity="Error" HorizontalAlignment="Center" MaxWidth="680" />
+          </Grid>
+
+          <Grid Grid.Row="3" ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" MinWidth="420" />
+              <ColumnDefinition Width="380" MinWidth="300" MaxWidth="460" />
+            </Grid.ColumnDefinitions>
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <GridView x:Name="ItemGrid" ItemsSource="{Binding VisibleItems}" SelectionMode="Single" SelectionChanged="ItemGrid_SelectionChanged" Padding="0" HorizontalAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Hidden">
+                <GridView.ItemsPanel>
+                  <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.ItemContainerStyle>
+                  <Style TargetType="GridViewItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0,0,12,12" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                  </Style>
+                </GridView.ItemContainerStyle>
+                <GridView.ItemTemplate>
+                  <DataTemplate>
+                    <Border Width="168" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="2" Padding="10">
+                      <StackPanel>
+                        <Border Height="108" Background="{ThemeResource SubtlePanelBrush}" CornerRadius="2">
+                          <Image Source="{Binding Image}" Stretch="Uniform" />
+                        </Border>
+                        <TextBlock Text="{Binding Name}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,10,0,0" />
+                        <TextBlock Text="{Binding TierText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" Margin="0,3,0,0" />
+                        <Grid Margin="0,9,0,0">
+                          <TextBlock Text="{Binding PicksText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                          <TextBlock Text="{Binding WinRateText}" Foreground="{ThemeResource AccentTextBrush}" FontSize="12" HorizontalAlignment="Right" />
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </GridView.ItemTemplate>
+              </GridView>
+            </ScrollViewer>
+
+            <Border Grid.Column="1" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" Padding="20">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                  <Border Height="190" Background="{ThemeResource SubtlePanelBrush}">
+                    <Image x:Name="ItemImage" Stretch="Uniform" />
+                  </Border>
+                  <TextBlock x:Name="ItemMetaText" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" Margin="0,18,0,0" />
+                  <TextBlock x:Name="ItemNameText" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  <TextBlock x:Name="ItemCostText" Foreground="{ThemeResource AccentTextBrush}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,9,0,0" />
+                  <Border BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="0,1,0,0" Margin="0,18,0,0" Padding="0,18,0,0">
+                    <StackPanel>
+                      <TextBlock Text="物品说明" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+                      <TextBlock x:Name="ItemDescriptionText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" LineHeight="21" TextWrapping="Wrap" Margin="0,10,0,0" />
+                      <TextBlock x:Name="ItemLoreText" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" FontStyle="Italic" TextWrapping="Wrap" Margin="0,12,0,0" />
+                      <ItemsControl x:Name="ItemNotes" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0" /></DataTemplate></ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Border x:Name="ItemRecipeBorder" Visibility="Collapsed" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,14,0,0">
+                        <StackPanel>
+                          <TextBlock Text="合成路线" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" />
+                          <ItemsControl x:Name="ItemRecipeItems" Margin="0,8,0,0">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid MaximumRowsOrColumns="3" Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <StackPanel Width="90" Margin="0,0,8,8">
+                                  <Image Source="{Binding ImageUrl}" Width="42" Height="42" HorizontalAlignment="Center" />
+                                   <TextBlock Text="{Binding DisplayName}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="10" TextWrapping="Wrap" TextAlignment="Center" Margin="0,4,0,0" />
+                                  <TextBlock Text="{Binding CountText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" TextAlignment="Center" />
+                                </StackPanel>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </Border>
+          </Grid>
+        </Grid>
+
+        <Grid x:Name="CoachPage" Visibility="Collapsed" Padding="24,20,24,24" RowSpacing="14">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0" ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="实时教练" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="26" FontWeight="SemiBold" />
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,5,0,0">
+                <TextBlock Text="Dota 2 Game State Integration · 本地闭环 · 确定性规则" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                <TextBlock x:Name="CoachStatusText" Text="已停止" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="13" />
+              </StackPanel>
+            </StackPanel>
+            <TextBlock Grid.Column="1" x:Name="CoachEndpointText" Text="--" Foreground="{ThemeResource AccentTextBrush}" FontSize="12" VerticalAlignment="Center" />
+          </Grid>
+
+          <Grid Grid.Row="1" ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.2*" MinWidth="360" />
+              <ColumnDefinition Width="1*" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="2" Padding="18,16">
+              <StackPanel>
+                <TextBlock Text="连接与对局" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
+                <Grid ColumnSpacing="16" RowSpacing="9">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="连接状态" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="0" Grid.Column="1" x:Name="CoachConnectionText" Text="未连接" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="最近快照" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" x:Name="CoachLastSnapshotText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                  <TextBlock Grid.Row="2" Grid.Column="0" Text="快照数量" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" x:Name="CoachSnapshotCountText" Text="0" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                  <TextBlock Grid.Row="3" Grid.Column="0" Text="当前比赛" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="3" Grid.Column="1" x:Name="CoachMatchIdText" Text="--" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
+                  <TextBlock Grid.Row="4" Grid.Column="0" Text="阶段 / 时间" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="12">
+                    <TextBlock x:Name="CoachPhaseText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                    <TextBlock x:Name="CoachGameTimeText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="5" Grid.Column="0" Text="比分" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="5" Grid.Column="1" x:Name="CoachScoreText" Text="--" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="2" Padding="18,16">
+              <StackPanel>
+                <TextBlock Text="我的英雄" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
+                <Grid ColumnSpacing="16" RowSpacing="9">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="英雄" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="0" Grid.Column="1" x:Name="CoachHeroNameText" Text="--" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="等级" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" x:Name="CoachHeroLevelText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                  <TextBlock Grid.Row="2" Grid.Column="0" Text="生命" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <StackPanel Grid.Row="2" Grid.Column="1">
+                    <ProgressBar x:Name="CoachHpBar" Maximum="100" Height="6" />
+                    <TextBlock x:Name="CoachHpText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" Margin="0,3,0,0" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="3" Grid.Column="0" Text="魔法" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <StackPanel Grid.Row="3" Grid.Column="1">
+                    <ProgressBar x:Name="CoachManaBar" Maximum="100" Height="6" />
+                    <TextBlock x:Name="CoachManaText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" Margin="0,3,0,0" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="4" Grid.Column="0" Text="状态" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="4" Grid.Column="1" x:Name="CoachHeroStatusText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                  <TextBlock Grid.Row="5" Grid.Column="0" Text="战绩" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="5" Grid.Column="1" x:Name="CoachHeroStatsText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                  <TextBlock Grid.Row="6" Grid.Column="0" Text="经济" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="6" Grid.Column="1" x:Name="CoachHeroGoldText" Text="--" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                </Grid>
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <Border Grid.Row="2" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="2" Padding="18,16">
+            <Grid RowSpacing="10">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Text="教练提醒" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock x:Name="CoachAdviceCountText" Text="0 条" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="清空" Click="CoachClearButton_Click" />
+              </Grid>
+              <ListView Grid.Row="1" x:Name="AdviceList" ItemsSource="{Binding CoachAdvices}" SelectionMode="None" BorderThickness="0" Padding="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListView.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="0,0,0,10" BorderBrush="{Binding Severity, Converter={StaticResource SeverityBrushConverter}}" BorderThickness="1" Background="{ThemeResource SubtlePanelBrush}" CornerRadius="2" Padding="12,10">
+                      <StackPanel>
+                        <Grid>
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Border Background="{Binding Severity, Converter={StaticResource SeverityBrushConverter}}" Padding="8,2" CornerRadius="2">
+                              <TextBlock Text="{Binding SeverityText}" Foreground="{ThemeResource OnAccentBrush}" FontSize="10" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Text="{Binding Title}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding GameTimeText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding TimeText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                          </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding Message}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding EvidenceText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListView.ItemTemplate>
+              </ListView>
+            </Grid>
+          </Border>
+
+          <Border Grid.Row="3" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="2" Padding="18,16">
+            <StackPanel>
+              <TextBlock Text="GSI 配置" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
+              <Grid ColumnSpacing="10" RowSpacing="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="端口" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="CoachPortBox" Text="4444" Height="34" />
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Token（可选）" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                <TextBox Grid.Row="0" Grid.Column="3" x:Name="CoachTokenBox" Height="34" PlaceholderText="留空则不校验" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="cfg 目录（可选）" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" x:Name="CoachPathBox" Height="34" PlaceholderText="留空则自动探测 Steam 库路径" />
+              </Grid>
+              <CheckBox x:Name="CoachAutoStartBox" Content="应用启动时自动监听 GSI" IsChecked="True" Margin="0,10,0,0" />
+              <StackPanel Margin="0,12,0,0" Spacing="8">
+                <CheckBox x:Name="SmartCoachEnabledBox" Content="启用智能解释（可选，本地模型不参与实时规则判断）" />
+                <Grid ColumnSpacing="10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="170" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Grid.Column="0" Text="模型服务" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" x:Name="LocalModelEndpointBox" Text="http://127.0.0.1:11434" Height="34" />
+                  <TextBlock Grid.Column="2" Text="模型" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="3" x:Name="LocalModelNameBox" Text="qwen2.5:1.5b" Height="34" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Button Content="检测本地模型" Click="SmartCoachProbeButton_Click" />
+                  <Button Content="下载离线模型" Click="SmartCoachPullButton_Click" />
+                  <TextBlock x:Name="SmartCoachStatusText" Text="规则引擎无需模型" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                </StackPanel>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,12,0,0">
+                <Button x:Name="CoachToggleButton" Content="启动监听" Click="CoachToggleButton_Click" />
+                <Button Content="安装配置到 Dota 2" Click="CoachInstallButton_Click" />
+                <Button Content="导出配置文件" Click="CoachExportButton_Click" />
+                <Button Content="复制配置" Click="CoachCopyButton_Click" />
+                <Button Content="选择目录" Click="CoachBrowseButton_Click" />
+                <Button Content="打开 cfg 目录" Click="CoachOpenCfgButton_Click" />
+              </StackPanel>
+              <InfoBar x:Name="CoachInfoBar" IsOpen="False" Severity="Informational" Margin="0,10,0,0" />
+              <TextBlock Text="GSI 日志" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" Margin="0,10,0,4" />
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,4">
+                <TextBlock Text="原始快照记录：%LOCALAPPDATA%\AegisCoach\gsi\（已脱敏 token）" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Button Content="打开目录" Click="CoachOpenSnapshotsButton_Click" Padding="10,4" />
+              </StackPanel>
+              <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" Padding="8" MaxHeight="120">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <TextBlock x:Name="CoachLogText" Text="尚未启动" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" FontFamily="Consolas" TextWrapping="Wrap" />
+                </ScrollViewer>
+              </Border>
+            </StackPanel>
+          </Border>
+        </Grid>
+        </Grid>
+      </NavigationView.Content>
+    </NavigationView>
+  </Grid>
+</Window>
+
+
+

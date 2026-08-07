@@ -1,0 +1,16 @@
+# Build output
+.build/
+**/bin/
+**/obj/
+
+# Visual Studio local state
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local environment and generated logs
+.env
+*.log
+
