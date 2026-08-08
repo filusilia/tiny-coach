@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AegisCoach.Native.Data;
 using AegisCoach.Native.Models;
 
 namespace AegisCoach.Native.Services;
@@ -22,9 +23,20 @@ public sealed class DotaDataService
     {
         Timeout = TimeSpan.FromSeconds(30),
     };
-    private readonly string _cacheDirectory = Path.Combine(
+    private string _cacheDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AegisCoach");
+        "AegisCoach",
+        "cache");
+
+    /// <summary>资料缓存目录，可在设置页自定义；修改后新的缓存读写生效。</summary>
+    public string CacheDirectory
+    {
+        get => _cacheDirectory;
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value)) _cacheDirectory = value;
+        }
+    }
 
     public DotaDataService()
     {
@@ -39,14 +51,24 @@ public sealed class DotaDataService
             var cached = await ReadFileAsync<DotaCatalog>(cachePath, cancellationToken);
             if (cached is not null)
             {
+                // 技能/天赋定义先读本地持久化缓存（离线也能拿到天赋数值），再尝试联网刷新。
+                cached.HeroAbilities = await ReadFileAsync<Dictionary<string, HeroAbilityMap>>(
+                    HeroAbilitiesCachePath, cancellationToken) ?? [];
+                cached.Abilities = await ReadFileAsync<Dictionary<string, AbilityDefinition>>(
+                    AbilitiesCachePath, cancellationToken) ?? [];
                 try
                 {
-                    var cachedHeroAbilitiesTask = GetOpenDotaAsync<Dictionary<string, HeroAbilityMap>>("/constants/hero_abilities", cancellationToken);
-                    var cachedAbilitiesTask = GetOpenDotaAsync<Dictionary<string, AbilityDefinition>>("/constants/abilities", cancellationToken);
                     var cachedOfficialHeroesTask = TryGetDotaFeedAsync<HeroListData>("/herolist?language=schinese", cancellationToken);
-                    await Task.WhenAll(cachedHeroAbilitiesTask, cachedAbilitiesTask, cachedOfficialHeroesTask);
-                    cached.HeroAbilities = cachedHeroAbilitiesTask.Result;
-                    cached.Abilities = cachedAbilitiesTask.Result;
+                    var freshHeroAbilitiesTask = RefreshAbilitiesCacheAsync(cancellationToken);
+                    await Task.WhenAll(cachedOfficialHeroesTask, freshHeroAbilitiesTask);
+                    if (freshHeroAbilitiesTask.Result)
+                    {
+                        cached.HeroAbilities = await ReadFileAsync<Dictionary<string, HeroAbilityMap>>(
+                            HeroAbilitiesCachePath, cancellationToken) ?? cached.HeroAbilities;
+                        cached.Abilities = await ReadFileAsync<Dictionary<string, AbilityDefinition>>(
+                            AbilitiesCachePath, cancellationToken) ?? cached.Abilities;
+                    }
+
                     var cachedNames = cachedOfficialHeroesTask.Result?.Heroes
                         .Where(hero => hero.Id > 0 && !string.IsNullOrWhiteSpace(hero.LocalizedName))
                         .ToDictionary(hero => hero.Id, hero => hero.LocalizedName) ?? [];
@@ -89,8 +111,31 @@ public sealed class DotaDataService
         };
 
         await WriteFileAsync(cachePath, catalog, cancellationToken);
+        await WriteFileAsync(HeroAbilitiesCachePath, catalog.HeroAbilities, cancellationToken);
+        await WriteFileAsync(AbilitiesCachePath, catalog.Abilities, cancellationToken);
         return catalog;
     }
+
+    private async Task<bool> RefreshAbilitiesCacheAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var heroAbilitiesTask = GetOpenDotaAsync<Dictionary<string, HeroAbilityMap>>("/constants/hero_abilities", cancellationToken);
+            var abilitiesTask = GetOpenDotaAsync<Dictionary<string, AbilityDefinition>>("/constants/abilities", cancellationToken);
+            await Task.WhenAll(heroAbilitiesTask, abilitiesTask);
+            await WriteFileAsync(HeroAbilitiesCachePath, heroAbilitiesTask.Result, cancellationToken);
+            await WriteFileAsync(AbilitiesCachePath, abilitiesTask.Result, cancellationToken);
+            return true;
+        }
+        catch
+        {
+            // 联网刷新失败时保留旧缓存，天赋数值仍可离线解析。
+            return false;
+        }
+    }
+
+    private string HeroAbilitiesCachePath => CachePath("hero-abilities");
+    private string AbilitiesCachePath => CachePath("abilities");
 
     public async Task<LocalizedHeroData> LoadLocalizedHeroAsync(int heroId, bool force, CancellationToken cancellationToken)
     {
@@ -154,9 +199,7 @@ public sealed class DotaDataService
             if (cached is { Count: > 0 }) return cached;
         }
 
-        var rankFilter = rankId == "all"
-            ? string.Empty
-            : $" AND m.avg_rank_tier >= {int.Parse(rankId) * 10} AND m.avg_rank_tier < {(int.Parse(rankId) + 1) * 10}";
+        // OpenDota 当前 schema 已不含 avg_rank_tier，分段过滤会 400；统一按最近 30 天全分段统计。
         var sql = $@"
 SELECT item_id,
        COUNT(*) AS picks,
@@ -165,14 +208,12 @@ FROM (
     SELECT pm.player_slot,
            pm.hero_id,
            m.radiant_win,
-           m.avg_rank_tier,
            m.start_time,
            unnest(ARRAY[pm.item_0, pm.item_1, pm.item_2, pm.item_3, pm.item_4, pm.item_5]) AS item_id
     FROM player_matches pm
     JOIN matches m ON pm.match_id = m.match_id
     WHERE pm.hero_id = {heroId}
       AND m.start_time > extract(epoch from now() - interval '30 days')
-      {rankFilter.TrimStart()}
 ) recent_hero_items
 WHERE item_id > 0
 GROUP BY item_id
@@ -206,7 +247,7 @@ LIMIT 24";
     private async Task<List<OfficialItemSummary>> LoadOpenDotaItemsAsync(CancellationToken cancellationToken)
     {
         var constants = await GetOpenDotaAsync<Dictionary<string, OpenDotaItem>>("/constants/items", cancellationToken);
-        var items = constants
+        var allItems = constants
             .Where(pair => pair.Value is not null)
             .Select(pair =>
             {
@@ -227,18 +268,22 @@ LIMIT 24";
                     .Select(group => new ItemRecipeComponent { Name = group.Key, Count = group.Count() }));
                 return summary;
             })
-            .Where(IsCurrentItem)
             .GroupBy(item => item.Id)
             .Select(group => group.First())
             .OrderBy(item => item.LocalizedName, StringComparer.CurrentCulture)
             .ToList();
-        var byName = items.ToDictionary(item => item.Name, StringComparer.OrdinalIgnoreCase);
+        var items = allItems.Where(IsCurrentItem).ToList();
+        foreach (var item in items) ApplyNeutralTier(item);
+        // 用全量（含卷轴）建索引：合成路线组件与卷轴都从这里解析。
+        var byName = allItems.ToDictionary(item => item.Name, StringComparer.OrdinalIgnoreCase);
         foreach (var item in items)
         {
             for (var index = 0; index < item.RecipeComponents.Count; index++)
             {
                 var component = item.RecipeComponents[index];
-                if (byName.TryGetValue(component.Name, out var componentItem))
+                var matched = byName.TryGetValue(component.Name, out var componentItem)
+                    || byName.TryGetValue("item_" + component.Name, out componentItem);
+                if (matched && componentItem is not null)
                 {
                     item.RecipeComponents[index] = new ItemRecipeComponent
                     {
@@ -248,6 +293,23 @@ LIMIT 24";
                         EnglishName = componentItem.EnglishName,
                         Count = component.Count,
                     };
+                }
+            }
+
+            // OpenDota 的 components 不含卷轴；这里按内部名补上卷轴组件，展示完整合成路线。
+            if (item.RecipeComponents.Count > 0)
+            {
+                var shortName = item.Name.StartsWith("item_", StringComparison.OrdinalIgnoreCase) ? item.Name[5..] : item.Name;
+                if (byName.TryGetValue("item_recipe_" + shortName, out var recipe) && recipe is not null)
+                {
+                    item.RecipeComponents.Add(new ItemRecipeComponent
+                    {
+                        Id = recipe.Id,
+                        Name = recipe.Name,
+                        LocalizedName = "卷轴",
+                        EnglishName = recipe.EnglishName,
+                        Count = 1,
+                    });
                 }
             }
         }
@@ -266,7 +328,11 @@ LIMIT 24";
             {
                 if (!byId.TryGetValue(item.Id, out var source) || source.RecipeComponents.Count == 0) continue;
                 item.RecipeComponents.Clear();
-                item.RecipeComponents.AddRange(source.RecipeComponents);
+                // 过滤掉已移除版本的组件（如旧合成件），但保留卷轴（合成路线需要展示）。
+                item.RecipeComponents.AddRange(source.RecipeComponents
+                    .Where(component =>
+                        component.Name.StartsWith("item_recipe_", StringComparison.OrdinalIgnoreCase) ||
+                        CurrentItemCatalog.IsCurrent(component.Name)));
             }
         }
         catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException)
@@ -277,17 +343,64 @@ LIMIT 24";
         return items;
     }
 
-    public static List<OfficialItemSummary> FilterCurrentItems(IEnumerable<OfficialItemSummary> items) =>
-        items.Where(IsCurrentItem).GroupBy(item => item.Id).Select(group => group.First()).ToList();
+    public static List<OfficialItemSummary> FilterCurrentItems(IEnumerable<OfficialItemSummary> items)
+    {
+        var filtered = items.Where(IsCurrentItem).GroupBy(item => item.Id).Select(group => group.First()).ToList();
+        foreach (var item in filtered) ApplyNeutralTier(item);
+        return filtered;
+    }
 
+    /// <summary>OpenDota 英雄物品热度：各阶段购买次数（key 为物品 ID）。</summary>
+    public sealed class HeroItemPopularity
+    {
+        [JsonPropertyName("start_game_items")] public Dictionary<int, int> StartGameItems { get; set; } = [];
+        [JsonPropertyName("early_game_items")] public Dictionary<int, int> EarlyGameItems { get; set; } = [];
+        [JsonPropertyName("mid_game_items")] public Dictionary<int, int> MidGameItems { get; set; } = [];
+        [JsonPropertyName("late_game_items")] public Dictionary<int, int> LateGameItems { get; set; } = [];
+    }
+
+    public sealed class HeroMatchupStat
+    {
+        [JsonPropertyName("hero_id")] public int HeroId { get; set; }
+        [JsonPropertyName("games_played")] public int GamesPlayed { get; set; }
+        [JsonPropertyName("wins")] public int Wins { get; set; }
+
+        [JsonIgnore]
+        public double WinRate => GamesPlayed > 0 ? Wins * 100d / GamesPlayed : 0;
+    }
+
+    public async Task<HeroItemPopularity> GetHeroItemPopularityAsync(int heroId, CancellationToken cancellationToken)
+    {
+        var result = await GetOpenDotaAsync<HeroItemPopularity>($"/heroes/{heroId}/itemPopularity", cancellationToken);
+        return result ?? new HeroItemPopularity();
+    }
+
+    public async Task<List<HeroMatchupStat>> GetHeroMatchupsAsync(int heroId, CancellationToken cancellationToken)
+    {
+        var result = await GetOpenDotaAsync<List<HeroMatchupStat>>($"/heroes/{heroId}/matchups", cancellationToken);
+        return result ?? [];
+    }
+
+    /// <summary>
+    /// 以当前版本游戏文件（商店页签 + 中立分层 + 肉山/升级/特殊物品）为准判定物品是否属于当前版本。
+    /// 官方数据源 itemlist 会包含全部历史定义，因此用白名单（而非黑名单）过滤。
+    /// </summary>
     private static bool IsCurrentItem(OfficialItemSummary item)
     {
         if (item.Id <= 0 || item.IsRecipe || string.IsNullOrWhiteSpace(item.Name)) return false;
-        var name = item.Name.ToLowerInvariant();
-        if (name.Contains("_recipe_") || name.Contains("courier") || name.Contains("tango_single")) return false;
-        return name is not "item_stout_shield" and not "item_iron_talon" and not "item_ring_of_aquila"
-            and not "item_necronomicon" and not "item_necronomicon_2" and not "item_necronomicon_3"
-            and not "item_pennant";
+        var name = item.Name;
+        if (name.Contains("_recipe_", StringComparison.OrdinalIgnoreCase)) return false;
+        if (name.Equals("item_tango_single", StringComparison.OrdinalIgnoreCase)) return false;
+        return CurrentItemCatalog.IsCurrent(name);
+    }
+
+    /// <summary>为当前目录中的中立物品写入真实中立等级，供页面分类与展示。</summary>
+    private static void ApplyNeutralTier(OfficialItemSummary item)
+    {
+        if (CurrentItemCatalog.IsNeutralItem(item.Name))
+        {
+            item.NeutralTier = CurrentItemCatalog.NeutralTier(item.Name);
+        }
     }
 
     public async Task<Dictionary<int, ItemMetric>> LoadItemMetricsAsync(bool force, CancellationToken cancellationToken)
@@ -437,8 +550,22 @@ GROUP BY item_id";
     private async Task WriteFileAsync<T>(string path, T value, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_cacheDirectory);
-        await using var stream = File.Create(path);
-        await JsonSerializer.SerializeAsync(stream, value, JsonOptions, cancellationToken);
+        var tempPath = path + ".tmp";
+        try
+        {
+            await using (var stream = File.Create(tempPath))
+            {
+                await JsonSerializer.SerializeAsync(stream, value, JsonOptions, cancellationToken);
+            }
+
+            // 先完整序列化到临时文件再原子替换，避免上次失败的截断文件长期污染缓存。
+            File.Move(tempPath, path, overwrite: true);
+        }
+        catch
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* 尽力清理 */ }
+            throw;
+        }
     }
 
     private sealed class DatafeedEnvelope<T>

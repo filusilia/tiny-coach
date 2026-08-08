@@ -20,8 +20,16 @@ internal static class Program
         TestMatchSnapshotParsing();
         TestUltimateEdge();
         TestCompositeCoachRules();
+        TestConfigurableCoachRules();
+        TestNewCoachRules();
         await TestTokenRejection();
         TestSnapshotRecorder();
+        TestSnapshotReplay();
+        TestMatchOperationExtractor();
+        TestApiMatchAnalyzer();
+        TestApiMatchAnalyzerRealFile();
+        TestItemRecommendation();
+        TestMatchSessionTracker();
 
         Console.WriteLine();
         Console.WriteLine($"通过 {_passed}，失败 {_failed}");
@@ -97,6 +105,8 @@ internal static class Program
         Check(cfg.Contains("http://127.0.0.1:4444/"), "配置包含监听地址与端口");
         Check(cfg.Contains("test-token-123"), "配置包含 token");
         Check(cfg.Contains("\"hero\" \"1\""), "配置启用 hero 数据");
+        Check(cfg.Contains("\"buildings\" \"1\""), "配置启用 buildings 数据");
+        Check(cfg.Contains("\"roshan\" \"1\""), "配置启用 roshan 数据");
         Check(GsiConfigInstaller.CfgFileName == "gamestate_integration_aegiscoach.cfg", "配置文件名符合 GSI 规范");
         Console.WriteLine($"    Dota 2 cfg 目录探测结果：{GsiConfigInstaller.LocateDotaCfgDirectory() ?? "未找到"}");
     }
@@ -198,6 +208,26 @@ internal static class Program
         };
         Check(new CoachRuleEngine().Evaluate(null, dead).Any(item => item.Id == "buyback_window"), "买活窗口规则触发");
     }
+    private static void TestConfigurableCoachRules()
+    {
+        Console.WriteLine("[7] 可配置规则设置");
+        var options = new CoachRuleOptions
+        {
+            EnableLowHealth = false,
+            LowManaPercent = 40,
+            CooldownSeconds = new Dictionary<string, int> { ["low_mana"] = 1 },
+        };
+        var engine = new CoachRuleEngine(options: options);
+        var snapshot = new MatchSnapshot
+        {
+            Phase = GamePhase.InProgress,
+            Hero = new HeroState { Alive = true, MaxHealth = 100, HealthPercent = 10, MaxMana = 100, ManaPercent = 35 },
+        };
+        var advice = engine.Evaluate(null, snapshot);
+        Check(advice.All(item => item.Id != "low_health"), "关闭低血规则后不提醒");
+        Check(advice.Any(item => item.Id == "low_mana"), "低魔阈值可调整");
+        Check(engine.Cooldowns["low_mana"] == TimeSpan.FromSeconds(1), "规则冷却可以调整");
+    }
 
     private static async Task TestTokenRejection()
     {
@@ -216,6 +246,117 @@ internal static class Program
         await Task.Delay(150);
         Check(received == 1, "正确 token 的快照被接受");
         receiver.Stop();
+    }
+
+    private static void TestNewCoachRules()
+    {
+        Console.WriteLine("[7.5] 烟雾/天黑/建筑/肉山/道具技能就绪/关键时间点");
+        var baseSnapshot = BuildMatchSnapshot(gameTime: 300);
+
+        var withSmoke = BuildMatchSnapshot(gameTime: 300, items: new[]
+        {
+            new ItemState { Slot = "slot0", SlotKind = ItemSlotKind.Main, Name = "item_smoke_of_deceit" },
+        });
+        Check(AdviceIds(new CoachRuleEngine(), baseSnapshot, withSmoke).Contains("smoke_purchased"), "购入烟雾触发提醒");
+        Check(AdviceIds(new CoachRuleEngine(), withSmoke, baseSnapshot).Contains("smoke_used"), "烟雾消失触发提醒");
+
+        var smoked = BuildMatchSnapshot(gameTime: 300, smoked: true);
+        Check(AdviceIds(new CoachRuleEngine(), baseSnapshot, smoked).Contains("smoked_active"), "处于烟雾状态触发提醒");
+
+        var night = BuildMatchSnapshot(gameTime: 300, daytime: false);
+        Check(AdviceIds(new CoachRuleEngine(), baseSnapshot, night).Contains("night_fall"), "天黑触发视野提醒");
+
+        var withTower = BuildMatchSnapshot(gameTime: 300, team: "radiant", buildings: new[]
+        {
+            new BuildingState { Team = "radiant", TeamLabel = "天辉", Key = "radiant_top_tower1", Label = "上一塔", Alive = true, HealthPercent = 100 },
+        });
+        var towerGone = BuildMatchSnapshot(gameTime: 300, team: "radiant", buildings: new[]
+        {
+            new BuildingState { Team = "radiant", TeamLabel = "天辉", Key = "radiant_top_tower1", Label = "上一塔", Alive = false, HealthPercent = 0 },
+        });
+        Check(AdviceIds(new CoachRuleEngine(), withTower, towerGone).Contains("building_destroyed"), "建筑被摧毁触发提醒");
+
+        var roshanAlive = BuildMatchSnapshot(gameTime: 300, roshanAlive: true);
+        var roshanDead = BuildMatchSnapshot(gameTime: 300, roshanAlive: false);
+        Check(AdviceIds(new CoachRuleEngine(), roshanAlive, roshanDead).Contains("roshan_killed"), "肉山被击杀触发提醒");
+        Check(AdviceIds(new CoachRuleEngine(), roshanDead, roshanAlive).Contains("roshan_respawned"), "肉山复活触发提醒");
+
+        var itemCooling = BuildMatchSnapshot(gameTime: 300, items: new[]
+        {
+            new ItemState { Slot = "slot0", SlotKind = ItemSlotKind.Main, Name = "item_blink", CanCast = true, Cooldown = 14 },
+        });
+        var itemReady = BuildMatchSnapshot(gameTime: 300, items: new[]
+        {
+            new ItemState { Slot = "slot0", SlotKind = ItemSlotKind.Main, Name = "item_blink", CanCast = true, Cooldown = 0 },
+        });
+        Check(AdviceIds(new CoachRuleEngine(), itemCooling, itemReady).Contains("item_ready"), "主动道具冷却完成触发提醒");
+
+        var abilityCooling = BuildMatchSnapshot(gameTime: 300, abilities: new[]
+        {
+            new AbilityState { Slot = "ability_1", Name = "antimage_blink", Level = 4, CanCast = true, Cooldown = 15 },
+        });
+        var abilityReady = BuildMatchSnapshot(gameTime: 300, abilities: new[]
+        {
+            new AbilityState { Slot = "ability_1", Name = "antimage_blink", Level = 4, CanCast = true, Cooldown = 0 },
+        });
+        Check(AdviceIds(new CoachRuleEngine(), abilityCooling, abilityReady).Contains("ability_ready"), "关键技能就绪触发提醒");
+
+        var before10 = BuildMatchSnapshot(gameTime: 590);
+        var after10 = BuildMatchSnapshot(gameTime: 610);
+        Check(AdviceIds(new CoachRuleEngine(), before10, after10).Contains("map_awareness"), "10 分钟敌方动向提醒触发");
+
+        // 槽位分类：背包 / 中立 / 回城
+        var classified = MatchSnapshot.FromGsi(new GsiSnapshot
+        {
+            Map = new GsiMap { GameState = "DOTA_GAMERULES_STATE_GAME_IN_PROGRESS", MatchId = 1 },
+            Items = new Dictionary<string, GsiItem>
+            {
+                ["slot6"] = new() { Name = "item_dust" },
+                ["neutral0"] = new() { Name = "item_trusty_shovel" },
+                ["teleport"] = new() { Name = "item_tpscroll" },
+            },
+        });
+        Check(classified.Items.Any(item => item.Slot == "slot6" && item.SlotKind == ItemSlotKind.Backpack), "slot6 归类为背包");
+        Check(classified.Items.Any(item => item.Slot == "neutral0" && item.SlotKind == ItemSlotKind.Neutral), "neutral0 归类为中立栏");
+        Check(classified.Items.Any(item => item.Slot == "teleport" && item.SlotKind == ItemSlotKind.Teleport), "teleport 归类为回城栏");
+
+        var disabled = new CoachRuleEngine(options: new CoachRuleOptions
+        {
+            EnableSmoke = false,
+            EnableSmokedState = false,
+            EnableNightFall = false,
+            EnableBuildings = false,
+            EnableRoshan = false,
+            EnableItemReady = false,
+            EnableAbilityReady = false,
+            EnableMapAwareness = false,
+        });
+        Check(AdviceIds(disabled, withSmoke, baseSnapshot).All(id => id is not ("smoke_used" or "night_fall")), "关闭新规则后不触发");
+    }
+
+    private static MatchSnapshot BuildMatchSnapshot(
+        double gameTime, bool daytime = true, bool? roshanAlive = null, string? team = "radiant",
+        IReadOnlyList<ItemState>? items = null, IReadOnlyList<AbilityState>? abilities = null,
+        IReadOnlyList<BuildingState>? buildings = null, bool smoked = false)
+    {
+        return new MatchSnapshot
+        {
+            Phase = GamePhase.InProgress,
+            MatchId = 12345,
+            GameTime = gameTime,
+            Daytime = daytime,
+            RoshanAlive = roshanAlive,
+            Hero = new HeroState { Id = 1, Alive = true, IsSmoked = smoked, MaxHealth = 1000, HealthPercent = 100, MaxMana = 500, ManaPercent = 100 },
+            Player = new PlayerState { TeamName = team, Gold = 3000 },
+            Items = items ?? [],
+            Abilities = abilities ?? [],
+            Buildings = buildings ?? [],
+        };
+    }
+
+    private static List<string> AdviceIds(CoachRuleEngine engine, MatchSnapshot previous, MatchSnapshot current)
+    {
+        return engine.Evaluate(previous, current).Select(item => item.Id).ToList();
     }
 
     private static void TestSnapshotRecorder()
@@ -237,6 +378,293 @@ internal static class Program
         Check(json?["snapshot"]?["map"]?["matchid"]?.GetValue<int>() == 9876, "记录保留快照字段");
         Check(json?["snapshot"]?["auth"]?["token"]?.GetValue<string>() == "[REDACTED]", "记录中的 token 已脱敏");
     }
+
+    private static void TestSnapshotReplay()
+    {
+        Console.WriteLine("[9] NDJSON 离线回放");
+        var directory = Path.Combine(Path.GetTempPath(), "AegisCoachSmoke", Guid.NewGuid().ToString("N"));
+        var recorder = new GsiSnapshotRecorder(directory);
+        var first = BuildSnapshot(100, 100, 60, true, 120);
+        var second = BuildSnapshot(20, 80, 40, true, 180);
+        var baseTime = new DateTimeOffset(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
+
+        try
+        {
+            Check(recorder.Record(JsonSerializer.SerializeToUtf8Bytes(first), baseTime), "回放样本 1 写入成功");
+            Check(recorder.Record(JsonSerializer.SerializeToUtf8Bytes(second), baseTime.AddSeconds(2)), "回放样本 2 写入成功");
+
+            var result = new GsiReplayService().Replay(directory);
+            Check(result.FilesRead == 1 && result.Frames.Count == 2, "回放读取两条有效快照");
+            Check(result.Issues.Count == 0, "回放没有解析错误");
+            Check(result.Advice.Any(item => item.Id == "low_health"), "回放重新触发低血量规则");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static void TestMatchOperationExtractor()
+    {
+        Console.WriteLine("[9a] 回放操作提取（技能/道具/购买/阵亡/买活）");
+        var directory = Path.Combine(Path.GetTempPath(), "AegisCoachSmoke", Guid.NewGuid().ToString("N"));
+        var recorder = new GsiSnapshotRecorder(directory);
+        var baseTime = new DateTimeOffset(2026, 8, 8, 12, 0, 0, TimeSpan.Zero);
+
+        try
+        {
+            var frames = new List<GsiSnapshot>();
+            frames.Add(BuildOpFrame(60, alive: true, kills: 0, deaths: 0, lh: 20, gold: 2500, hp: 100, blinkCd: 0, bkbCd: 0, ultCd: 0, hasBkb: false));
+            frames.Add(BuildOpFrame(61, alive: true, kills: 0, deaths: 0, lh: 20, gold: 2500, hp: 100, blinkCd: 15, bkbCd: 0, ultCd: 0, hasBkb: false));
+            frames.Add(BuildOpFrame(65, alive: true, kills: 0, deaths: 0, lh: 21, gold: 1900, hp: 100, blinkCd: 12, bkbCd: 0, ultCd: 0, hasBkb: true));
+            frames.Add(BuildOpFrame(70, alive: true, kills: 0, deaths: 0, lh: 21, gold: 1900, hp: 100, blinkCd: 9, bkbCd: 90, ultCd: 0, hasBkb: true));
+            frames.Add(BuildOpFrame(75, alive: true, kills: 0, deaths: 0, lh: 22, gold: 1900, hp: 100, blinkCd: 6, bkbCd: 85, ultCd: 70, hasBkb: true));
+            frames.Add(BuildOpFrame(90, alive: true, kills: 0, deaths: 0, lh: 24, gold: 2600, hp: 25, blinkCd: 0, bkbCd: 70, ultCd: 0, hasBkb: true));
+            frames.Add(BuildOpFrame(95, alive: false, kills: 0, deaths: 1, lh: 24, gold: 2600, hp: 0, blinkCd: 0, bkbCd: 70, ultCd: 0, hasBkb: true, buybackCost: 1200, buybackCd: 0));
+            frames.Add(BuildOpFrame(100, alive: false, kills: 0, deaths: 1, lh: 24, gold: 1300, hp: 0, blinkCd: 0, bkbCd: 70, ultCd: 0, hasBkb: true, buybackCost: 1200, buybackCd: 480));
+            frames.Add(BuildOpFrame(105, alive: true, kills: 0, deaths: 1, lh: 24, gold: 1300, hp: 100, blinkCd: 0, bkbCd: 70, ultCd: 0, hasBkb: true, buybackCost: 1200, buybackCd: 480));
+            frames.Add(BuildOpFrame(120, alive: true, kills: 1, deaths: 1, lh: 30, gold: 1500, hp: 100, blinkCd: 0, bkbCd: 60, ultCd: 70, hasBkb: true, streak: 2));
+            frames.Add(BuildOpFrame(300, alive: true, kills: 1, deaths: 1, lh: 60, gold: 3000, hp: 100, blinkCd: 0, bkbCd: 30, ultCd: 0, hasBkb: true, level: 18));
+
+            // 跨局过滤：另一场比赛的记录不应进入提取结果。
+            var otherMatch = BuildOpFrame(30, alive: true, kills: 9, deaths: 0, lh: 99, gold: 9999, hp: 100, blinkCd: 0, bkbCd: 0, ultCd: 0, hasBkb: true);
+            otherMatch.Map!.MatchId = 99999;
+            frames.Add(otherMatch);
+
+            for (var index = 0; index < frames.Count; index++)
+            {
+                Check(recorder.Record(JsonSerializer.SerializeToUtf8Bytes(frames[index]), baseTime.AddSeconds(index * 2)),
+                    $"操作样本 {index + 1} 写入成功");
+            }
+
+            var summary = new MatchOperationExtractor().Extract(
+                directory, 12345, baseTime, baseTime.AddMinutes(10));
+            Check(summary is not null, "提取到对局操作摘要");
+            Check(summary!.MatchId == 12345, "按 matchid 过滤正确");
+            Check(summary.Kills == 1 && summary.Deaths == 1 && summary.LastHits == 60, "汇总数据正确");
+            Check(summary.Operations.Any(item => item.Kind == "cast" && item.Detail.Contains("Blink")), "提取到闪烁施放");
+            Check(summary.Operations.Any(item => item.Kind == "cast" && item.Detail.Contains("Mana Void")), "提取到大招施放");
+            Check(summary.Operations.Any(item => item.Kind == "item_use" && item.Detail.Contains("黑皇杖")), "提取到黑皇杖使用");
+            Check(summary.Operations.Any(item => item.Kind == "buy" && item.Detail.Contains("黑皇杖")), "提取到购买黑皇杖");
+            Check(summary.Operations.Any(item => item.Kind == "buyback"), "提取到买活");
+            Check(summary.Operations.Any(item => item.Kind == "kill"), "提取到击杀");
+            Check(summary.DeathsDetailed.Count == 1, "提取到一条阵亡上下文");
+            var death = summary.DeathsDetailed[0];
+            Check(death.DeathNumber == 1 && death.HealthPercentAtDeath == 25, "阵亡信息正确（次数与阵亡前血量）");
+            Check(death.UltReadyAtDeath && death.TpAvailable, "阵亡时大招就绪且 TP 可用");
+            Check(death.BuybackAvailable && death.BuybackUsed, "买活可用且已使用");
+            Check(death.ReadyActivesUnused.Any(name => name.Contains("深渊之刃")), "阵亡时深渊之刃就绪未使用");
+            Check(summary.Phases.Count >= 1 && summary.Phases[0].KillsDelta == 1 && summary.Phases[0].DeathsDelta == 1, "阶段统计正确");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static GsiSnapshot BuildOpFrame(
+        double gameTime,
+        bool alive,
+        int kills,
+        int deaths,
+        int lh,
+        int gold,
+        double hp,
+        double blinkCd,
+        double bkbCd,
+        double ultCd,
+        bool hasBkb,
+        int buybackCost = 0,
+        int buybackCd = 0,
+        int level = 12,
+        int streak = 0)
+    {
+        var snapshot = BuildSnapshot(hp, 100, ultCd, alive, gameTime);
+        snapshot.Player.Kills = kills;
+        snapshot.Player.Deaths = deaths;
+        snapshot.Player.LastHits = lh;
+        snapshot.Player.Gold = gold;
+        snapshot.Player.KillStreak = streak;
+        snapshot.Hero.Level = level;
+        snapshot.Hero.BuybackCost = buybackCost;
+        snapshot.Hero.BuybackCooldown = buybackCd;
+        snapshot.Abilities!["ability_1"].AbilityCooldown = blinkCd;
+        snapshot.Abilities!["ability_3"].AbilityCooldown = ultCd;
+        snapshot.Items!["slot1"].Cooldown = 0;
+        if (hasBkb)
+        {
+            snapshot.Items!["slot2"] = new GsiItem
+            {
+                Name = "item_black_king_bar",
+                Purchaser = 1,
+                CanCast = true,
+                Cooldown = bkbCd,
+            };
+        }
+        return snapshot;
+    }
+
+    private static void TestApiMatchAnalyzer()
+    {
+        Console.WriteLine("[9b] OpenDota 整场数据分析（按比赛 ID）");
+        using var document = JsonDocument.Parse(BuildApiFixtureJson());
+        var summary = new ApiMatchAnalyzer().Analyze(
+            document.RootElement,
+            matchId: 8888888888,
+            steamId64: "76561198000000000",
+            expectedHeroId: 0,
+            heroInternalNameResolver: heroId => heroId == 1 ? "npc_dota_hero_antimage" : string.Empty,
+            itemNameResolver: key => key,
+            itemIdResolver: id => id == 29 ? "item_29_mapped" : string.Empty);
+
+        Check(summary is not null && string.IsNullOrWhiteSpace(summary!.Error), "按比赛 ID 解析出整场数据");
+        Check(summary!.HeroId == 1 && summary.AccountId == 39734272 && summary.IsRadiant, "正确识别本人玩家（Steam ID 换算）");
+        Check(summary.Kills == 5 && summary.Deaths == 3 && summary.LastHits == 200, "汇总 KDA/补刀正确");
+        Check(summary.DeathTimes.SequenceEqual(new[] { 500d, 850d }), "从全场 kills_log 反推阵亡时间");
+        Check(summary.KillsLog.Count == 2 && summary.KillsLog[0].TimeSeconds == 258, "击杀时间线正确");
+        Check(summary.ItemTimings.Any(item => item.ItemName == "blink" && item.TimeSeconds == 400), "提取购买时间（闪烁匕首）");
+        Check(summary.ItemTimings.Any(item => item.ItemName == "black_king_bar" && item.TimeSeconds == 720), "提取购买时间（黑皇杖）");
+        Check(summary.ItemTimings.All(item => item.ItemName is not ("tango" or "ward_observer" or "recipe_blink")), "过滤消耗品/卷轴/初始物品");
+        Check(summary.BuybackTimes.SequenceEqual(new[] { 900d }), "提取买活时间");
+        Check(summary.KilledBy.First().HeroName == "Pudge" && summary.KilledBy.First().Count == 2, "阵亡来源统计正确");
+        Check(summary.Teamfights.Count == 1 && summary.Teamfights[0].Participated
+            && summary.Teamfights[0].MyDamage == 1200 && summary.Teamfights[0].MyDeaths == 1, "团战参与与伤害正确");
+        Check(summary.TowersTaken.Count == 1 && summary.TowersTaken[0].TimeSeconds == 600, "本人推塔事件正确");
+        Check(summary.Benchmarks.TryGetValue("gold_per_min", out var pct) && Math.Abs(pct - 82) < 0.01, "经济分位正确");
+        Check(summary.ObserversPlaced == 8 && summary.ObserverLogCount == 2, "视野统计正确");
+        Check(summary.Economy.Count == 25, "每分钟经济曲线正确");
+        Check(summary.AllPlayers.Count == 2, "双方阵容汇总正确");
+        Check(summary.FinalItems.Contains("item_29_mapped"), "数字 ID 装备也能解析");
+    }
+
+    private static void TestApiMatchAnalyzerRealFile()
+    {
+        var realFile = Environment.GetEnvironmentVariable("AEGISCOACH_REAL_MATCH");
+        if (string.IsNullOrWhiteSpace(realFile) || !File.Exists(realFile)) return;
+        Console.WriteLine("[9c] 真实 OpenDota 数据验证（可选）");
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(realFile));
+            var summary = new ApiMatchAnalyzer().Analyze(
+                document.RootElement,
+                matchId: 0,
+                steamId64: "76561198064843317",
+                expectedHeroId: 0,
+                heroInternalNameResolver: heroId => heroId == 102 ? "npc_dota_hero_abaddon" : string.Empty,
+                itemNameResolver: key => key,
+                itemIdResolver: id => id.ToString());
+            Check(summary is not null && summary!.HeroId > 0, "真实数据能定位玩家并解析");
+            Console.WriteLine($"    英雄 {summary?.HeroId} KDA {summary?.Kills}/{summary?.Deaths}/{summary?.Assists} · " +
+                $"阵亡时间{summary?.DeathTimes.Count} · 装备时间{summary?.ItemTimings.Count} · " +
+                $"团战{summary?.Teamfights.Count} · 推塔{summary?.TowersTaken.Count} · 经济点{summary?.Economy.Count}");
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"    真实数据验证失败：{exception.Message}");
+        }
+    }
+
+    private static string BuildApiFixtureJson() =>
+        """
+        {
+          "radiant_win": true,
+          "duration": 1500,
+          "radiant_score": 30,
+          "dire_score": 25,
+          "game_mode": 22,
+          "players": [
+            {
+              "player_slot": 0,
+              "account_id": 39734272,
+              "hero_id": 1,
+              "kills": 5,
+              "deaths": 3,
+              "assists": 10,
+              "last_hits": 200,
+              "denies": 12,
+              "gold_per_min": 520,
+              "xp_per_min": 460,
+              "level": 18,
+              "net_worth": 12000,
+              "rank_tier": 60,
+              "obs_placed": 8,
+              "sen_placed": 4,
+              "teamfight_participation": 0.55,
+              "hero_damage": 15000,
+              "tower_damage": 2000,
+              "hero_healing": 500,
+              "actions_per_min": 120,
+              "pings": 30,
+              "lane": "mid",
+              "lane_role": 2,
+              "lane_efficiency_pct": 0.8,
+              "roshans_killed": 1,
+              "item_0": "item_power_treads",
+              "item_1": "item_blink",
+              "item_2": "item_black_king_bar",
+              "item_3": 29,
+              "item_4": "",
+              "item_5": "",
+              "purchase_time": {
+                "tango": -59,
+                "branches": -118,
+                "ward_observer": 300,
+                "recipe_blink": 380,
+                "blink": 400,
+                "black_king_bar": 720,
+                "tpscroll": 800
+              },
+              "kills_log": [
+                {"time": 258, "key": "npc_dota_hero_silencer"},
+                {"time": 500, "key": "npc_dota_hero_pudge"}
+              ],
+              "buyback_log": [{"time": 900}],
+              "gold_t": [100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300,2400,2500],
+              "lh_t": [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125],
+              "xp_t": [100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300,2400,2500],
+              "killed_by": {"npc_dota_hero_pudge": 2, "npc_dota_hero_witch_doctor": 1},
+              "killed": {"npc_dota_hero_silencer": 3, "npc_dota_hero_pudge": 2},
+              "benchmarks": {"gold_per_min": {"raw": 520, "pct": 82}, "xp_per_min": {"raw": 460, "pct": 70}},
+              "obs_log": [{"time": 67}, {"time": 322}]
+            },
+            {
+              "player_slot": 1,
+              "account_id": 111,
+              "hero_id": 2,
+              "kills": 1,
+              "deaths": 5,
+              "assists": 2,
+              "last_hits": 50,
+              "denies": 3,
+              "gold_per_min": 300,
+              "xp_per_min": 350,
+              "level": 12,
+              "item_0": "item_tango",
+              "purchase_time": {},
+              "kills_log": [
+                {"time": 500, "key": "npc_dota_hero_antimage"},
+                {"time": 850, "key": "npc_dota_hero_antimage"}
+              ]
+            }
+          ],
+          "teamfights": [
+            {
+              "start": 300,
+              "end": 340,
+              "deaths": 2,
+              "players": [
+                {"deaths_pos": [], "deaths": 1, "buybacks": 0, "damage": 1200, "gold_delta": 300, "xp_delta": 400},
+                {"deaths_pos": [], "deaths": 0, "buybacks": 0, "damage": 500, "gold_delta": 100, "xp_delta": 100}
+              ]
+            }
+          ],
+          "objectives": [
+            {"time": 24, "type": "CHAT_MESSAGE_FIRSTBLOOD", "key": "2", "player_slot": 129},
+            {"time": 600, "type": "building_kill", "key": "npc_dota_badguys_tower1_top", "player_slot": 0},
+            {"time": 610, "type": "building_kill", "key": "npc_dota_goodguys_tower1_top", "player_slot": 129}
+          ]
+        }
+        """;
 
     private static GsiSnapshot BuildSnapshot(
         double healthPercent, double manaPercent, double ultCooldown, bool alive, double gameTime, int respawn = 0)
@@ -339,6 +767,140 @@ internal static class Program
             _failed++;
             Console.WriteLine($"  FAIL  {message}");
         }
+    }
+
+    private static void TestItemRecommendation()
+    {
+        Console.WriteLine("[10] 全场英雄出装推荐");
+        var profiles = new Dictionary<int, HeroProfile>
+        {
+            [1] = new("npc_dota_hero_antimage", "敌法", "agi"),
+            [2] = new("npc_dota_hero_zuus", "宙斯", "int"),
+            [3] = new("npc_dota_hero_lina", "莉娜", "int"),
+            [4] = new("npc_dota_hero_dazzle", "戴泽", "int"),
+        };
+        var heroes = new List<MatchHeroRef>
+        {
+            new(1, true),
+            new(2, true),
+            new(3, true),
+            new(4, true),
+        };
+        var suggestions = ItemRecommendationEngine.Recommend(
+            new ItemRecommendationContext(heroes, profiles, 1200, 1500));
+        Check(suggestions.Any(item => item.ItemName.Contains("黑皇杖")), "法术威胁多时推荐黑皇杖");
+        Check(suggestions.Any(item => item.ItemName.Contains("否决")), "有治疗英雄时推荐否决挂穗");
+        Check(suggestions.All(item => !string.IsNullOrWhiteSpace(item.Evidence)), "每条建议都带证据");
+    }
+
+    private static void TestMatchSessionTracker()
+    {
+        Console.WriteLine("[11] 对局会话跟踪（习惯记录 / 赛后分析数据源）");
+        var tracker = new MatchSessionTracker();
+
+        var before = new MatchSnapshot
+        {
+            Phase = GamePhase.InProgress,
+            MatchId = 12345,
+            GameTime = 600,
+            RoshanAlive = true,
+            Hero = new HeroState
+            {
+                Id = 1,
+                Alive = true,
+                Level = 12,
+                MaxHealth = 1000,
+                HealthPercent = 100,
+                MaxMana = 500,
+                ManaPercent = 100,
+            },
+            Player = new PlayerState
+            {
+                TeamName = "radiant",
+                Kills = 5,
+                Deaths = 2,
+                Assists = 8,
+                Gpm = 520,
+                Xpm = 560,
+                Gold = 3000,
+            },
+            Items =
+            [
+                new ItemState { Slot = "slot0", SlotKind = ItemSlotKind.Main, Name = "item_travel_boots" },
+                new ItemState { Slot = "slot1", SlotKind = ItemSlotKind.Main, Name = "item_abyssal_blade" },
+            ],
+            Buildings =
+            [
+                new BuildingState { Team = "radiant", TeamLabel = "天辉", Key = "top_1", Label = "上一塔", Alive = true, HealthPercent = 60 },
+            ],
+        };
+
+        Check(tracker.OnSnapshot(before) is null, "对局中快照不产生结束记录");
+
+        var after = new MatchSnapshot
+        {
+            Phase = GamePhase.InProgress,
+            MatchId = 12345,
+            GameTime = 1200,
+            RoshanAlive = false,
+            Hero = new HeroState
+            {
+                Id = 1,
+                Alive = false,
+                Level = 13,
+                MaxHealth = 1000,
+                HealthPercent = 0,
+                MaxMana = 500,
+                ManaPercent = 0,
+            },
+            Player = new PlayerState
+            {
+                TeamName = "radiant",
+                Kills = 6,
+                Deaths = 3,
+                Assists = 8,
+                Gpm = 540,
+                Xpm = 590,
+                Gold = 3200,
+            },
+            Items =
+            [
+                new ItemState { Slot = "slot0", SlotKind = ItemSlotKind.Main, Name = "item_travel_boots" },
+                new ItemState { Slot = "slot1", SlotKind = ItemSlotKind.Main, Name = "item_abyssal_blade" },
+                new ItemState { Slot = "slot2", SlotKind = ItemSlotKind.Main, Name = "item_black_king_bar" },
+            ],
+            Buildings =
+            [
+                new BuildingState { Team = "radiant", TeamLabel = "天辉", Key = "top_1", Label = "上一塔", Alive = false, HealthPercent = 0 },
+            ],
+        };
+
+        Check(tracker.OnSnapshot(after) is null, "第二帧对局中快照不产生结束记录");
+
+        var post = new MatchSnapshot
+        {
+            Phase = GamePhase.PostGame,
+            MatchId = 12345,
+            GameTime = 1800,
+            WinTeam = "radiant",
+            Player = new PlayerState { TeamName = "radiant" },
+        };
+        var finished = tracker.OnSnapshot(post);
+        Check(finished is not null, "赛后快照产出对局记录");
+        if (finished is null) return;
+
+        Check(finished.MatchId == 12345 && finished.HeroId == 1, "记录保留比赛与英雄 ID");
+        Check(finished.Won == true, "根据胜方阵营判定胜负");
+        Check(finished.Kills == 6 && finished.Deaths == 3 && finished.Assists == 8, "记录最终 KDA");
+        Check(finished.MaxLevel == 13, "记录最高等级");
+        Check(finished.FinalItems.Contains("黑皇杖"), "记录最终装备（含新购买物品）");
+        Check(finished.KeyMoments.Any(moment => moment.Contains("阵亡")), "记录阵亡节点");
+        Check(finished.KeyMoments.Any(moment => moment.Contains("击杀")), "记录击杀节点");
+        Check(finished.KeyMoments.Any(moment => moment.Contains("购买")), "记录购买节点");
+        Check(finished.KeyMoments.Any(moment => moment.Contains("上一塔")), "记录建筑被摧毁节点");
+        Check(finished.KeyMoments.Any(moment => moment.Contains("Roshan")), "记录 Roshan 被击杀节点");
+        Check(finished.Economy.Count >= 2, "经济曲线有多个采样点");
+        Check(finished.DurationText == "30:00", "时长格式化为分:秒");
     }
 }
 

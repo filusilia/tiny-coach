@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AegisCoach.Core.Services;
 
 namespace AegisCoach.Core.Models;
 
@@ -16,6 +17,7 @@ public sealed class GsiSnapshot
     [JsonPropertyName("items")] public Dictionary<string, GsiItem>? Items { get; set; }
     [JsonPropertyName("auth")] public Dictionary<string, string>? Auth { get; set; }
     [JsonPropertyName("draft")] public Dictionary<string, JsonElement>? Draft { get; set; }
+    [JsonPropertyName("buildings")] public GsiBuildings? Buildings { get; set; }
 }
 
 public sealed class GsiProvider
@@ -33,11 +35,19 @@ public sealed class GsiMap
     [JsonPropertyName("gametime")] public double GameTime { get; set; }
     [JsonPropertyName("clock_time")] public double ClockTime { get; set; }
     [JsonPropertyName("daytime")] public bool Daytime { get; set; }
+    [JsonPropertyName("roshan")] public GsiRoshan? Roshan { get; set; }
     [JsonPropertyName("radiant_score")] public int RadiantScore { get; set; }
     [JsonPropertyName("dire_score")] public int DireScore { get; set; }
     [JsonPropertyName("game_state")] public string? GameState { get; set; }
     [JsonPropertyName("win_team")] public string? WinTeam { get; set; }
     [JsonPropertyName("customgamename")] public string? CustomGameName { get; set; }
+}
+
+public sealed class GsiRoshan
+{
+    [JsonPropertyName("alive")] public bool Alive { get; set; }
+    [JsonPropertyName("health")] public double Health { get; set; }
+    [JsonPropertyName("max_health")] public double MaxHealth { get; set; }
 }
 
 public sealed class GsiPlayer
@@ -88,6 +98,7 @@ public sealed class GsiHero
     [JsonPropertyName("stuns")] public int Stuns { get; set; }
     [JsonPropertyName("disables")] public int Disables { get; set; }
     [JsonPropertyName("magic_immunity")] public bool MagicImmunity { get; set; }
+    [JsonPropertyName("smoked")] public bool IsSmoked { get; set; }
 }
 
 public sealed class GsiAbility
@@ -113,6 +124,19 @@ public sealed class GsiItem
     [JsonPropertyName("charges")] public int Charges { get; set; }
 }
 
+public sealed class GsiBuildings
+{
+    [JsonPropertyName("radiant")] public Dictionary<string, GsiBuilding>? Radiant { get; set; }
+    [JsonPropertyName("dire")] public Dictionary<string, GsiBuilding>? Dire { get; set; }
+}
+
+public sealed class GsiBuilding
+{
+    [JsonPropertyName("health")] public double Health { get; set; }
+    [JsonPropertyName("max_health")] public double MaxHealth { get; set; }
+    [JsonPropertyName("alive")] public bool Alive { get; set; }
+}
+
 // ============ 归一化对局快照模型 ============
 
 public enum GamePhase
@@ -134,11 +158,15 @@ public sealed class MatchSnapshot
     public double GameTime { get; init; }
     public double ClockTime { get; init; }
     public bool Daytime { get; init; }
+    public bool? RoshanAlive { get; init; }
+    public double RoshanHealthPercent { get; init; }
     public int RadiantScore { get; init; }
     public int DireScore { get; init; }
     public string? WinTeam { get; init; }
     public string? MapName { get; init; }
     public string? CustomGameName { get; init; }
+    public string? BuildingSummary { get; init; }
+    public IReadOnlyList<BuildingState> Buildings { get; init; } = [];
     public PlayerState Player { get; init; } = new();
     public HeroState Hero { get; init; } = new();
     public IReadOnlyList<AbilityState> Abilities { get; init; } = [];
@@ -201,6 +229,7 @@ public sealed class MatchSnapshot
                 items.Add(new ItemState
                 {
                     Slot = slot,
+                    SlotKind = ItemSlotKindFromKey(slot),
                     Name = item.Name,
                     Cooldown = item.Cooldown,
                     CanCast = item.CanCast,
@@ -218,11 +247,14 @@ public sealed class MatchSnapshot
             GameTime = map?.GameTime ?? 0,
             ClockTime = map?.ClockTime ?? 0,
             Daytime = map?.Daytime ?? false,
+            RoshanAlive = map?.Roshan is null ? null : map.Roshan.Alive,
+            RoshanHealthPercent = map?.Roshan is { MaxHealth: > 0 } roshan ? roshan.Health * 100d / roshan.MaxHealth : 0,
             RadiantScore = map?.RadiantScore ?? 0,
             DireScore = map?.DireScore ?? 0,
             WinTeam = NormalizeTeam(map?.WinTeam),
             MapName = map?.Name,
             CustomGameName = map?.CustomGameName,
+            Buildings = SummarizeBuildingsList(raw.Buildings),
             Player = player is null ? new PlayerState() : new PlayerState
             {
                 SteamId = player.SteamId,
@@ -264,11 +296,100 @@ public sealed class MatchSnapshot
                 Stuns = hero.Stuns,
                 Disables = hero.Disables,
                 MagicImmunity = hero.MagicImmunity,
+                IsSmoked = hero.IsSmoked,
             },
             Abilities = abilities,
             Items = items,
+            BuildingSummary = SummarizeBuildings(raw.Buildings),
             AuthTokenPresent = raw.Auth is { Count: > 0 },
         };
+    }
+
+    /// <summary>统计双方存活的建筑数量（塔/兵营/遗迹等），字段缺失时返回 null。</summary>
+    private static string? SummarizeBuildings(GsiBuildings? buildings)
+    {
+        if (buildings is null) return null;
+        var radiant = CountAlive(buildings.Radiant);
+        var dire = CountAlive(buildings.Dire);
+        if (radiant is null && dire is null) return null;
+        var parts = new List<string>();
+        if (radiant is not null) parts.Add($"天辉 {radiant.Value.Alive}/{radiant.Value.Total}");
+        if (dire is not null) parts.Add($"夜魇 {dire.Value.Alive}/{dire.Value.Total}");
+        return string.Join(" · ", parts);
+    }
+
+    private static IReadOnlyList<BuildingState> SummarizeBuildingsList(GsiBuildings? buildings)
+    {
+        var result = new List<BuildingState>();
+        if (buildings is null) return result;
+        AddTeamBuildings(result, "radiant", "天辉", buildings.Radiant);
+        AddTeamBuildings(result, "dire", "夜魇", buildings.Dire);
+        return result;
+    }
+
+    private static void AddTeamBuildings(
+        List<BuildingState> result, string team, string teamLabel, Dictionary<string, GsiBuilding>? source)
+    {
+        if (source is null) return;
+        foreach (var (key, building) in source)
+        {
+            if (building is null) continue;
+            result.Add(new BuildingState
+            {
+                Team = team,
+                TeamLabel = teamLabel,
+                Key = key,
+                Label = BuildingLabel(key),
+                Alive = building.Alive,
+                HealthPercent = building.MaxHealth > 0 ? building.Health * 100d / building.MaxHealth : 0,
+            });
+        }
+    }
+
+    private static string BuildingLabel(string key)
+    {
+        var parts = key.Split('_');
+        var lane = parts.Length > 0 ? parts[0] switch
+        {
+            "top" => "上",
+            "mid" => "中",
+            "bottom" => "下",
+            _ => "",
+        } : "";
+        var type = key.Contains("tower") ? "塔" : key.Contains("rax") ? "兵营" : "建筑";
+        var order = parts.Length > 1 && int.TryParse(parts[^1], out var number) ? number : 0;
+        var position = order switch
+        {
+            1 => "一",
+            2 => "二",
+            3 => "三",
+            4 => "四",
+            _ => order > 0 ? order.ToString() : "",
+        };
+        if (key.Contains("tower")) return $"{lane}{position}塔";
+        if (key.Contains("rax")) return $"{lane}{position}兵营";
+        if (key.Contains("fort")) return "基地";
+        if (key.Contains("shrine")) return "神龛";
+        return key;
+    }
+
+    private static ItemSlotKind ItemSlotKindFromKey(string slot) => slot switch
+    {
+        "teleport" or "teleport0" => ItemSlotKind.Teleport,
+        "neutral0" => ItemSlotKind.Neutral,
+        _ when slot.StartsWith("stash", StringComparison.OrdinalIgnoreCase) => ItemSlotKind.Stash,
+        // Dota 2 GSI：slot0–slot5 为主装备栏，slot6–slot8 为背包。
+        _ when slot.StartsWith("slot", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(slot.AsSpan(4), out var slotIndex) && slotIndex <= 5 => ItemSlotKind.Main,
+        _ when slot.StartsWith("slot", StringComparison.OrdinalIgnoreCase) => ItemSlotKind.Backpack,
+        _ => ItemSlotKind.Unknown,
+    };
+
+    private static (int Alive, int Total)? CountAlive(Dictionary<string, GsiBuilding>? team)
+    {
+        if (team is null || team.Count == 0) return null;
+        var alive = team.Values.Count(building => building.Alive || building.Health > 0);
+        return (alive, team.Count);
     }
 
     public static GamePhase PhaseFromString(string? state) => state switch
@@ -334,6 +455,7 @@ public sealed class HeroState
     public int Stuns { get; init; }
     public int Disables { get; init; }
     public bool MagicImmunity { get; init; }
+    public bool IsSmoked { get; init; }
 }
 
 public sealed class AbilityState
@@ -351,11 +473,32 @@ public sealed class AbilityState
 public sealed class ItemState
 {
     public string Slot { get; init; } = string.Empty;
+    public ItemSlotKind SlotKind { get; init; } = ItemSlotKind.Unknown;
     public string Name { get; init; } = string.Empty;
     public double Cooldown { get; init; }
     public bool CanCast { get; init; }
     public bool IsPassive { get; init; }
     public int Charges { get; init; }
+}
+
+public enum ItemSlotKind
+{
+    Unknown,
+    Main,
+    Backpack,
+    Stash,
+    Neutral,
+    Teleport,
+}
+
+public sealed class BuildingState
+{
+    public string Team { get; init; } = string.Empty;
+    public string TeamLabel { get; init; } = string.Empty;
+    public string Key { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
+    public bool Alive { get; init; }
+    public double HealthPercent { get; init; }
 }
 
 // ============ 教练提醒 ============
@@ -406,7 +549,146 @@ public sealed class CoachAdvice : INotifyPropertyChanged
     [System.Text.Json.Serialization.JsonIgnore]
     public string EvidenceText => Evidence.Count > 0 ? string.Join(" · ", Evidence) : string.Empty;
 
+    /// <summary>把原始证据字段翻译成精简 Dota 术语，去掉技术参数（时间/比赛 ID 等）。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string FriendlyEvidenceText
+    {
+        get
+        {
+            if (Evidence.Count == 0) return string.Empty;
+            var parts = new List<string>();
+            foreach (var entry in Evidence)
+            {
+                var text = FriendlyEvidence.Translate(entry);
+                if (!string.IsNullOrWhiteSpace(text)) parts.Add(text);
+            }
+
+            return parts.Count > 0 ? "原因：" + string.Join(" · ", parts) : string.Empty;
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>规则证据字段到中文 Dota 术语的翻译器。</summary>
+public static class FriendlyEvidence
+{
+    public static string? Translate(string evidence)
+    {
+        if (string.IsNullOrWhiteSpace(evidence)) return null;
+        var equals = evidence.IndexOf('=');
+        var key = equals > 0 ? evidence[..equals] : evidence;
+        var value = equals > 0 ? evidence[(equals + 1)..] : string.Empty;
+        var arrow = value.Contains("→");
+
+        // 冗余或纯技术字段：时间与比赛 ID 在卡片上已有专门展示。
+        if (key.StartsWith("map.gametime", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("map.clock_time", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("map.matchid", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("provider", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("auth", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (key.StartsWith("hero.health_percent", StringComparison.OrdinalIgnoreCase)) return $"生命 {value}%";
+        if (key.StartsWith("hero.health=", StringComparison.OrdinalIgnoreCase)) return $"生命 {value}";
+        if (key.StartsWith("hero.max_health", StringComparison.OrdinalIgnoreCase)) return $"最大生命 {value}";
+        if (key.StartsWith("hero.mana_percent", StringComparison.OrdinalIgnoreCase)) return $"魔法 {value}%";
+        if (key.StartsWith("hero.mana=", StringComparison.OrdinalIgnoreCase)) return $"魔法 {value}";
+        if (key.StartsWith("hero.alive", StringComparison.OrdinalIgnoreCase)) return value == "false" ? "已阵亡" : "存活";
+        if (key.StartsWith("hero.respawn_seconds", StringComparison.OrdinalIgnoreCase)) return $"复活 {value} 秒";
+        if (key.StartsWith("hero.silences", StringComparison.OrdinalIgnoreCase)) return $"沉默 {value}s";
+        if (key.StartsWith("hero.stuns", StringComparison.OrdinalIgnoreCase)) return $"眩晕 {value}s";
+        if (key.StartsWith("hero.disables", StringComparison.OrdinalIgnoreCase)) return $"禁用 {value}s";
+        if (key.StartsWith("hero.buyback_cost", StringComparison.OrdinalIgnoreCase)) return $"买活费用 {value}";
+        if (key.StartsWith("hero.buyback_cooldown", StringComparison.OrdinalIgnoreCase)) return $"买活冷却 {value}s";
+        if (key.StartsWith("hero.smoked", StringComparison.OrdinalIgnoreCase)) return "处于诡计之雾";
+
+        if (key.StartsWith("player.gold", StringComparison.OrdinalIgnoreCase)) return $"金币 {value:N0}";
+        if (key.StartsWith("player.ultimate_state", StringComparison.OrdinalIgnoreCase))
+        {
+            return value == "DOTA_ULTIMATE_STATE_READY" ? "大招就绪" : "大招冷却中";
+        }
+        if (key.StartsWith("player.ultimate_cooldown", StringComparison.OrdinalIgnoreCase)) return $"大招冷却 {value} 秒";
+        if (key.StartsWith("player.kills", StringComparison.OrdinalIgnoreCase)) return $"击杀 {value}";
+        if (key.StartsWith("player.deaths", StringComparison.OrdinalIgnoreCase)) return $"阵亡 {value}";
+
+        if (key.StartsWith("map.daytime", StringComparison.OrdinalIgnoreCase))
+        {
+            var toDay = value.EndsWith("true", StringComparison.OrdinalIgnoreCase);
+            return arrow ? (toDay ? "夜晚→白天" : "白天→夜晚") : (value == "true" ? "白天" : "夜晚");
+        }
+        if (key.StartsWith("map.roshan", StringComparison.OrdinalIgnoreCase))
+        {
+            var alive = value.EndsWith("true", StringComparison.OrdinalIgnoreCase) || value == "true";
+            return alive ? "肉山存活" : "肉山已被击杀";
+        }
+        if (key.StartsWith("map.game_state", StringComparison.OrdinalIgnoreCase)) return $"对局状态：{PhaseLabel(value)}";
+
+        if (key.StartsWith("item.smoke_of_deceit", StringComparison.OrdinalIgnoreCase))
+        {
+            return value == "consumed" ? "开雾游走" : "携带诡计之雾";
+        }
+
+        if (key.StartsWith("items.", StringComparison.OrdinalIgnoreCase))
+        {
+            if (key.Contains("cooldown", StringComparison.OrdinalIgnoreCase)) return "主动道具冷却完成";
+            return $"装备：{CoachRuleEngine.FriendlyItemName(value)}";
+        }
+        if (key.StartsWith("abilities.", StringComparison.OrdinalIgnoreCase))
+        {
+            if (key.Contains("cooldown", StringComparison.OrdinalIgnoreCase)) return "关键技能就绪";
+            return $"技能：{CoachRuleEngine.FriendlyAbilityName(value)}";
+        }
+
+        if (key.StartsWith("buildings.", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = key.Split('.');
+            if (parts.Length >= 3)
+            {
+                var team = parts[1] == "radiant" ? "天辉" : "夜魇";
+                var building = BuildingLabel(parts[2]);
+                if (value == "destroyed") return $"{team}{building}被摧毁";
+                if (value.Contains('%')) return $"{team}{building}正在被攻击（剩余 {value}）";
+            }
+        }
+
+        // 未知字段：保留键名中文化，不展示原始值参数。
+        return null;
+    }
+
+    private static string PhaseLabel(string value)
+    {
+        var phase = MatchSnapshot.PhaseFromString(value);
+        return phase == GamePhase.Unknown ? value : phase switch
+        {
+            GamePhase.PreGame => "赛前",
+            GamePhase.HeroSelection => "选人阶段",
+            GamePhase.StrategyTime => "策略阶段",
+            GamePhase.InProgress => "对局中",
+            GamePhase.PostGame => "赛后",
+            GamePhase.Disconnected => "已断开",
+            _ => "未知",
+        };
+    }
+
+    private static string BuildingLabel(string key)
+    {
+        var parts = key.Split('_');
+        var lane = parts.Length > 0 ? parts[0] switch
+        {
+            "top" => "上",
+            "mid" => "中",
+            "bottom" => "下",
+            _ => string.Empty,
+        } : string.Empty;
+        if (key.Contains("tower")) return $"{lane}路塔";
+        if (key.Contains("rax")) return $"{lane}路兵营";
+        if (key.Contains("fort")) return "基地";
+        if (key.Contains("shrine")) return "神龛";
+        return key;
+    }
 }
 
 

@@ -29,6 +29,8 @@ public static class GsiConfigInstaller
         builder.AppendLine("        \"hero\" \"1\"");
         builder.AppendLine("        \"abilities\" \"1\"");
         builder.AppendLine("        \"items\" \"1\"");
+        builder.AppendLine("        \"buildings\" \"1\"");
+        builder.AppendLine("        \"roshan\" \"1\"");
         builder.AppendLine("    }");
         builder.AppendLine("    \"auth\"");
         builder.AppendLine("    {");
@@ -69,11 +71,12 @@ public static class GsiConfigInstaller
             var common = Path.Combine(library, "steamapps", "common", "dota 2 beta");
             if (!Directory.Exists(common)) continue;
 
-            // 新目录布局：<common>/game/dota/cfg；旧布局：<common>/dota/cfg
+            // Dota 2 的 GSI 配置文件读取目录是 cfg 下的 gamestate_integration 子目录：
+            // 新布局 <common>/game/dota/cfg/gamestate_integration；旧布局 <common>/dota/cfg/gamestate_integration。
             var gameDota = Path.Combine(common, "game", "dota");
             if (Directory.Exists(gameDota))
             {
-                var cfg = Path.Combine(gameDota, "cfg");
+                var cfg = Path.Combine(gameDota, "cfg", "gamestate_integration");
                 if (Directory.Exists(cfg)) return cfg;
                 try
                 {
@@ -89,7 +92,7 @@ public static class GsiConfigInstaller
             var legacyDota = Path.Combine(common, "dota");
             if (Directory.Exists(legacyDota))
             {
-                var cfg = Path.Combine(legacyDota, "cfg");
+                var cfg = Path.Combine(legacyDota, "cfg", "gamestate_integration");
                 if (Directory.Exists(cfg)) return cfg;
                 try
                 {
@@ -143,6 +146,63 @@ public static class GsiConfigInstaller
         }
     }
 
+    public static ConfigCheckResult Check(string? manualPath, int port, string token)
+    {
+        var directory = LocateDotaCfgDirectory(manualPath);
+        if (directory is null)
+        {
+            return new ConfigCheckResult
+            {
+                Found = false,
+                Matches = false,
+                Message = "未找到 Dota 2 cfg 目录。",
+            };
+        }
+
+        var filePath = Path.Combine(directory, CfgFileName);
+        if (!File.Exists(filePath))
+        {
+            return new ConfigCheckResult
+            {
+                Found = false,
+                Matches = false,
+                DirectoryPath = directory,
+                FilePath = filePath,
+                Message = $"目录已找到，但缺少 {CfgFileName}。",
+            };
+        }
+
+        try
+        {
+            var content = File.ReadAllText(filePath);
+            var endpoint = $"\"uri\" \"http://127.0.0.1:{port}/\"";
+            var configuredToken = $"\"token\" \"{token}\"";
+            var matches = content.Contains(endpoint, StringComparison.Ordinal)
+                && content.Contains(configuredToken, StringComparison.Ordinal);
+            return new ConfigCheckResult
+            {
+                Found = true,
+                Matches = matches,
+                DirectoryPath = directory,
+                FilePath = filePath,
+                Message = matches
+                    ? "cfg 已找到，端口和 Token 与当前设置一致。"
+                    : "cfg 已找到，但端口或 Token 与当前设置不一致。",
+            };
+        }
+        catch (Exception exception)
+        {
+            return new ConfigCheckResult
+            {
+                Found = false,
+                Matches = false,
+                DirectoryPath = directory,
+                FilePath = filePath,
+                Message = $"无法读取 cfg：{exception.Message}",
+            };
+        }
+    }
+
     private static IEnumerable<string> EnumerateSteamRoots()
     {
         var roots = new List<string>();
@@ -177,5 +237,14 @@ public sealed class InstallResult
     public required bool Success { get; init; }
     public required string Message { get; init; }
     public required string CfgContent { get; init; }
+    public string? FilePath { get; init; }
+}
+
+public sealed class ConfigCheckResult
+{
+    public required bool Found { get; init; }
+    public required bool Matches { get; init; }
+    public required string Message { get; init; }
+    public string? DirectoryPath { get; init; }
     public string? FilePath { get; init; }
 }

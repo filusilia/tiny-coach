@@ -18,6 +18,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2526" />
+    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.2.12" />
+    <PackageReference Include="JYPPX.OpenVINO.CSharp.API" Version="3.3.1" />
+    <PackageReference Include="JYPPX.OpenVINO.GenAI.runtime.win" Version="2026.3.0" />
   </ItemGroup>
 
   <ItemGroup>

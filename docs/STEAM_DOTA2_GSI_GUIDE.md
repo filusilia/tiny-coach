@@ -36,11 +36,13 @@
 
 自动探测的新版目录通常是：
 
-`<Steam 库>\steamapps\common\dota 2 beta\game\dota\cfg\`
+`<Steam 库>\steamapps\common\dota 2 beta\game\dota\cfg\gamestate_integration\`
 
 少数旧版布局使用：
 
-`<Steam 库>\steamapps\common\dota 2 beta\dota\cfg\`
+`<Steam 库>\steamapps\common\dota 2 beta\dota\cfg\gamestate_integration\`
+
+注意：Dota 2 只读取 `cfg\gamestate_integration\` 子目录里的 GSI 配置文件，放在 `cfg\` 根目录不会被游戏加载。
 
 ## 4. 方式 B：手动导出或复制
 
@@ -50,7 +52,7 @@
 2. 点击“导出配置文件”，或点击“复制配置”。
 3. 如果使用复制方式，在记事本中粘贴为 `gamestate_integration_aegiscoach.cfg`。
 4. 从 Steam 打开 Dota 2 安装目录：库中右键 Dota 2 →“管理”→“浏览本地文件”。
-5. 进入 `game\dota\cfg\`；如果该路径不存在，再检查 `dota\cfg\`。
+5. 进入 `game\dota\cfg\gamestate_integration\`；如果该路径不存在，再检查 `dota\cfg\gamestate_integration\`。
 6. 把 cfg 文件放入该目录，覆盖同名的旧文件。
 7. 完全退出并重新启动 Dota 2。
 
@@ -79,7 +81,7 @@ cfg 与应用 Token 不一致。回到页面重新填写 Token，点击“安装
 
 ### 安装按钮提示找不到目录
 
-点击 Steam 中 Dota 2 的“浏览本地文件”，把路径指定到 `game\dota\cfg`，再点击“安装配置到 Dota 2”。选择的是目录，不是 `dota2.exe` 或 `dota 2 beta` 根目录。
+点击 Steam 中 Dota 2 的“浏览本地文件”，把路径指定到 `game\dota\cfg\gamestate_integration`，再点击“安装配置到 Dota 2”。选择的是目录，不是 `dota2.exe` 或 `dota 2 beta` 根目录。
 
 ### 端口启动失败
 
@@ -87,7 +89,7 @@ cfg 与应用 Token 不一致。回到页面重新填写 Token，点击“安装
 
 ### cfg 已存在但没有生效
 
-确认文件名没有变成 `gamestate_integration_aegiscoach.cfg.txt`，确认文件位于 `game\dota\cfg`，并完全退出重启 Dota 2。Steam 更新或校验游戏文件后，也应重新检查 cfg 是否仍在目标目录。
+确认文件名没有变成 `gamestate_integration_aegiscoach.cfg.txt`，确认文件位于 `game\dota\cfg\gamestate_integration`，并完全退出重启 Dota 2。Steam 更新或校验游戏文件后，也应重新检查 cfg 是否仍在目标目录。
 
 ## 7. 本地记录位置
 

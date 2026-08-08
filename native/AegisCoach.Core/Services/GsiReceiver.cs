@@ -65,7 +65,7 @@ public sealed class GsiReceiver : IAsyncDisposable
                 BoundPort = ((IPEndPoint)_listener.LocalEndpoint).Port;
                 LastError = null;
             }
-            catch (SocketException exception)
+            catch (Exception exception)
             {
                 LastError = $"无法监听 {_port} 端口：{exception.Message}";
                 _listener = null;
@@ -171,15 +171,6 @@ public sealed class GsiReceiver : IAsyncDisposable
         lock (_sync)
         {
             isDuplicate = hash == _lastBodyHash && DateTime.UtcNow - _lastBodyAt < TimeSpan.FromSeconds(2);
-            _lastBodyHash = hash;
-            _lastBodyAt = DateTime.UtcNow;
-            _lastActivityAt = DateTimeOffset.UtcNow;
-        }
-
-        // 心跳或重复快照只维持连接状态，不重复触发规则。
-        if (isDuplicate)
-        {
-            return;
         }
 
         GsiSnapshot raw;
@@ -202,6 +193,19 @@ public sealed class GsiReceiver : IAsyncDisposable
                 Log?.Invoke(this, "GSI token 校验失败，已忽略该快照");
                 return;
             }
+        }
+
+        lock (_sync)
+        {
+            _lastBodyHash = hash;
+            _lastBodyAt = DateTime.UtcNow;
+            _lastActivityAt = DateTimeOffset.UtcNow;
+        }
+
+        // 心跳或重复快照只维持连接状态，不重复触发规则。
+        if (isDuplicate)
+        {
+            return;
         }
 
         var snapshot = MatchSnapshot.FromGsi(raw);
