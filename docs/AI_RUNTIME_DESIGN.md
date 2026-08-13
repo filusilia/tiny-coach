@@ -24,7 +24,7 @@ AI 只适合处理一次已经整理好的事件，例如把 `low_health` 规则
 
 ## 模型选择
 
-仓库不打包模型权重。实时教练提供三种 AI 后端，在设置页“AI 与数据”中选择：
+仓库不打包模型权重。实时教练提供三种 AI 后端，在设置页中选择：
 
 | 后端 | 本地性能 | 说明 |
 |---|---|---|
@@ -33,8 +33,6 @@ AI 只适合处理一次已经整理好的事件，例如把 `low_health` 规则
 | 规则原文 | 零 | 不调用模型，直接显示规则引擎的确定性提醒；离线也能正常工作。 |
 
 推荐的最低占用策略是：规则事件驱动而不是逐帧调用模型；单次只发送脱敏事件和少量状态；请求间隔至少 3 秒；输出限制在 48 tokens；没有模型或推理超时时立即显示规则原文。这样实时分析仍持续运行，模型只在少数关键事件上提供补充解释。
-
-> 迁移说明：2026-08-08 起不再依赖 Ollama（本机服务端点 127.0.0.1:11434 已移除）。旧 settings.json 中的 `npuEnabled` 会自动迁移到新的 `aiBackend` 字段，默认值 `npu`。
 
 ## NPU 评估结论
 
@@ -47,7 +45,7 @@ NPU 适合低功耗的固定模型推理。“检测到 NPU”不等于任何运
 - 本机硬件：Intel AI Boost（NPU），驱动 1.0.16.0；OpenVINO GenAI 运行时可识别 CPU/GPU/NPU 三个设备。
 - 实现：`NpuGenAiCoachService` 使用 OpenVINO GenAI C# API 在 `NPU` 设备上运行 Qwen2.5-1.5B-Instruct INT4（OpenVINO IR，约 930 MB）。推理不占 GPU，也不占用 CPU 主核。
 - 实测延迟（同一短解释提示词，管线常驻后）：NPU 首次加载含编译约 30 秒（仅一次）；后续每次约 3.3 秒（首字约 2.6 秒，约 10~13 tok/s）。
-- 模型目录：`%LOCALAPPDATA%\AegisCoach\models\qwen2.5-1.5b-int4-ov`，模型由用户自行下载，仓库不打包权重。
+- 模型目录：`文档\AegisCoach\models\qwen2.5-1.5b-int4-ov`，模型由用户自行下载，仓库不打包权重。
 - 已知限制：llmware 版 int4-ov（约 1.1 GB）在本机 NPU 编译器上报重复节点错误，不可用；通用 `OpenVINO/Qwen2.5-1.5B-Instruct-int4-ov` 可用。
 
 ## 云端后端
@@ -55,7 +53,7 @@ NPU 适合低功耗的固定模型推理。“检测到 NPU”不等于任何运
 `CloudCoachService` 实现 OpenAI 兼容的 `/chat/completions` 调用：
 
 - 请求只携带脱敏后的 evidence 提示词，不携带 token、完整 Steam ID 或未脱敏 NDJSON。
-- API 密钥只用于 `Authorization: Bearer`，不写入日志、不持久化到明文之外的任何输出。
+- API 密钥只用于 `Authorization: Bearer`，不写入日志或 `settings.json`，由 Windows 凭据保险库存储。
 - 单请求超时 6 秒、串行化闸门，避免模型调用堆积影响 GSI。
 - `/models` 探测用于设置页“测试云端连接”，上限 800ms。
 

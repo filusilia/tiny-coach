@@ -1,8 +1,10 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AegisCoach.Native.Data;
 using AegisCoach.Native.Models;
+using AegisCoach.Core.Services;
 
 namespace AegisCoach.Native.Services;
 
@@ -12,6 +14,8 @@ public sealed class DotaDataService
     private const string OpenDotaBase = "https://api.opendota.com/api";
     private const string DotaBase = "https://www.dota2.com/datafeed";
     private const string ExplorerBase = "https://api.opendota.com/api/explorer";
+    private const int MaxRequestAttempts = 3;
+    private static readonly TimeSpan MinimumRequestSpacing = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan CatalogTtl = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan LocalizationTtl = TimeSpan.FromHours(12);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -23,10 +27,9 @@ public sealed class DotaDataService
     {
         Timeout = TimeSpan.FromSeconds(30),
     };
-    private string _cacheDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AegisCoach",
-        "cache");
+    private readonly SemaphoreSlim _requestStartGate = new(1, 1);
+    private DateTimeOffset _nextRequestAt = DateTimeOffset.MinValue;
+    private string _cacheDirectory = AegisCoachPaths.Cache;
 
     /// <summary>资料缓存目录，可在设置页自定义；修改后新的缓存读写生效。</summary>
     public string CacheDirectory
@@ -74,6 +77,10 @@ public sealed class DotaDataService
                         .ToDictionary(hero => hero.Id, hero => hero.LocalizedName) ?? [];
                     foreach (var hero in cached.Heroes)
                     {
+                        if (string.IsNullOrWhiteSpace(hero.EnglishName) || LocalizedText.ContainsChinese(hero.EnglishName))
+                        {
+                            hero.EnglishName = hero.LocalizedName;
+                        }
                         if (cachedNames.TryGetValue(hero.Id, out var localizedName)) hero.LocalizedName = localizedName;
                     }
                     cached.Heroes = cached.Heroes.OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture).ToList();
@@ -101,6 +108,7 @@ public sealed class DotaDataService
             Heroes = heroesTask.Result
                 .Select(hero =>
                 {
+                    hero.EnglishName = hero.LocalizedName;
                     hero.LocalizedName = localizedNames.GetValueOrDefault(hero.Id, hero.LocalizedName);
                     return hero;
                 })
@@ -254,12 +262,14 @@ LIMIT 24";
                 var item = pair.Value!;
                 var id = item.Id > 0 ? item.Id : int.TryParse(pair.Key, out var parsedId) ? parsedId : 0;
                 var name = string.IsNullOrWhiteSpace(item.Name) ? $"item_{pair.Key}" : item.Name;
-                var localizedName = string.IsNullOrWhiteSpace(item.LocalizedName) ? item.DisplayName : item.LocalizedName;
+                var localizedName = LocalizedText.ChineseOr(
+                    item.LocalizedName,
+                    LocalizedText.ChineseOr(item.DisplayName, "中文名称待同步"));
                 var summary = new OfficialItemSummary
                 {
                     Id = id,
                     Name = name,
-                    LocalizedName = string.IsNullOrWhiteSpace(localizedName) ? name : localizedName,
+                    LocalizedName = localizedName,
                     EnglishName = string.IsNullOrWhiteSpace(item.DisplayName) ? name : item.DisplayName,
                 };
                 summary.RecipeComponents.AddRange((item.Components ?? [])
@@ -335,7 +345,7 @@ LIMIT 24";
                         CurrentItemCatalog.IsCurrent(component.Name)));
             }
         }
-        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException)
+        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or TimeoutException)
         {
             // Recipe data is an enhancement; the current official item directory remains usable offline.
         }
@@ -450,7 +460,7 @@ GROUP BY item_id";
     {
         try
         {
-            using var response = await _httpClient.GetAsync(OpenDotaBase + path, cancellationToken);
+            using var response = await GetWithRetryAsync(OpenDotaBase + path, cancellationToken);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
                 ?? throw new InvalidOperationException("OpenDota 返回了空数据");
@@ -461,7 +471,11 @@ GROUP BY item_id";
         }
         catch (HttpRequestException exception)
         {
-            throw new InvalidOperationException($"OpenDota 请求失败：{path}。{exception.Message}", exception);
+            throw new InvalidOperationException($"OpenDota {DescribeHttpFailure(exception)}：{path}", exception);
+        }
+        catch (TimeoutException exception)
+        {
+            throw new InvalidOperationException($"OpenDota 请求超时：{path}", exception);
         }
     }
 
@@ -470,7 +484,7 @@ GROUP BY item_id";
         try
         {
             var requestUri = $"{ExplorerBase}?sql={Uri.EscapeDataString(sql)}";
-            using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+            using var response = await GetWithRetryAsync(requestUri, cancellationToken);
             response.EnsureSuccessStatusCode();
             var envelope = await response.Content.ReadFromJsonAsync<ExplorerEnvelope<T>>(JsonOptions, cancellationToken);
             if (envelope?.Rows is null)
@@ -491,7 +505,11 @@ GROUP BY item_id";
         }
         catch (HttpRequestException exception)
         {
-            throw new InvalidOperationException($"OpenDota Explorer 请求失败：{exception.Message}", exception);
+            throw new InvalidOperationException($"OpenDota Explorer {DescribeHttpFailure(exception)}", exception);
+        }
+        catch (TimeoutException exception)
+        {
+            throw new InvalidOperationException("OpenDota Explorer 请求超时", exception);
         }
     }
 
@@ -499,7 +517,7 @@ GROUP BY item_id";
     {
         try
         {
-            using var response = await _httpClient.GetAsync(DotaBase + path, cancellationToken);
+            using var response = await GetWithRetryAsync(DotaBase + path, cancellationToken);
             response.EnsureSuccessStatusCode();
             var envelope = await response.Content.ReadFromJsonAsync<DatafeedEnvelope<T>>(JsonOptions, cancellationToken);
             if (envelope?.Result?.Data is null) throw new InvalidOperationException("Dota 2 官方接口返回了空数据");
@@ -511,7 +529,11 @@ GROUP BY item_id";
         }
         catch (HttpRequestException exception)
         {
-            throw new InvalidOperationException($"Dota 2 官方接口请求失败：{path}。{exception.Message}", exception);
+            throw new InvalidOperationException($"Dota 2 官方接口{DescribeHttpFailure(exception)}：{path}", exception);
+        }
+        catch (TimeoutException exception)
+        {
+            throw new InvalidOperationException($"Dota 2 官方接口请求超时：{path}", exception);
         }
     }
 
@@ -521,15 +543,103 @@ GROUP BY item_id";
         {
             return await GetDotaFeedAsync<T>(path, cancellationToken);
         }
-        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException)
+        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or TimeoutException)
         {
             Directory.CreateDirectory(_cacheDirectory);
-            File.WriteAllText(
+            AtomicFile.WriteAllText(
                 Path.Combine(_cacheDirectory, "last-data-source-error.txt"),
                 $"Dota 2 官方数据源不可用：{path}{Environment.NewLine}{exception.Message}");
             return null;
         }
     }
+
+    private async Task<HttpResponseMessage> GetWithRetryAsync(string uri, CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+        for (var attempt = 0; attempt < MaxRequestAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await WaitForRequestSlotAsync(cancellationToken);
+            try
+            {
+                var response = await _httpClient.GetAsync(
+                    uri,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
+                if (!IsTransient(response.StatusCode) || attempt == MaxRequestAttempts - 1)
+                {
+                    return response;
+                }
+
+                var delay = RetryDelay(response, attempt);
+                response.Dispose();
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch (HttpRequestException exception) when (attempt < MaxRequestAttempts - 1)
+            {
+                lastException = exception;
+                await Task.Delay(RetryDelay(null, attempt), cancellationToken);
+            }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                lastException = exception;
+                if (attempt == MaxRequestAttempts - 1)
+                {
+                    throw new TimeoutException("远程数据源在 30 秒内没有响应", exception);
+                }
+
+                await Task.Delay(RetryDelay(null, attempt), cancellationToken);
+            }
+        }
+
+        throw lastException ?? new HttpRequestException("远程数据源请求失败");
+    }
+
+    private async Task WaitForRequestSlotAsync(CancellationToken cancellationToken)
+    {
+        await _requestStartGate.WaitAsync(cancellationToken);
+        try
+        {
+            var delay = _nextRequestAt - DateTimeOffset.UtcNow;
+            if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellationToken);
+            _nextRequestAt = DateTimeOffset.UtcNow + MinimumRequestSpacing;
+        }
+        finally
+        {
+            _requestStartGate.Release();
+        }
+    }
+
+    private static bool IsTransient(HttpStatusCode statusCode) =>
+        statusCode == HttpStatusCode.RequestTimeout
+        || statusCode == HttpStatusCode.TooManyRequests
+        || (int)statusCode >= 500;
+
+    private static TimeSpan RetryDelay(HttpResponseMessage? response, int attempt)
+    {
+        var retryAfter = response?.Headers.RetryAfter;
+        if (retryAfter?.Delta is TimeSpan delta && delta > TimeSpan.Zero)
+        {
+            return delta > TimeSpan.FromSeconds(10) ? TimeSpan.FromSeconds(10) : delta;
+        }
+
+        if (retryAfter?.Date is DateTimeOffset date && date > DateTimeOffset.UtcNow)
+        {
+            var delay = date - DateTimeOffset.UtcNow;
+            return delay > TimeSpan.FromSeconds(10) ? TimeSpan.FromSeconds(10) : delay;
+        }
+
+        return TimeSpan.FromMilliseconds(300 * Math.Pow(2, attempt));
+    }
+
+    private static string DescribeHttpFailure(HttpRequestException exception) => exception.StatusCode switch
+    {
+        HttpStatusCode.TooManyRequests => "请求过于频繁，请稍后重试",
+        HttpStatusCode.RequestTimeout => "请求超时",
+        >= HttpStatusCode.InternalServerError => "服务暂时不可用",
+        null => $"网络连接失败（{exception.Message}）",
+        _ => $"请求失败（HTTP {(int)exception.StatusCode.Value}）",
+    };
 
     private static bool IsFresh(string path, TimeSpan ttl)
     {
@@ -544,13 +654,22 @@ GROUP BY item_id";
             return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
         }
         catch (IOException) { return default; }
-        catch (JsonException) { return default; }
+        catch (JsonException)
+        {
+            QuarantineCorruptCache(path);
+            return default;
+        }
+        catch (NotSupportedException)
+        {
+            QuarantineCorruptCache(path);
+            return default;
+        }
     }
 
     private async Task WriteFileAsync<T>(string path, T value, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_cacheDirectory);
-        var tempPath = path + ".tmp";
+        var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
             await using (var stream = File.Create(tempPath))
@@ -565,6 +684,19 @@ GROUP BY item_id";
         {
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* 尽力清理 */ }
             throw;
+        }
+    }
+
+    private static void QuarantineCorruptCache(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            File.Move(path, path + ".corrupt", overwrite: true);
+        }
+        catch
+        {
+            // A damaged cache is optional; a failed quarantine must not block a fresh download.
         }
     }
 

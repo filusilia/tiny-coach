@@ -2,6 +2,7 @@
 .build/
 **/bin/
 **/obj/
+**/.artifacts/
 
 # Visual Studio local state
 .vs/
@@ -13,4 +14,3 @@
 # Local environment and generated logs
 .env
 *.log
-

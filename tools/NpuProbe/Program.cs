@@ -2,10 +2,11 @@ using System.Diagnostics;
 using OpenVinoSharp;
 using OpenVinoSharp.GenAI;
 
-const string DefaultModelDir =
-    @"C:\Users\Alice\AppData\Local\AegisCoach\models\qwen2.5-1.5b-int4-ov";
+var defaultModelDir = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+    "AegisCoach", "models", "qwen2.5-1.5b-int4-ov");
 
-var modelDir = args.Length > 0 ? args[0] : DefaultModelDir;
+var modelDir = args.Length > 0 ? args[0] : defaultModelDir;
 var device = args.Length > 1 ? args[1] : "NPU";
 var runs = args.Length > 2 ? int.Parse(args[2]) : 1;
 var shortPrompt = args.Length > 3 && args[3] == "short";

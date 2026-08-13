@@ -3,8 +3,12 @@
 神盾教练是一个面向 Windows PC 的 Dota 2 资料与教练工具，当前使用 WinUI 3 原生桌面技术实现。项目不再维护 Vue、Vite 或浏览器版本，唯一产品入口是 `native/AegisCoach.Native`。
 
 完整的功能、数据口径、完成度和后续计划见：[项目完整文档](docs/PROJECT_DOCUMENTATION.md)。
+逐日开发、现场诊断和验证结果见：[操作与验证历史](docs/OPERATION_LOG.md)。
 AI Agent 的统一输入契约、赛后复盘、实时解释、资料问答、数据质量和研发模板见：[AI Agent Prompt 模板](docs/AI_AGENT_PROMPT_TEMPLATES.md)。
+仓库代码 Agent 的执行边界、UI 设计 prompt 和验证矩阵见：[AGENTS.md](AGENTS.md)。
+当前架构评价、主要风险和渐进式演进路线见：[架构评审](docs/ARCHITECTURE_REVIEW.md)。
 实时教练的模型边界、云端/离线部署和回退策略见：[AI 运行设计](docs/AI_RUNTIME_DESIGN.md)。
+游戏画面捕获的 Microsoft/NVIDIA 选型、视觉证据边界和 PoC 门槛见：[画面捕获与 AI 教练可行性](docs/SCREEN_CAPTURE_AI_FEASIBILITY.md)。
 
 ## 当前可用
 
@@ -17,21 +21,46 @@ AI Agent 的统一输入契约、赛后复盘、实时解释、资料问答、�
 - 物品中文目录、官网式分类筛选排序、搜索、价格、说明、购买数、胜局数和胜率。
 - Windows 系统浅色/深色主题跟随、左侧 WinUI 导航、窗口缩放；界面按 Dota 2 电竞面板风格统一美化（琥珀金点缀、暗色卡片、分段胜率条）。
 - 实时教练（GSI 最小闭环）：本地监听 Dota 2 Game State Integration，专注 AI 提醒——页面不再展示血条/蓝条等自身状态，只保留连接状态、对局概览（阶段/时间/比分/昼夜/建筑）与带证据的教练提醒（低血量、低魔量、大招就绪、阵亡、控制锁定、买活窗口、资源完整、比赛开始/结束）。
-- AI 智能解释可选三种后端：NPU 本地推理（默认，OpenVINO GenAI 跑在 Intel AI Boost，不占 GPU、不占用 CPU 主核）、云端 OpenAI 兼容 API（本地零性能开销）、规则原文（零消耗）。任何后端不可用或超时时自动回退规则原文，不影响 GSI 接收；不再依赖 Ollama。
+- AI 智能解释可选三种方式：本地低功耗、云端 API、仅规则提醒。任何智能后端不可用或超时时自动回退规则提醒，不影响 GSI 接收。
 - 资料数据按目标版本 v7.41e 隔离缓存；官方接口没有可靠 patch 参数，线上版本仍需在可联网环境复核。
-- GSI 快照记录：有效快照按日期写入本地 NDJSON，落盘前自动脱敏 token；实时教练页面可直接打开记录目录。
-- GSI 配置文件生成与安装：自动探测 Steam 库路径，或手动选择目录/导出/复制 `gamestate_integration_aegiscoach.cfg`。
+- 资料请求支持重试、指数退避、限速和超时分类；损坏缓存自动隔离，设置与报告使用原子写入。
+- 小于 30 的统计样本不展示胜率结论；Cloud/Stratz 密钥保存在 Windows 凭据保险库。
+- GSI 快照记录：有效快照按日期写入本地 NDJSON，落盘前自动脱敏 token；可从设置打开统一数据目录。
+- GSI 配置文件生成与安装：自动探测 Steam 库路径，探测失败时可在高级设置中手动选择目录并重新安装。
 - Steam Dota 2 GSI 接入步骤见：[Steam Dota 2 GSI 接入手册](docs/STEAM_DOTA2_GSI_GUIDE.md)。
 
-## 构建
+## 如何启动
+
+Visual Studio 2022：
+
+1. 打开 `native/AegisCoach.Native.sln`。
+2. 顶部配置选择 `Debug` 和 `x64`。
+3. 解决方案中只有 `AegisCoach.Native`，将它设为启动项目。
+4. 按 `F5` 调试，或按 `Ctrl+F5` 直接运行。
+
+首次启动会先打开基础设置。点击“保存并开始”成功后，应用才会加载资料、安装 GSI 配置并启动已启用服务。
+
+命令行启动：
 
 ```powershell
-dotnet build native\AegisCoach.Native\AegisCoach.Native.csproj --configuration Debug --framework net8.0-windows10.0.19041.0 --runtime win-x64 --no-restore
+dotnet restore native\AegisCoach.Native.sln -p:Platform=x64
+dotnet run --project native\AegisCoach.Native\AegisCoach.Native.csproj --configuration Debug --framework net8.0-windows10.0.19041.0 --runtime win-x64
+```
+
+`AegisCoach.Native/Core` 是应用项目内的逻辑源码目录，不是独立项目，也不生成 `AegisCoach.Core.dll`。其中放置 GSI、规则和赛后分析逻辑，目的是让应用 UI 与可重复测试的逻辑保持分开。
+
+如果 Visual Studio 在本次结构更新前已经打开，并仍显示 `.artifacts`、重复 Assembly 特性或缺少 Core DLL：保存其他工作，关闭 Visual Studio，再重新打开 `native/AegisCoach.Native.sln`。旧错误来自 VS 缓存的项目图；新解决方案不会引用 `.artifacts` 或 `AegisCoach.Core.dll`。
+
+## 仅构建
+
+```powershell
+dotnet restore native\AegisCoach.Native.sln -p:Platform=x64
+dotnet build native\AegisCoach.Native.sln --configuration Debug --no-restore -p:Platform=x64
 ```
 
 生成文件位于：
 
-`native/AegisCoach.Native/bin/Debug/net8.0-windows10.0.19041.0/win-x64/`
+`native/AegisCoach.Native/bin/x64/Debug/net8.0-windows10.0.19041.0/`
 
 ## 测试
 
@@ -44,16 +73,20 @@ dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj
 离线回放本地 GSI 记录（不启动 Dota 2、不访问网络、不调用 AI）：
 
 ```powershell
-dotnet run --project tools\GsiReplay\AegisCoach.Replay.csproj -- "%LOCALAPPDATA%\AegisCoach\gsi"
+dotnet run --project tools\GsiReplay\AegisCoach.Replay.csproj -- "$([Environment]::GetFolderPath('MyDocuments'))\AegisCoach\gsi"
 ```
 
 ## 入口
 
 - AI Agent 模板与安全边界：docs/AI_AGENT_PROMPT_TEMPLATES.md
+- 研发 Agent 仓库指令：AGENTS.md
+- 架构评审与演进路线：docs/ARCHITECTURE_REVIEW.md
+- 当前功能、完成度与验收计划：docs/PROJECT_DOCUMENTATION.md
+- 历史开发与验证记录：docs/OPERATION_LOG.md
 
 - 解决方案：`native/AegisCoach.Native.sln`
 - WinUI 应用：`native/AegisCoach.Native/AegisCoach.Native.csproj`（主窗口 `MainWindow.xaml`，数据服务 `Services/DotaDataService.cs`）
-- GSI 核心库：`native/AegisCoach.Core/`（`Models/GsiModels.cs`、`Services/GsiReceiver.cs`、`Services/CoachRuleEngine.cs`、`Services/GsiConfigInstaller.cs`）
+- GSI 核心源码：`native/AegisCoach.Native/Core/`（Native 项目内部目录）
 - 冒烟测试：`tools/GsiSmoke/Program.cs`
 - NDJSON 回放：`tools/GsiReplay/Program.cs`
 - 模型与统计口径：`native/AegisCoach.Native/Models/DotaModels.cs`

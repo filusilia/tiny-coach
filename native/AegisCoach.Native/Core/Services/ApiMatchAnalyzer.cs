@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Net;
 using AegisCoach.Core.Models;
 
 namespace AegisCoach.Core.Services;
@@ -11,6 +12,7 @@ namespace AegisCoach.Core.Services;
 public sealed class ApiMatchAnalyzer
 {
     private const string OpenDotaMatchBase = "https://api.opendota.com/api/matches";
+    private const int MaxRequestAttempts = 3;
     private const long AccountIdOffset = 76561197960265728L;
 
     private static readonly HashSet<string> Consumables = new(StringComparer.OrdinalIgnoreCase)
@@ -47,8 +49,7 @@ public sealed class ApiMatchAnalyzer
 
         try
         {
-            using var response = await _httpClient.GetAsync(
-                $"{OpenDotaMatchBase}/{matchId}", cancellationToken);
+            using var response = await GetWithRetryAsync($"{OpenDotaMatchBase}/{matchId}", cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 return new ApiMatchSummary
@@ -64,6 +65,10 @@ public sealed class ApiMatchAnalyzer
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
             return Analyze(document.RootElement, matchId, steamId64, expectedHeroId, heroInternalNameResolver, itemNameResolver, itemIdResolver);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
         {
             return new ApiMatchSummary
@@ -72,6 +77,32 @@ public sealed class ApiMatchAnalyzer
                 Error = exception is TaskCanceledException ? "请求超时" : "网络请求失败",
             };
         }
+    }
+
+    private async Task<HttpResponseMessage> GetWithRetryAsync(string uri, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < MaxRequestAttempts; attempt++)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync(
+                    uri,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
+                var transient = response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
+                    || (int)response.StatusCode >= 500;
+                if (!transient || attempt == MaxRequestAttempts - 1) return response;
+                response.Dispose();
+            }
+            catch (HttpRequestException) when (attempt < MaxRequestAttempts - 1)
+            {
+                // Retry transient connection failures below.
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt)), cancellationToken);
+        }
+
+        throw new HttpRequestException("OpenDota 请求失败");
     }
 
     public ApiMatchSummary? Analyze(

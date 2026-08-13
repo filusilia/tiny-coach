@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\native\AegisCoach.Core\AegisCoach.Core.csproj" />
+    <Compile Include="..\..\native\AegisCoach.Native\Core\Models\**\*.cs"
+             Link="Core\Models\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\native\AegisCoach.Native\Core\Services\**\*.cs"
+             Link="Core\Services\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

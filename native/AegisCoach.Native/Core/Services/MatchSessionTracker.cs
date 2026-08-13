@@ -15,17 +15,9 @@ public sealed class MatchSessionTracker
     private MatchSessionRecord? _current;
     private MatchSnapshot? _previous;
 
-    /// <summary>游戏习惯库目录，可在设置页自定义。</summary>
-    public static string HabitsDirectory { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AegisCoach",
-        "habits");
+    public static string HabitsDirectory { get; set; } = AegisCoachPaths.Habits;
 
-    /// <summary>赛后分析报告保存目录，可在设置页自定义。</summary>
-    public static string AnalysisDirectory { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AegisCoach",
-        "analysis");
+    public static string AnalysisDirectory { get; set; } = AegisCoachPaths.Analysis;
 
     private static string HabitsPath => Path.Combine(
         HabitsDirectory,
@@ -225,7 +217,7 @@ public sealed class MatchSessionTracker
         {
             var directory = Path.GetDirectoryName(HabitsPath);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllText(HabitsPath, JsonSerializer.Serialize(habits, JsonOptions));
+            AtomicFile.WriteAllText(HabitsPath, JsonSerializer.Serialize(habits, JsonOptions));
         }
         catch
         {
@@ -239,7 +231,7 @@ public sealed class MatchSessionTracker
         {
             Directory.CreateDirectory(AnalysisDirectory);
             var path = Path.Combine(AnalysisDirectory, $"{report.Id}.json");
-            File.WriteAllText(path, JsonSerializer.Serialize(report, JsonOptions));
+            AtomicFile.WriteAllText(path, JsonSerializer.Serialize(report, JsonOptions));
             return path;
         }
         catch

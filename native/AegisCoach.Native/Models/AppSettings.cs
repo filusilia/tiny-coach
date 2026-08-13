@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AegisCoach.Core.Services;
+using AegisCoach.Native.Services;
 
 namespace AegisCoach.Native.Models;
 
@@ -16,51 +18,38 @@ public enum AiBackendKind
     Rules,
 }
 
-/// <summary>应用本地设置，持久化到 %LOCALAPPDATA%\AegisCoach\settings.json。</summary>
+/// <summary>仅供本应用使用的设置，保存在用户文档目录。</summary>
 public sealed class AppSettings
 {
-    private static string DefaultRoot => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AegisCoach");
+    public const int GsiPort = 4444;
 
-    private string _cacheDirectory = Path.Combine(DefaultRoot, "cache");
-    private string _analysisDirectory = Path.Combine(DefaultRoot, "analysis");
-
-    public int GsiPort { get; set; } = 4444;
-    public string GsiToken { get; set; } = string.Empty;
+    public bool SetupCompleted { get; set; }
     public bool AutoStartGsi { get; set; } = true;
     public string? DotaCfgManualPath { get; set; }
     public bool SmartCoachEnabled { get; set; } = true;
-    /// <summary>AI 后端标识：npu（默认）/ cloud / rules。旧设置中的 NpuEnabled 会自动迁移。</summary>
+    /// <summary>AI 后端标识：npu（默认）/ cloud / rules。</summary>
     public string AiBackend { get; set; } = "npu";
     public string CloudEndpoint { get; set; } = "https://api.openai.com/v1";
     public string CloudModel { get; set; } = "gpt-4o-mini";
+    [JsonIgnore]
     public string CloudApiKey { get; set; } = string.Empty;
-    public string NpuModelPath { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AegisCoach",
-        "models",
-        "qwen2.5-1.5b-int4-ov");
+    public string NpuModelPath { get; set; } = Path.Combine(AegisCoachPaths.Models, "qwen2.5-1.5b-int4-ov");
     public bool LiveHeroTrackingEnabled { get; set; } = true;
+    /// <summary>英雄资料页默认统计分段：all 或 1-8。</summary>
+    public string DefaultRankId { get; set; } = "all";
     /// <summary>Stratz API 密钥（可选）。填写后对任意公开对局都可实时获取全场英雄；留空时仅热门对局可实时，普通对局赛后由 OpenDota 补全。</summary>
+    [JsonIgnore]
     public string StratzApiKey { get; set; } = string.Empty;
     public int SmartCoachMinIntervalSeconds { get; set; } = 3;
     public CoachRuleOptions RuleOptions { get; set; } = new();
 
-    /// <summary>物品/英雄资料缓存目录，可在设置页自定义。</summary>
-    public string CacheDirectory
-    {
-        get => _cacheDirectory;
-        set => _cacheDirectory = string.IsNullOrWhiteSpace(value) ? Path.Combine(DefaultRoot, "cache") : value;
-    }
+    [JsonIgnore]
+    public string CacheDirectory => AegisCoachPaths.Cache;
 
-    /// <summary>赛后分析报告保存目录，可在设置页自定义。</summary>
-    public string AnalysisDirectory
-    {
-        get => _analysisDirectory;
-        set => _analysisDirectory = string.IsNullOrWhiteSpace(value) ? Path.Combine(DefaultRoot, "analysis") : value;
-    }
+    [JsonIgnore]
+    public string AnalysisDirectory => AegisCoachPaths.Analysis;
 
+    [JsonIgnore]
     public AiBackendKind BackendKind => AiBackend switch
     {
         "cloud" => AiBackendKind.Cloud,
@@ -68,22 +57,35 @@ public sealed class AppSettings
         _ => AiBackendKind.Npu,
     };
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AegisCoach",
-        "settings.json");
+    [JsonIgnore]
+    public string? LastSaveError { get; private set; }
 
-    public void Save()
+    public bool Save()
     {
         try
         {
-            var directory = Path.GetDirectoryName(FilePath);
+            LastSaveError = null;
+            if (!AppCredentialStore.Save(nameof(CloudApiKey), CloudApiKey, out var cloudError))
+            {
+                LastSaveError = $"云端 API 密钥无法保存到 Windows 凭据保险库：{cloudError}";
+                return false;
+            }
+
+            if (!AppCredentialStore.Save(nameof(StratzApiKey), StratzApiKey, out var stratzError))
+            {
+                LastSaveError = $"Stratz API 密钥无法保存到 Windows 凭据保险库：{stratzError}";
+                return false;
+            }
+
+            var directory = Path.GetDirectoryName(AegisCoachPaths.SettingsFile);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, JsonOptions));
+            AtomicFile.WriteAllText(AegisCoachPaths.SettingsFile, JsonSerializer.Serialize(this, JsonOptions));
+            return true;
         }
-        catch
+        catch (Exception exception)
         {
-            // Settings persistence is best effort; losing it only resets preferences.
+            LastSaveError = exception.Message;
+            return false;
         }
     }
 
@@ -91,14 +93,16 @@ public sealed class AppSettings
     {
         try
         {
-            if (File.Exists(FilePath))
+            if (File.Exists(AegisCoachPaths.SettingsFile))
             {
-                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), JsonOptions);
+                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AegisCoachPaths.SettingsFile), JsonOptions);
                 if (loaded is not null)
                 {
                     loaded.RuleOptions ??= new CoachRuleOptions();
                     loaded.RuleOptions.Normalize();
-                    loaded.MigrateLegacySettings();
+                    loaded.Normalize();
+                    loaded.CloudApiKey = AppCredentialStore.Load(nameof(CloudApiKey));
+                    loaded.StratzApiKey = AppCredentialStore.Load(nameof(StratzApiKey));
                     return loaded;
                 }
             }
@@ -111,11 +115,7 @@ public sealed class AppSettings
         return new AppSettings();
     }
 
-    /// <summary>
-    /// 兼容旧版 settings.json：曾用 NpuEnabled 布尔值表示是否启用 NPU；
-    /// 若该字段为 true 而 AiBackend 仍是默认值，则迁移到 NPU 后端。
-    /// </summary>
-    private void MigrateLegacySettings()
+    private void Normalize()
     {
         if (AiBackend is not ("npu" or "cloud" or "rules"))
         {
@@ -126,7 +126,12 @@ public sealed class AppSettings
         if (string.IsNullOrWhiteSpace(CloudModel)) CloudModel = "gpt-4o-mini";
         if (string.IsNullOrWhiteSpace(NpuModelPath))
         {
-            NpuModelPath = Path.Combine(DefaultRoot, "models", "qwen2.5-1.5b-int4-ov");
+            NpuModelPath = Path.Combine(AegisCoachPaths.Models, "qwen2.5-1.5b-int4-ov");
+        }
+
+        if (DefaultRankId is not ("all" or "1" or "2" or "3" or "4" or "5" or "6" or "7" or "8"))
+        {
+            DefaultRankId = "all";
         }
     }
 

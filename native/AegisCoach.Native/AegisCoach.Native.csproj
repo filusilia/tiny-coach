@@ -23,8 +23,5 @@
     <PackageReference Include="JYPPX.OpenVINO.GenAI.runtime.win" Version="2026.3.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\AegisCoach.Core\AegisCoach.Core.csproj" />
-  </ItemGroup>
 </Project>
 

@@ -15,6 +15,7 @@ public sealed class HeroStat
     [JsonPropertyName("id")] public int Id { get; set; }
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
     [JsonPropertyName("localized_name")] public string LocalizedName { get; set; } = string.Empty;
+    [JsonPropertyName("english_name")] public string EnglishName { get; set; } = string.Empty;
     [JsonPropertyName("primary_attr")] public string PrimaryAttribute { get; set; } = string.Empty;
     [JsonPropertyName("attack_type")] public string AttackType { get; set; } = string.Empty;
     [JsonPropertyName("img")] public string ImagePath { get; set; } = string.Empty;
@@ -316,7 +317,7 @@ public sealed class ItemRecipeComponent
     public string EnglishName { get; init; } = string.Empty;
     public int Count { get; init; } = 1;
     public string CountText => $"x{Count}";
-    public string DisplayName => string.IsNullOrWhiteSpace(LocalizedName) ? EnglishName : LocalizedName;
+    public string DisplayName => LocalizedText.ChineseOr(LocalizedName, "中文名称待同步");
     public string ImageUrl => OfficialItemSummary.ImageUrlFor(Name);
 }
 
@@ -338,12 +339,15 @@ public sealed class OfficialItemData
 
 public sealed class ItemMetric
 {
+    public const int MinimumReliableSample = 30;
+
     public int Picks { get; init; }
     public int Wins { get; init; }
     public double? WinRate => Picks > 0 ? Wins * 100d / Picks : null;
+    public bool HasReliableSample => Picks >= MinimumReliableSample;
     public string PicksText => HeroCardItem.CompactNumber(Picks);
     public string WinsText => HeroCardItem.CompactNumber(Wins);
-    public string WinRateText => WinRate is double value ? $"{value:0.0}%" : "--";
+    public string WinRateText => HasReliableSample && WinRate is double value ? $"{value:0.0}%" : "样本不足";
 }
 
 public sealed class ItemCardItem
@@ -358,32 +362,37 @@ public sealed class ItemCardItem
     public OfficialItemSummary Item { get; }
     public ItemMetric Metric { get; }
     public BitmapImage Image { get; }
-    public string Name => string.IsNullOrWhiteSpace(Item.LocalizedName) ? Item.EnglishName : Item.LocalizedName;
+    public string Name => LocalizedText.ChineseOr(Item.LocalizedName, "中文名称待同步");
     public string EnglishName => Item.EnglishName;
     public string PicksText => Metric.Picks > 0 ? $"购买 {Metric.PicksText}" : "暂无统计";
-    public string WinRateText => Metric.WinRate is double ? $"胜率 {Metric.WinRateText}" : "胜率 --";
+    public string WinRateText => Metric.Picks == 0
+        ? "胜率 --"
+        : Metric.HasReliableSample ? $"胜率 {Metric.WinRateText}" : "样本不足";
     public string TierText => CurrentItemCatalog.IsNeutralItem(Item.Name)
         ? (Item.NeutralTier > 0 ? $"中立物品 T{Item.NeutralTier}" : "中立物品 · 附魔")
         : CurrentItemCatalog.IsSpecialItem(Item.Name) ? "特殊物品" : "商店物品";
     public string CategoryLabel => ItemCategory.Classify(Item);
+    public string ShopSection => CurrentItemCatalog.IsNeutralItem(Item.Name) ? "中立物品" :
+        CategoryLabel is "消耗品" or "属性" or "装备" or "其他" or "神秘商店" ? "基础分类" : "合成分类";
 }
 
 public static class ItemCategory
 {
     public static readonly IReadOnlyList<string> Order =
-        ["全部", "消耗品", "属性", "装备", "辅助", "魔法", "护甲", "武器", "神器", "中立物品", "其他"];
+        ["消耗品", "属性", "装备", "其他", "神秘商店", "配件", "辅助", "法器", "防具", "兵刃", "宝物", "中立物品"];
 
     public static string Classify(OfficialItemSummary item)
     {
         if (CurrentItemCatalog.IsNeutralItem(item.Name)) return "中立物品";
+        if (CurrentItemCatalog.IsSpecialItem(item.Name)) return "其他";
         var source = string.Join(" ", item.CategoryCode, item.TypeCode, item.ShopTags).ToLowerInvariant();
         if (source.Contains("consum") || source.Contains("消耗")) return "消耗品";
         if (source.Contains("attribute") || source.Contains("属性")) return "属性";
         if (source.Contains("support") || source.Contains("辅助")) return "辅助";
-        if (source.Contains("magic") || source.Contains("arcane") || source.Contains("魔法")) return "魔法";
-        if (source.Contains("armor") || source.Contains("defense") || source.Contains("护甲")) return "护甲";
-        if (source.Contains("weapon") || source.Contains("武器")) return "武器";
-        if (source.Contains("artifact") || source.Contains("神器")) return "神器";
+        if (source.Contains("magic") || source.Contains("arcane") || source.Contains("魔法")) return "法器";
+        if (source.Contains("armor") || source.Contains("defense") || source.Contains("护甲")) return "防具";
+        if (source.Contains("weapon") || source.Contains("武器")) return "兵刃";
+        if (source.Contains("artifact") || source.Contains("神器")) return "宝物";
 
         var name = item.Name.ToLowerInvariant();
         if (name.Contains("tango") || name.Contains("healing_salv") || name.Contains("clarity") ||
@@ -397,15 +406,39 @@ public static class ItemCategory
             return "属性";
         if (name.Contains("armor") || name.Contains("chainmail") || name.Contains("plate_mail") ||
             name.Contains("ring_of_protection") || name.Contains("cloak") || name.Contains("hood_of_defiance"))
-            return "护甲";
+            return "防具";
         if (name.Contains("blade") || name.Contains("sword") || name.Contains("axe") ||
             name.Contains("javelin") || name.Contains("desolator") || name.Contains("rapier"))
-            return "武器";
+            return "兵刃";
         if (name.Contains("staff") || name.Contains("scepter") || name.Contains("octarine") ||
             name.Contains("refresher") || name.Contains("shiva") || name.Contains("aghs"))
-            return "神器";
+            return "宝物";
+        if (item.RecipeComponents.Count > 0) return "配件";
         return "装备";
     }
+}
+
+public sealed class ItemCategoryGroup
+{
+    public ItemCategoryGroup(string name, IEnumerable<ItemCardItem> items)
+    {
+        Name = name;
+        Items = new ObservableCollection<ItemCardItem>(items);
+    }
+
+    public string Name { get; }
+    public ObservableCollection<ItemCardItem> Items { get; }
+    public string CountText => $"{Items.Count} 件";
+}
+
+public static class LocalizedText
+{
+    public static bool ContainsChinese(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Any(character => character is >= '\u3400' and <= '\u9fff');
+
+    public static string ChineseOr(string? value, string fallback) => ContainsChinese(value) ? value!.Trim() : fallback;
+
+    public static string? ChineseOrNull(string? value) => ContainsChinese(value) ? value!.Trim() : null;
 }
 
 public sealed class OfficialAbility
@@ -443,6 +476,8 @@ public sealed class LocalizedHeroData
     [JsonPropertyName("id")] public int Id { get; set; }
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
     [JsonPropertyName("name_loc")] public string LocalizedName { get; set; } = string.Empty;
+    [JsonPropertyName("bio_loc")] public string Biography { get; set; } = string.Empty;
+    [JsonPropertyName("hype_loc")] public string Hype { get; set; } = string.Empty;
     private List<OfficialAbility> _abilities = [];
     private List<OfficialAbility> _talents = [];
     [JsonPropertyName("abilities")] public List<OfficialAbility> Abilities { get => _abilities; set => _abilities = value ?? []; }
@@ -462,7 +497,7 @@ public sealed partial class TalentDisplay
         if (numberMatch.Success)
         {
             NumberPrefix = numberMatch.Groups[1].Value;
-            Label = text.Substring(numberMatch.Length).TrimStart('秒', '%', ' ', '\u00A0').Trim();
+            Label = text.Substring(numberMatch.Length).TrimStart(' ', '\u00A0').Trim();
         }
         else
         {
@@ -495,7 +530,7 @@ public sealed partial class TalentDisplay
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    [GeneratedRegex(@"^[+\-−]?\d+(?:\.\d+)?%?")]
+    [GeneratedRegex(@"^[+\-−]?\d+(?:\.\d+)?(?:%|秒)?")]
     private static partial Regex TalentNumberRegex();
 }
 
@@ -505,6 +540,7 @@ public sealed class HeroBuildMetric
     public int Picks { get; init; }
     public int Wins { get; init; }
     public double? WinRate => Picks > 0 ? Wins * 100d / Picks : null;
+    public bool HasReliableSample => Picks >= ItemMetric.MinimumReliableSample;
 }
 
 public sealed class BuildRecommendation
@@ -512,7 +548,6 @@ public sealed class BuildRecommendation
     public int Order { get; set; }
     public string Phase { get; set; } = "核心";
     public string Name { get; set; } = string.Empty;
-    public string EnglishName { get; set; } = string.Empty;
     public string StatsText { get; set; } = string.Empty;
     public BitmapImage Image { get; set; } = new();
 }
@@ -742,7 +777,7 @@ public sealed class HeroCardItem : INotifyPropertyChanged
 
     public HeroStat Hero { get; }
     public int TotalProActions { get; }
-    public string Name => Hero.LocalizedName;
+    public string Name => LocalizedText.ChineseOr(Hero.LocalizedName, "中文英雄名称待同步");
     public string AttributeLabel => Hero.PrimaryAttribute switch
     {
         "str" => "力量",
@@ -786,9 +821,12 @@ public sealed class HeroCardItem : INotifyPropertyChanged
     public void UpdateRank(RankOption rank)
     {
         var metric = MetricsFor(Hero, rank.Id);
-        _winRate = metric.WinRate ?? 0;
-        _winRateText = metric.WinRate is double rate ? $"{rate:0.0}%" : "--";
-        _sampleText = CompactNumber(metric.Picks);
+        var reliable = metric.Picks >= ItemMetric.MinimumReliableSample;
+        _winRate = reliable ? metric.WinRate ?? 0 : 0;
+        _winRateText = reliable && metric.WinRate is double rate ? $"{rate:0.0}%" : "--";
+        _sampleText = metric.Picks > 0 && !reliable
+            ? $"{CompactNumber(metric.Picks)} · 样本不足"
+            : CompactNumber(metric.Picks);
         OnPropertyChanged(nameof(WinRate));
         OnPropertyChanged(nameof(WinRateText));
         OnPropertyChanged(nameof(SampleText));
@@ -855,6 +893,7 @@ public sealed class HeroSection
     public ObservableCollection<HeroCardItem> Heroes { get; } = [];
     public Brush AccentBrush => Id switch
     {
+        "all-heroes" => (Brush)Microsoft.UI.Xaml.Application.Current.Resources["CoachGoldBrush"],
         "str" => (Brush)Microsoft.UI.Xaml.Application.Current.Resources["HeroAttrStrBrush"],
         "agi" => (Brush)Microsoft.UI.Xaml.Application.Current.Resources["HeroAttrAgiBrush"],
         "int" => (Brush)Microsoft.UI.Xaml.Application.Current.Resources["HeroAttrIntBrush"],
@@ -899,9 +938,12 @@ public sealed class RankPerformanceItem
     public RankPerformanceItem(string label, RankMetric metric)
     {
         Label = label;
-        WinRate = metric.WinRate ?? 0;
-        WinRateText = metric.WinRate is double rate ? $"{rate:0.0}%" : "--";
-        SampleText = $"样本 {HeroCardItem.CompactNumber(metric.Picks)}";
+        var reliable = metric.Picks >= ItemMetric.MinimumReliableSample;
+        WinRate = reliable ? metric.WinRate ?? 0 : 0;
+        WinRateText = reliable && metric.WinRate is double rate ? $"{rate:0.0}%" : "--";
+        SampleText = reliable
+            ? $"样本 {HeroCardItem.CompactNumber(metric.Picks)}"
+            : $"样本 {HeroCardItem.CompactNumber(metric.Picks)} · 样本不足";
     }
 
     public string Label { get; }
@@ -912,7 +954,7 @@ public sealed class RankPerformanceItem
 
 public sealed partial class AbilityDisplay
 {
-    private static readonly Dictionary<string, string> TagMap = new()
+    private static readonly Dictionary<string, string> TagMap = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Unit Target"] = "单位目标", ["Point Target"] = "点目标", ["No Target"] = "无目标",
         ["Passive"] = "被动", ["Toggle"] = "切换", ["Channelled"] = "持续施法",
@@ -923,16 +965,22 @@ public sealed partial class AbilityDisplay
     public AbilityDisplay(string id, AbilityDefinition? baseData, OfficialAbility? official)
     {
         Id = id;
-        Name = FirstText(official?.LocalizedName, baseData?.DisplayName, id.Replace('_', ' '));
-        Description = ResolveParameters(Clean(official?.Description) ?? baseData?.Description ?? "暂无说明", official?.SpecialValues, baseData?.Attributes);
-        Lore = Clean(official?.Lore) ?? baseData?.Lore;
-        Notes = official?.Notes.Select(Clean).OfType<string>().ToList() ?? [];
-        Shard = ResolveParameters(Clean(official?.Shard) ?? string.Empty, official?.SpecialValues, baseData?.Attributes);
-        Scepter = ResolveParameters(Clean(official?.Scepter) ?? string.Empty, official?.SpecialValues, baseData?.Attributes);
+        Name = LocalizedText.ChineseOr(official?.LocalizedName, "中文技能名称待同步");
+        var description = LocalizedText.ChineseOrNull(Clean(official?.Description));
+        Description = description is null
+            ? "中文说明暂不可用"
+            : ResolveParameters(description, official?.SpecialValues, baseData?.Attributes);
+        Lore = LocalizedText.ChineseOrNull(Clean(official?.Lore));
+        Notes = official?.Notes.Select(Clean).Where(LocalizedText.ContainsChinese).OfType<string>().ToList() ?? [];
+        var shard = LocalizedText.ChineseOrNull(Clean(official?.Shard));
+        var scepter = LocalizedText.ChineseOrNull(Clean(official?.Scepter));
+        Shard = shard is null ? string.Empty : ResolveParameters(shard, official?.SpecialValues, baseData?.Attributes);
+        Scepter = scepter is null ? string.Empty : ResolveParameters(scepter, official?.SpecialValues, baseData?.Attributes);
         Cooldown = Series(official?.Cooldowns) ?? baseData?.Cooldown;
         ManaCost = Series(official?.ManaCosts) ?? baseData?.ManaCost;
         Image = CreateImage(baseData?.ImageUrl);
         TagsText = LocalizeTags(baseData?.Behavior, baseData?.DamageType);
+        StatsDetails = BuildStats(official?.SpecialValues, baseData?.Attributes);
     }
 
     public string Id { get; }
@@ -951,15 +999,13 @@ public sealed partial class AbilityDisplay
     public string ShardText => string.IsNullOrWhiteSpace(Shard) ? string.Empty : $"魔晶：{Shard}";
     public BitmapImage Image { get; }
     public string TagsText { get; }
+    public IReadOnlyList<AbilityDetailStat> StatsDetails { get; }
 
     private static string? Clean(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return System.Text.RegularExpressions.Regex.Replace(value.Replace("<br>", "\n"), "<[^>]+>", string.Empty).Trim();
     }
-
-    private static string FirstText(params string?[] values) =>
-        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "未知技能";
 
     private static BitmapImage CreateImage(string? url) =>
         string.IsNullOrWhiteSpace(url) ? new BitmapImage() : new BitmapImage(new Uri(url));
@@ -1005,36 +1051,35 @@ public sealed partial class AbilityDisplay
         AbilityDefinition? baseData)
     {
         var resolved = ResolveParameters(text, talent.SpecialValues, baseData?.Attributes);
+        var placeholders = ParameterRegex().Matches(text)
+            .Select(match => match.Groups.Values
+                .Skip(1)
+                .Select(group => group.Value)
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToList();
         var values = talent.SpecialValues?.SelectMany(value => value.EffectiveValues.Select(number => number.ToString("0.#")))
             .Concat(baseData?.Attributes?.Select(value => value.ValueText).OfType<string>() ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToList() ?? [];
 
-        // Most special_bonus definitions expose exactly one attrib value. It is
-        // safe to use it only for a talent, where the localized text names one
-        // gameplay variable and otherwise leaves a placeholder behind.
-        if (values.Count == 1)
+        // Some talent definitions expose one value under a key that does not
+        // match the localized placeholder. Re-resolve from the original text
+        // so the number is not lost by the general description sanitizer.
+        if (placeholders.Count > 0 && values.Count == 1 && !Regex.IsMatch(resolved, @"[+\-−]?\d"))
         {
-            resolved = ParameterRegex().Replace(resolved, _ => values[0]);
+            resolved = ParameterRegex().Replace(text, _ => values[0]);
         }
 
-        // 通用天赋把数值编码在技能 ID 末尾（special_bonus_hp_300 = +300 生命）。
-        // 只有占位符是通用 {s:value} 时才用该回退；命名占位符（如 bonus_vampiric_aura）
-        // 数值只来自技能定义，缺失时宁可去掉数字也不伪造错误数值。
-        if (resolved.Contains('{') || resolved.Contains('%'))
+        // Generic talents encode the value in the definition id, for example
+        // special_bonus_hp_300. This fallback is limited to a generic "value"
+        // placeholder so named gameplay variables are never guessed.
+        if (placeholders.Count > 0 &&
+            placeholders.All(key => key.Equals("value", StringComparison.OrdinalIgnoreCase)) &&
+            !Regex.IsMatch(resolved, @"[+\-−]?\d"))
         {
-            var placeholderKeys = ParameterRegex().Matches(resolved)
-                .Select(match => match.Groups.Values
-                    .Skip(1)
-                    .Select(group => group.Value)
-                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty)
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .ToList();
-            if (placeholderKeys.All(key => key.Equals("value", StringComparison.OrdinalIgnoreCase)))
-            {
-                var match = Regex.Match(talent.Name, @"(?:^|_)(\d+(?:\.\d+)?)$");
-                if (match.Success) resolved = ParameterRegex().Replace(resolved, _ => match.Groups[1].Value);
-            }
+            var match = Regex.Match(talent.Name, @"(?:^|_)(\d+(?:\.\d+)?)$");
+            if (match.Success) resolved = ParameterRegex().Replace(text, _ => match.Groups[1].Value);
         }
 
         resolved = ParameterRegex().Replace(resolved, string.Empty).Replace("%%", "%").Replace("  ", " ").Trim();
@@ -1073,8 +1118,70 @@ public sealed partial class AbilityDisplay
     {
         var values = new[] { behavior, damageType }.Where(value => !string.IsNullOrWhiteSpace(value))
             .SelectMany(value => value!.Split(" / ", StringSplitOptions.RemoveEmptyEntries))
-            .Select(value => TagMap.TryGetValue(value, out var localized) ? localized : value);
+            .Select(value => TagMap.TryGetValue(value.Trim(), out var localized) ? localized : null)
+            .OfType<string>();
         return string.Join(" / ", values);
+    }
+
+    public static IReadOnlyList<AbilityDetailStat> BuildStats(
+        IEnumerable<AbilitySpecialValue>? officialValues,
+        IEnumerable<AbilityAttribute>? openDotaValues)
+    {
+        var stats = new List<AbilityDetailStat>();
+        if (officialValues is not null)
+        {
+            foreach (var value in officialValues)
+            {
+                if (value.EffectiveValues.Count == 0 || value.Name.StartsWith("Ability", StringComparison.OrdinalIgnoreCase)) continue;
+                var label = HumanizeStatName(value.Name);
+                var suffix = value.IsPercentage ? "%" : string.Empty;
+                stats.Add(new AbilityDetailStat(label,
+                    string.Join(" / ", value.EffectiveValues.Select(number => $"{number:0.#}{suffix}"))));
+            }
+        }
+
+        if (stats.Count == 0 && openDotaValues is not null)
+        {
+            stats.AddRange(openDotaValues
+                .Where(value => !string.IsNullOrWhiteSpace(value.Key) && !string.IsNullOrWhiteSpace(value.ValueText))
+                .Select(value => new AbilityDetailStat(HumanizeStatName(value.Key), value.ValueText!)));
+        }
+
+        return stats.Take(12).ToList();
+    }
+
+    private static string HumanizeStatName(string name)
+    {
+        var known = name.ToLowerInvariant() switch
+        {
+            "damage" => "伤害",
+            "duration" => "持续时间",
+            "radius" => "作用范围",
+            "range" => "施法距离",
+            "speed" => "速度",
+            "slow" => "减速",
+            "stun_duration" => "眩晕时间",
+            "damage_per_second" => "每秒伤害",
+            "bonus_damage" => "额外伤害",
+            "attack_speed" => "攻击速度",
+            "movement_speed" => "移动速度",
+            _ => string.Empty,
+        };
+        if (!string.IsNullOrEmpty(known)) return known;
+
+        var normalized = name.ToLowerInvariant();
+        if (normalized.Contains("heal")) return "治疗效果";
+        if (normalized.Contains("mana")) return "魔法效果";
+        if (normalized.Contains("armor")) return "护甲";
+        if (normalized.Contains("strength")) return "力量";
+        if (normalized.Contains("agility")) return "敏捷";
+        if (normalized.Contains("intellect")) return "智力";
+        if (normalized.Contains("health")) return "生命";
+        if (normalized.Contains("attack")) return "攻击效果";
+        if (normalized.Contains("cast")) return "施法效果";
+        if (normalized.Contains("duration")) return "持续时间";
+        if (normalized.Contains("cooldown")) return "冷却时间";
+        return "数值参数";
     }
 }
 

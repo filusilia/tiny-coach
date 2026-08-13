@@ -26,7 +26,12 @@ public static class CoachAiPrompts
         };
         if (snapshot.Daytime) lines.Add("当前是白天");
         else lines.Add("当前是夜晚，视野缩小，游走与开雾风险高");
-        if (snapshot.RoshanAlive.HasValue) lines.Add(snapshot.RoshanAlive.Value ? "肉山存活" : $"肉山已被击杀，预计 {8 + Random.Shared.Next(4)} 分钟后复活");
+        if (snapshot.RoshanAlive.HasValue)
+        {
+            lines.Add(snapshot.RoshanAlive.Value
+                ? "肉山存活"
+                : "肉山已被击杀；GSI 未提供准确复活倒计时");
+        }
         if (!string.IsNullOrWhiteSpace(snapshot.BuildingSummary)) lines.Add($"建筑：{snapshot.BuildingSummary}");
         if (hero.IsSmoked) lines.Add("我处于诡计之雾中（攻击/施法会现形）");
         if (hero.MagicImmunity) lines.Add("我处于魔法免疫状态");

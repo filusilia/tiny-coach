@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AegisCoach.Core.Models;
 using AegisCoach.Core.Services;
+using AegisCoach.Native.Services;
 
 namespace AegisCoach.Smoke;
 
@@ -16,17 +17,21 @@ internal static class Program
         Console.WriteLine("== AegisCoach GSI 冒烟测试 ==");
         await TestReceiverAndRulesAsync();
         TestConfigGeneration();
+        TestApplicationPaths();
+        TestAtomicFile();
         TestConfigInstall();
         TestMatchSnapshotParsing();
         TestUltimateEdge();
         TestCompositeCoachRules();
         TestConfigurableCoachRules();
         TestNewCoachRules();
+        TestCoachAiPromptEvidenceBoundary();
         await TestTokenRejection();
         TestSnapshotRecorder();
         TestSnapshotReplay();
         TestMatchOperationExtractor();
         TestApiMatchAnalyzer();
+        await TestApiMatchAnalyzerRetryAsync();
         TestApiMatchAnalyzerRealFile();
         TestItemRecommendation();
         TestMatchSessionTracker();
@@ -34,6 +39,35 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine($"通过 {_passed}，失败 {_failed}");
         return _failed == 0 ? 0 : 1;
+    }
+
+    private static void TestApplicationPaths()
+    {
+        Console.WriteLine("[2a] 应用数据目录");
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        Check(AegisCoachPaths.Root == Path.Combine(documents, "AegisCoach"), "根目录位于用户文档文件夹");
+        Check(AegisCoachPaths.Cache.StartsWith(AegisCoachPaths.Root, StringComparison.OrdinalIgnoreCase), "缓存位于应用文档目录");
+        Check(AegisCoachPaths.SettingsFile.StartsWith(AegisCoachPaths.Root, StringComparison.OrdinalIgnoreCase), "设置位于应用文档目录");
+        Check(!AegisCoachPaths.Root.StartsWith(localAppData, StringComparison.OrdinalIgnoreCase), "不使用 AppData 目录");
+    }
+
+    private static void TestAtomicFile()
+    {
+        Console.WriteLine("[2b] 原子文件写入");
+        var directory = Path.Combine(Path.GetTempPath(), "AegisCoachAtomicSmoke", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "settings.json");
+        try
+        {
+            AtomicFile.WriteAllText(path, "first");
+            AtomicFile.WriteAllText(path, "second");
+            Check(File.ReadAllText(path) == "second", "原子写入可安全覆盖旧文件");
+            Check(!Directory.EnumerateFiles(directory, "*.tmp").Any(), "成功后没有遗留临时文件");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static async Task TestReceiverAndRulesAsync()
@@ -129,6 +163,31 @@ internal static class Program
         {
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
+    }
+
+    private static void TestCoachAiPromptEvidenceBoundary()
+    {
+        Console.WriteLine("[3a] AI 提示词证据边界");
+        var snapshot = new MatchSnapshot
+        {
+            Phase = GamePhase.InProgress,
+            MatchId = 12345,
+            GameTime = 900,
+            RoshanAlive = false,
+            Player = new PlayerState { TeamName = "radiant" },
+            Hero = new HeroState { Alive = true },
+        };
+
+        var first = CoachAiPrompts.BuildContext(snapshot);
+        var second = CoachAiPrompts.BuildContext(snapshot);
+        Check(first == second, "相同快照生成确定性提示词");
+        Check(first.Contains("GSI 未提供准确复活倒计时", StringComparison.Ordinal),
+            "肉山死亡状态明确标注倒计时缺失");
+        Check(!first.Contains("预计 8", StringComparison.Ordinal) &&
+              !first.Contains("预计 9", StringComparison.Ordinal) &&
+              !first.Contains("预计 10", StringComparison.Ordinal) &&
+              !first.Contains("预计 11", StringComparison.Ordinal),
+            "提示词不伪造肉山复活时间");
     }
 
     private static void TestMatchSnapshotParsing()
@@ -480,12 +539,12 @@ internal static class Program
         int streak = 0)
     {
         var snapshot = BuildSnapshot(hp, 100, ultCd, alive, gameTime);
-        snapshot.Player.Kills = kills;
+        snapshot.Player!.Kills = kills;
         snapshot.Player.Deaths = deaths;
         snapshot.Player.LastHits = lh;
         snapshot.Player.Gold = gold;
         snapshot.Player.KillStreak = streak;
-        snapshot.Hero.Level = level;
+        snapshot.Hero!.Level = level;
         snapshot.Hero.BuybackCost = buybackCost;
         snapshot.Hero.BuybackCooldown = buybackCd;
         snapshot.Abilities!["ability_1"].AbilityCooldown = blinkCd;
@@ -537,6 +596,23 @@ internal static class Program
         Check(summary.FinalItems.Contains("item_29_mapped"), "数字 ID 装备也能解析");
     }
 
+    private static async Task TestApiMatchAnalyzerRetryAsync()
+    {
+        Console.WriteLine("[9c] OpenDota 瞬时失败重试");
+        var handler = new RetryFixtureHandler(BuildApiFixtureJson());
+        using var client = new HttpClient(handler);
+        var summary = await new ApiMatchAnalyzer(client).FetchAsync(
+            8888888888,
+            "76561198000000000",
+            0,
+            heroId => heroId == 1 ? "npc_dota_hero_antimage" : string.Empty,
+            key => key,
+            itemId => $"item_{itemId}_mapped",
+            CancellationToken.None);
+        Check(handler.RequestCount == 2, "HTTP 429 后执行一次退避重试");
+        Check(summary is { HeroId: 1 }, "重试成功后正常解析比赛数据");
+    }
+
     private static void TestApiMatchAnalyzerRealFile()
     {
         var realFile = Environment.GetEnvironmentVariable("AEGISCOACH_REAL_MATCH");
@@ -561,6 +637,27 @@ internal static class Program
         catch (Exception exception)
         {
             Console.WriteLine($"    真实数据验证失败：{exception.Message}");
+        }
+    }
+
+    private sealed class RetryFixtureHandler(string json) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            if (RequestCount == 1)
+            {
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.TooManyRequests));
+            }
+
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            });
         }
     }
 

@@ -118,7 +118,7 @@ public static class GsiConfigInstaller
             return new InstallResult
             {
                 Success = false,
-                Message = "未找到 Dota 2 的 cfg 目录。请手动选择目录，或使用“导出配置”后自行放置。",
+                Message = "未找到 Dota 2 的配置目录。请在高级设置中手动选择目录后重试。",
                 CfgContent = content,
             };
         }
@@ -126,7 +126,7 @@ public static class GsiConfigInstaller
         try
         {
             var filePath = Path.Combine(directory, CfgFileName);
-            File.WriteAllText(filePath, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            AtomicFile.WriteAllText(filePath, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             return new InstallResult
             {
                 Success = true,
@@ -142,63 +142,6 @@ public static class GsiConfigInstaller
                 Success = false,
                 Message = $"写入失败：{exception.Message}",
                 CfgContent = content,
-            };
-        }
-    }
-
-    public static ConfigCheckResult Check(string? manualPath, int port, string token)
-    {
-        var directory = LocateDotaCfgDirectory(manualPath);
-        if (directory is null)
-        {
-            return new ConfigCheckResult
-            {
-                Found = false,
-                Matches = false,
-                Message = "未找到 Dota 2 cfg 目录。",
-            };
-        }
-
-        var filePath = Path.Combine(directory, CfgFileName);
-        if (!File.Exists(filePath))
-        {
-            return new ConfigCheckResult
-            {
-                Found = false,
-                Matches = false,
-                DirectoryPath = directory,
-                FilePath = filePath,
-                Message = $"目录已找到，但缺少 {CfgFileName}。",
-            };
-        }
-
-        try
-        {
-            var content = File.ReadAllText(filePath);
-            var endpoint = $"\"uri\" \"http://127.0.0.1:{port}/\"";
-            var configuredToken = $"\"token\" \"{token}\"";
-            var matches = content.Contains(endpoint, StringComparison.Ordinal)
-                && content.Contains(configuredToken, StringComparison.Ordinal);
-            return new ConfigCheckResult
-            {
-                Found = true,
-                Matches = matches,
-                DirectoryPath = directory,
-                FilePath = filePath,
-                Message = matches
-                    ? "cfg 已找到，端口和 Token 与当前设置一致。"
-                    : "cfg 已找到，但端口或 Token 与当前设置不一致。",
-            };
-        }
-        catch (Exception exception)
-        {
-            return new ConfigCheckResult
-            {
-                Found = false,
-                Matches = false,
-                DirectoryPath = directory,
-                FilePath = filePath,
-                Message = $"无法读取 cfg：{exception.Message}",
             };
         }
     }
@@ -237,14 +180,5 @@ public sealed class InstallResult
     public required bool Success { get; init; }
     public required string Message { get; init; }
     public required string CfgContent { get; init; }
-    public string? FilePath { get; init; }
-}
-
-public sealed class ConfigCheckResult
-{
-    public required bool Found { get; init; }
-    public required bool Matches { get; init; }
-    public required string Message { get; init; }
-    public string? DirectoryPath { get; init; }
     public string? FilePath { get; init; }
 }

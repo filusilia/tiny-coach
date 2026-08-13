@@ -2,6 +2,53 @@
 
 本文件记录每次继续开发后的构建、测试和应用操作。命令均从 `E:\openSource\demo` 执行；结果以实际输出为准。
 
+> 这是按日期保存的历史证据。旧条目中的 AppData 路径、端口设置方式、模型后端、构建输出和测试数量只代表当时状态，不是当前配置。当前行为、目录和完成度以 `docs/PROJECT_DOCUMENTATION.md` 为准；历史事实不因后续实现变化而删除。
+
+## 2026-08-11：编译结构、首次设置、统一文档目录与可靠性修复
+
+### 编译与 Visual Studio
+
+- 将 `AegisCoach.Core` 正式加入 `native/AegisCoach.Native.sln`，修复设计时找不到 `CoachRuleOptions`、`ApiMatchAnalyzer`、`MatchSessionTracker`、`AegisCoachPaths`、`MatchReport` 等 Core 类型的问题。
+- 新增 `native/Directory.Build.props`，默认构建中间产物隔离到 `native/.artifacts`，避免旧 `bin/obj` 资产干扰设计时编译。
+- 新增 `.editorconfig` 与 `.gitattributes`，仓库文本统一为 UTF-8、CRLF；检查结果为混合行尾 0、仅 LF 文件 0。
+
+### 后续修正：单项目整合
+
+- 复现重复 Assembly 特性：`.artifacts` 重定向改变了 SDK 默认排除目录，项目旧 `obj/**` 中生成的 AssemblyInfo 被当成普通源码再次编译；Core 构建失败后，Native 才继续报找不到 `AegisCoach.Core.dll`。
+- 删除 `Directory.Build.props`，恢复 Visual Studio 标准 `bin/obj` 输出。
+- 删除独立 `AegisCoach.Core.csproj`，解决方案只保留 `AegisCoach.Native`；Core 的 Models/Services 作为共享源码直接编入 Native，不再产生 Core DLL。
+- `GsiSmoke` 与 `GsiReplay` 同样编译这份共享源码，保留无 WinUI 依赖的规则回归能力。
+- 后续将共享源码物理移动到 `native/AegisCoach.Native/Core`，Native 使用 SDK 默认源码发现，不再依赖项目外部链接；仓库目录和解决方案均只呈现一个应用项目。
+
+### 首次启动、设置与存储
+
+- 所有应用数据统一到用户 `文档\AegisCoach`，不再读取或迁移旧 AppData 配置。
+- 首次启动必须先完成设置；保存成功前不访问资料 API、不启动 NPU、不启动 GSI、不加载报告。
+- 普通设置隐藏端口和 Token 等实现细节；高级设置保留规则阈值、逐规则冷却、模型/API/Stratz 与手动 Dota 路径。
+- Cloud 和 Stratz 密钥改存 Windows 凭据保险库，不写入 `settings.json`。
+
+### 文件与网络可靠性
+
+- 新增 `AegisCoachPaths`、`AtomicFile`、`AppCredentialStore`。
+- 设置、GSI cfg、习惯和报告使用原子替换；损坏 JSON 缓存隔离为 `.corrupt`。
+- 资料请求和赛后 API 对网络错误、408、429、5xx 执行最多三次重试、指数退避、`Retry-After`、请求间隔和错误分类。
+- 统计样本少于 30 时保留样本量，但不展示胜率结论。
+- 窗口关闭会取消资料、统计、赛后 API、全场英雄和智能解释请求，并停止 GSI。
+
+### 验证
+
+| 操作 | 结果 |
+|---|---|
+| Native Debug x64 构建（临时 artifacts 路径） | 成功，0 警告，0 错误 |
+| 单项目结构干净还原与构建 | 成功，输出仅 `AegisCoach.Native`，0 警告，0 错误；程序集无 `AegisCoach.Core` 引用 |
+| 标准解决方案 `Debug|x64` 构建 | 成功，输出到 Native 标准 `bin/x64/Debug`，0 警告，0 错误 |
+| Core 源码移入 `AegisCoach.Native/Core` 后干净构建 | Native 与 GsiReplay 均 0 警告、0 错误；GsiSmoke 128 项通过、0 项失败 |
+| `tools/GsiSmoke` | 128 项通过，0 项失败 |
+| XAML XML、名称唯一性和事件绑定检查 | 通过 |
+| `git diff --check` | 通过 |
+| 启动干净构建 | 进程响应正常，窗口标题“神盾教练” |
+| 待实机验证 | Visual Studio 重载后 F5、首次设置完整交互、真实 Dota 2 GSI、在线 API 与 NPU |
+
 ## 2026-08-08：数据源修复、Wiki 风格页面、克制分析与赛后分析
 
 ### 英雄资料加载失败根因与修复
@@ -56,6 +103,30 @@
 | `dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj --no-restore` | 76 项通过，0 项失败（新增对局跟踪断言） |
 | `dotnet build tools\GsiReplay\AegisCoach.Replay.csproj --configuration Debug --no-restore` | 成功，0 警告，0 错误 |
 | `tools\JsonProbe`（真实 OpenDota 数据） | 技能物化重写、物品合成路线含卷轴、heroStats 物化回读全部通过 |
+
+## 2026-08-13：架构评审与研发 Agent 契约
+
+### 结论
+
+- 当前单一 WinUI 3 产品项目适合 MVP；`Core` 保持 Native 项目内的纯逻辑目录，不因文件较大而立即恢复独立 DLL。
+- 主要结构风险位于表示层：`MainWindow.xaml.cs` 约 2586 行、`MainWindow.xaml` 约 1260 行，同时承担组合根、导航、页面状态、异步加载与服务生命周期。
+- 更关键的产品问题是缺少真实比赛基准、外部 API fixture 和 UI 五态矩阵。没有这些证据时，大规模重构只能改善文件形态，不能证明提醒质量和产品可靠性。
+
+### 文档
+
+- 新增根目录 `AGENTS.md`：固化真实项目边界、代码归属、渐进式页面拆分策略、安全边界和验证矩阵。
+- 新增 `docs/ARCHITECTURE_REVIEW.md`：记录架构评分、P0/P1/P2 改进路线、拆分条件和可衡量的完成定义。
+- 更新 `docs/AI_AGENT_PROMPT_TEMPLATES.md`：明确产品运行时 Agent 与研发 Agent 不得混用，并增加 WinUI UI 设计 prompt。
+- UI prompt 要求中文优先、密集可扫描、系统主题、640/1024/1440px 自适应、100%/150%/200% DPI、键盘与可访问性，以及 loading/empty/error/degraded/ready 五态。
+
+### 验证
+
+- 文档路径、项目入口和工具引用已与当前工作区逐项核对。
+- `git diff --check` 通过；Git 仅提示现有文档下次写入时将按仓库规则转为 CRLF。
+- 发现现有 `obj/.../input.json` 无法被 WinUI XAML 编译器覆盖；标准构建因此失败。后续使用隔离中间目录区分代码错误与本地构建产物锁定。
+- 修正运行时 prompt 的证据边界：肉山死亡时不再随机生成 8 至 11 分钟中的某个值，而是明确说明 GSI 没有准确复活倒计时。
+- `GsiSmoke` 显式链接无 WinUI 依赖的 `CoachAiPrompts.cs`，新增确定性与证据边界断言；最终 131 项通过、0 项失败。
+- 使用现有还原资产、仅隔离 `IntermediateOutputPath` 与 `OutputPath` 后，Native 构建成功，0 警告、0 错误。这证明源码可编译，但不等同于标准 `obj` 锁定已解除。
 
 ## 2026-08-06：GSI 快照落盘
 
