@@ -2,17 +2,19 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using AegisCoach.Native.Data;
 using AegisCoach.Native.Models;
 using AegisCoach.Core.Services;
 
 namespace AegisCoach.Native.Services;
 
-public sealed class DotaDataService
+public sealed partial class DotaDataService
 {
     public const string TargetPatch = "7.41e";
     private const string OpenDotaBase = "https://api.opendota.com/api";
     private const string DotaBase = "https://www.dota2.com/datafeed";
+    private const string ChinaDotaBase = "https://www.dota2.com.cn/datafeed";
     private const string ExplorerBase = "https://api.opendota.com/api/explorer";
     private const int MaxRequestAttempts = 3;
     private static readonly TimeSpan MinimumRequestSpacing = TimeSpan.FromMilliseconds(150);
@@ -30,6 +32,10 @@ public sealed class DotaDataService
     private readonly SemaphoreSlim _requestStartGate = new(1, 1);
     private DateTimeOffset _nextRequestAt = DateTimeOffset.MinValue;
     private string _cacheDirectory = AegisCoachPaths.Cache;
+
+    /// <summary>官网详情文件（data\items-details-official.json）的内存索引，按物品数字 ID 匹配。</summary>
+    private readonly object _officialDetailsLock = new();
+    private Dictionary<int, OfficialItemDetailsEntry>? _officialItemDetailsById;
 
     /// <summary>资料缓存目录，可在设置页自定义；修改后新的缓存读写生效。</summary>
     public string CacheDirectory
@@ -90,38 +96,61 @@ public sealed class DotaDataService
                     // Cached hero stats remain useful when optional ability data is unavailable.
                 }
 
+                ApplyOfficialHeroOverrides(cached.Heroes);
                 return cached;
             }
         }
 
-        var heroesTask = GetOpenDotaAsync<List<HeroStat>>("/heroStats", cancellationToken);
-        var heroAbilitiesTask = GetOpenDotaAsync<Dictionary<string, HeroAbilityMap>>("/constants/hero_abilities", cancellationToken);
-        var abilitiesTask = GetOpenDotaAsync<Dictionary<string, AbilityDefinition>>("/constants/abilities", cancellationToken);
-        var officialHeroesTask = TryGetDotaFeedAsync<HeroListData>("/herolist?language=schinese", cancellationToken);
-
-        await Task.WhenAll(heroesTask, heroAbilitiesTask, abilitiesTask, officialHeroesTask);
-        var localizedNames = officialHeroesTask.Result?.Heroes.ToDictionary(hero => hero.Id, hero => hero.LocalizedName)
-            ?? new Dictionary<int, string>();
-
-        var catalog = new DotaCatalog
+        try
         {
-            Heroes = heroesTask.Result
-                .Select(hero =>
-                {
-                    hero.EnglishName = hero.LocalizedName;
-                    hero.LocalizedName = localizedNames.GetValueOrDefault(hero.Id, hero.LocalizedName);
-                    return hero;
-                })
-                .OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture)
-                .ToList(),
-            HeroAbilities = heroAbilitiesTask.Result,
-            Abilities = abilitiesTask.Result,
-        };
+            var heroesTask = GetOpenDotaAsync<List<HeroStat>>("/heroStats", cancellationToken);
+            var heroAbilitiesTask = GetOpenDotaAsync<Dictionary<string, HeroAbilityMap>>("/constants/hero_abilities", cancellationToken);
+            var abilitiesTask = GetOpenDotaAsync<Dictionary<string, AbilityDefinition>>("/constants/abilities", cancellationToken);
+            var officialHeroesTask = TryGetDotaFeedAsync<HeroListData>("/herolist?language=schinese", cancellationToken);
 
-        await WriteFileAsync(cachePath, catalog, cancellationToken);
-        await WriteFileAsync(HeroAbilitiesCachePath, catalog.HeroAbilities, cancellationToken);
-        await WriteFileAsync(AbilitiesCachePath, catalog.Abilities, cancellationToken);
-        return catalog;
+            await Task.WhenAll(heroesTask, heroAbilitiesTask, abilitiesTask, officialHeroesTask);
+            var localizedNames = officialHeroesTask.Result?.Heroes.ToDictionary(hero => hero.Id, hero => hero.LocalizedName)
+                ?? new Dictionary<int, string>();
+
+            var catalog = new DotaCatalog
+            {
+                Heroes = heroesTask.Result
+                    .Select(hero =>
+                    {
+                        hero.EnglishName = hero.LocalizedName;
+                        hero.LocalizedName = localizedNames.GetValueOrDefault(hero.Id, hero.LocalizedName);
+                        return hero;
+                    })
+                    .OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture)
+                    .ToList(),
+                HeroAbilities = heroAbilitiesTask.Result,
+                Abilities = abilitiesTask.Result,
+            };
+
+            await WriteFileAsync(cachePath, catalog, cancellationToken);
+            await WriteFileAsync(HeroAbilitiesCachePath, catalog.HeroAbilities, cancellationToken);
+            await WriteFileAsync(AbilitiesCachePath, catalog.Abilities, cancellationToken);
+            ApplyOfficialHeroOverrides(catalog.Heroes);
+            CatalogSourceNote = "官方中文数据 + OpenDota";
+            return catalog;
+        }
+        catch (Exception exception) when (!force)
+        {
+            // 缓存过期或损坏时仍尝试联网；网络失败则回退到过期缓存，保证离线可读。
+            var stale = await ReadFileAsync<DotaCatalog>(cachePath, cancellationToken);
+            if (stale is not null)
+            {
+                stale.HeroAbilities = await ReadFileAsync<Dictionary<string, HeroAbilityMap>>(
+                    HeroAbilitiesCachePath, cancellationToken) ?? [];
+                stale.Abilities = await ReadFileAsync<Dictionary<string, AbilityDefinition>>(
+                    AbilitiesCachePath, cancellationToken) ?? [];
+                ApplyOfficialHeroOverrides(stale.Heroes);
+                CatalogSourceNote = $"缓存数据 · 网络暂不可用（{exception.Message}）";
+                return stale;
+            }
+
+            throw;
+        }
     }
 
     private async Task<bool> RefreshAbilitiesCacheAsync(CancellationToken cancellationToken)
@@ -151,14 +180,197 @@ public sealed class DotaDataService
         if (!force && IsFresh(cachePath, LocalizationTtl))
         {
             var cached = await ReadFileAsync<LocalizedHeroData>(cachePath, cancellationToken);
-            if (cached is not null) return cached;
+            if (cached is not null)
+            {
+                // 精简缓存可能缺天赋数值（special_values 为空），从技能 bonuses 补齐。
+                EnrichTalentValues(cached);
+                return cached;
+            }
         }
 
-        var data = await GetDotaFeedAsync<HeroDetailData>(
-            $"/herodata?language=schinese&hero_id={heroId}", cancellationToken);
-        var hero = data.Heroes.FirstOrDefault() ?? throw new InvalidOperationException("官方接口没有返回该英雄的中文技能");
-        await WriteFileAsync(cachePath, hero, cancellationToken);
+        try
+        {
+            // 优先请求中国官网接口（www.dota2.com.cn/datafeed/hero），失败回退国际接口。
+            LocalizedHeroData? hero = null;
+            var lastError = new InvalidOperationException("官方接口没有返回该英雄的中文技能");
+            try
+            {
+                hero = await GetChinaDotaHeroAsync(heroId, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                lastError = exception is InvalidOperationException invalid
+                    ? invalid
+                    : new InvalidOperationException($"中国官网接口失败（{exception.Message}）", exception);
+            }
+
+            hero ??= await GetDotaFeedAsync<HeroDetailData>(
+                $"/herodata?language=schinese&hero_id={heroId}", cancellationToken)
+                .ContinueWith(task =>
+                {
+                    if (task.IsFaulted) throw task.Exception!.GetBaseException();
+                    return task.Result.Heroes.FirstOrDefault();
+                }, cancellationToken);
+
+            if (hero is null) throw lastError;
+            await WriteFileAsync(cachePath, hero, cancellationToken);
+            return hero;
+        }
+        catch (Exception exception) when (!force)
+        {
+            // 网络失败时回退到过期缓存，保证离线仍能查看技能中文资料。
+            var stale = await ReadFileAsync<LocalizedHeroData>(cachePath, cancellationToken);
+            if (stale is not null)
+            {
+                EnrichTalentValues(stale);
+                return stale;
+            }
+            throw new InvalidOperationException($"无法加载该英雄的官方中文技能（{exception.Message}）", exception);
+        }
+    }
+
+    /// <summary>
+    /// 中国官网英雄详情接口：https://www.dota2.com.cn/datafeed/hero?hero_id={id}
+    /// 官网返回 {"status":"success","result":{"heroes":{单个英雄}}}（heroes 是对象不是数组）。
+    /// </summary>
+    private async Task<LocalizedHeroData?> GetChinaDotaHeroAsync(int heroId, CancellationToken cancellationToken)
+    {
+        using var response = await GetWithRetryAsync($"{ChinaDotaBase}/hero?hero_id={heroId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        // 官网直返：result.heroes 为单个英雄对象（含 abilities/talents）。
+        var direct = JsonSerializer.Deserialize<ChinaHeroDetailRoot>(content, JsonOptions);
+        var hero = direct?.Result?.Heroes;
+        if (hero is null || hero.Id <= 0)
+        {
+            // 兼容旧结构：result.data.heroes 数组。
+            var envelope = JsonSerializer.Deserialize<DatafeedEnvelope<HeroDetailData>>(content, JsonOptions);
+            hero = envelope?.Result?.Data?.Heroes.FirstOrDefault();
+        }
+
+        if (hero is not null) EnrichTalentValues(hero);
         return hero;
+    }
+
+    /// <summary>中国官网返回结构：{"status":"success","result":{"heroes":{单个英雄}}}。</summary>
+    private sealed class ChinaHeroDetailRoot
+    {
+        [JsonPropertyName("status")] public string Status { get; set; } = string.Empty;
+        [JsonPropertyName("result")] public ChinaHeroDetailResult? Result { get; set; }
+    }
+
+    private sealed class ChinaHeroDetailResult
+    {
+        [JsonPropertyName("heroes")] public LocalizedHeroData? Heroes { get; set; }
+    }
+
+    /// <summary>
+    /// 官网技能 special_values[].bonuses 提供了天赋数值（name=天赋 ID，value=加成量），
+    /// 把这些数值按占位符变量名合并进对应天赋的 SpecialValues，天赋树即可显示具体数值。
+    /// 例：死亡旋风 tree_damage_scale.bonuses 含 special_bonus_unique_timbersaw=75，
+    /// 天赋文本 "+{s:bonus_tree_damage_scale} 死亡旋风树倒额外伤害" 解析为 "+75"。
+    /// </summary>
+    private static void EnrichTalentValues(LocalizedHeroData hero)
+    {
+        // 天赋ID -> (占位符变量名 -> 数值)。占位符变量名按 "bonus_" + special_value.name 推断。
+        var bonusByTalent = new Dictionary<string, Dictionary<string, double>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var ability in hero.Abilities)
+        {
+            foreach (var specialValue in ability.SpecialValues)
+            {
+                if (string.IsNullOrWhiteSpace(specialValue.Name)) continue;
+                var placeholderKey = "bonus_" + specialValue.Name;
+                foreach (var bonus in specialValue.Bonuses)
+                {
+                    if (string.IsNullOrWhiteSpace(bonus.Name)) continue;
+                    if (!bonusByTalent.TryGetValue(bonus.Name, out var values))
+                    {
+                        values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                        bonusByTalent[bonus.Name] = values;
+                    }
+
+                    values.TryAdd(placeholderKey, bonus.Value);
+                }
+            }
+        }
+
+        if (bonusByTalent.Count == 0) return;
+
+        foreach (var talent in hero.Talents)
+        {
+            if (string.IsNullOrWhiteSpace(talent.LocalizedName)) continue;
+            if (!bonusByTalent.TryGetValue(talent.Name, out var values)) continue;
+
+            var existing = talent.SpecialValues.Select(value => value.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (Match match in TalentPlaceholderRegex().Matches(talent.LocalizedName))
+            {
+                var key = match.Groups[1].Value;
+                if (string.IsNullOrWhiteSpace(key) || existing.Contains(key)) continue;
+                if (!values.TryGetValue(key, out var value)) continue;
+                talent.SpecialValues.Add(new AbilitySpecialValue
+                {
+                    Name = key,
+                    Values = [value],
+                });
+                existing.Add(key);
+            }
+        }
+    }
+
+    [GeneratedRegex(@"{s:([^}]+)}")]
+    private static partial Regex TalentPlaceholderRegex();
+
+    /// <summary>批量刷新全部英雄的中文详情到本地缓存；返回成功更新的数量。
+    /// 连续失败达到阈值时中止（网络不可用/官网下线时避免逐个英雄长时间重试）。</summary>
+    public async Task<int> RefreshAllHeroDetailsAsync(IEnumerable<int> heroIds, CancellationToken cancellationToken)
+    {
+        var updated = 0;
+        var consecutiveFailures = 0;
+        const int abortAfterFailures = 3;
+        foreach (var heroId in heroIds)
+        {
+            if (cancellationToken.IsCancellationRequested) break;
+            try
+            {
+                await LoadLocalizedHeroAsync(heroId, force: true, cancellationToken);
+                updated++;
+                consecutiveFailures = 0;
+            }
+            catch
+            {
+                if (++consecutiveFailures >= abortAfterFailures) break;
+            }
+
+            try { await Task.Delay(MinimumRequestSpacing, cancellationToken); } catch (OperationCanceledException) { break; }
+        }
+
+        return updated;
+    }
+
+    /// <summary>清理不再属于当前英雄列表的旧详情缓存（如旧版本/废弃英雄），只保留最新英雄的缓存。</summary>
+    public int PurgeStaleHeroDetailCaches(IReadOnlySet<int> currentHeroIds)
+    {
+        if (!Directory.Exists(_cacheDirectory)) return 0;
+        var removed = 0;
+        foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "hero-*-zh-v*.json"))
+        {
+            var name = Path.GetFileName(file);
+            if (!TryParseHeroCacheId(name, out var heroId) || !currentHeroIds.Contains(heroId))
+            {
+                try { File.Delete(file); removed++; } catch { /* 尽力清理 */ }
+            }
+        }
+
+        return removed;
+    }
+
+    private static bool TryParseHeroCacheId(string fileName, out int heroId)
+    {
+        heroId = 0;
+        var match = Regex.Match(fileName, @"^hero-(d+)-zh-", RegexOptions.CultureInvariant);
+        return match.Success && int.TryParse(match.Groups[1].Value, out heroId);
     }
 
     public async Task<List<OfficialItemSummary>> LoadItemsAsync(bool force, CancellationToken cancellationToken)
@@ -170,29 +382,54 @@ public sealed class DotaDataService
             if (cached is { Count: > 0 })
             {
                 ItemCatalogSource = "缓存 · 当前目录过滤";
-                return await EnrichRecipesAsync(FilterCurrentItems(cached), cancellationToken);
+                var cachedItems = await EnrichRecipesAsync(FilterCurrentItems(cached), cancellationToken);
+                ApplyOfficialItemOverrides(cachedItems);
+                ApplyOfficialItemDetailOverrides(cachedItems);
+                return cachedItems;
             }
         }
 
-        var data = await TryGetDotaFeedAsync<ItemListData>("/itemlist?language=schinese", cancellationToken);
-        var items = FilterCurrentItems(data?.Items ?? []);
-
-        if (items.Count == 0)
+        try
         {
-            items = await LoadOpenDotaItemsAsync(cancellationToken);
-            ItemCatalogSource = "OpenDota 降级目录";
-        }
-        else
-        {
-            ItemCatalogSource = "官方中文目录";
-        }
+            var data = await TryGetDotaFeedAsync<ItemListData>("/itemlist?language=schinese", cancellationToken);
+            var items = FilterCurrentItems(data?.Items ?? []);
 
-        items = await EnrichRecipesAsync(items, cancellationToken);
-        await WriteFileAsync(cachePath, items, cancellationToken);
-        return items;
+            if (items.Count == 0)
+            {
+                items = await LoadOpenDotaItemsAsync(cancellationToken);
+                ItemCatalogSource = "OpenDota 降级目录";
+            }
+            else
+            {
+                ItemCatalogSource = "官方中文目录";
+            }
+
+            items = await EnrichRecipesAsync(items, cancellationToken);
+            ApplyOfficialItemOverrides(items);
+            ApplyOfficialItemDetailOverrides(items);
+            await WriteFileAsync(cachePath, items, cancellationToken);
+            return items;
+        }
+        catch (Exception exception) when (!force)
+        {
+            // 网络失败时回退到过期缓存，保证物品目录离线可读。
+            var stale = await ReadFileAsync<List<OfficialItemSummary>>(cachePath, cancellationToken);
+            if (stale is { Count: > 0 })
+            {
+                ItemCatalogSource = "缓存 · 当前目录过滤（网络暂不可用）";
+                var staleItems = await EnrichRecipesAsync(FilterCurrentItems(stale), cancellationToken);
+                ApplyOfficialItemDetailOverrides(staleItems);
+                return staleItems;
+            }
+
+            throw new InvalidOperationException($"无法加载物品资料（{exception.Message}）", exception);
+        }
     }
 
     public string ItemCatalogSource { get; private set; } = "未加载";
+
+    /// <summary>英雄目录数据来源说明；网络不可用时标记为缓存数据。</summary>
+    public string CatalogSourceNote { get; private set; } = "官方中文数据 + OpenDota";
 
     public async Task<List<HeroBuildMetric>> LoadHeroBuildsAsync(
         int heroId,
@@ -228,16 +465,45 @@ GROUP BY item_id
 ORDER BY picks DESC
 LIMIT 24";
 
-        var metrics = (await GetExplorerAsync<HeroBuildMetricRow>(sql, cancellationToken))
-            .Where(row => row.ItemId > 0 && row.Picks > 0)
-            .Select(row => new HeroBuildMetric { ItemId = row.ItemId, Picks = row.Picks, Wins = row.Wins })
-            .ToList();
-        await WriteFileAsync(cachePath, metrics, cancellationToken);
-        return metrics;
+        try
+        {
+            var metrics = (await GetExplorerAsync<HeroBuildMetricRow>(sql, cancellationToken))
+                .Where(row => row.ItemId > 0 && row.Picks > 0)
+                .Select(row => new HeroBuildMetric { ItemId = row.ItemId, Picks = row.Picks, Wins = row.Wins })
+                .ToList();
+            await WriteFileAsync(cachePath, metrics, cancellationToken);
+            return metrics;
+        }
+        catch (Exception exception) when (!force)
+        {
+            // 出装统计是增强数据；网络失败时回退过期缓存，仍为空则交给页面降级提示。
+            var stale = await ReadFileAsync<List<HeroBuildMetric>>(cachePath, cancellationToken);
+            if (stale is { Count: > 0 }) return stale;
+            throw new InvalidOperationException($"无法加载推荐出装（{exception.Message}）", exception);
+        }
     }
 
     public async Task<OfficialItemData> LoadItemDetailsAsync(int itemId, bool force, CancellationToken cancellationToken)
     {
+        // 官网详情文件（data\items-details-official.json，可选覆盖层）始终优先：
+        // 其 desc/attrib 已是带数值的最终中文文本，比网络 datafeed 更可靠。
+        if (LoadOfficialItemDetails().TryGetValue(itemId, out var official))
+        {
+            return new OfficialItemData
+            {
+                Id = official.Id,
+                Name = official.EnglishName,
+                LocalizedName = official.DisplayName,
+                Description = official.Description,
+                Lore = official.Lore,
+                Cost = official.Cost,
+                Cooldowns = official.Cooldowns,
+                ManaCosts = official.ManaCosts,
+                AttribLines = ParseAttribLines(official.Attrib),
+                Requirements = official.Requirements,
+            };
+        }
+
         var cachePath = CachePath($"item-{itemId}-zh");
         if (!force && IsFresh(cachePath, LocalizationTtl))
         {
@@ -245,12 +511,85 @@ LIMIT 24";
             if (cached is not null) return cached;
         }
 
-        var data = await GetDotaFeedAsync<ItemDetailData>(
-            $"/itemdata?language=schinese&item_id={itemId}", cancellationToken);
-        var item = data.Items.FirstOrDefault() ?? throw new InvalidOperationException("官方接口没有返回该物品的中文资料");
-        await WriteFileAsync(cachePath, item, cancellationToken);
-        return item;
+        try
+        {
+            var data = await GetDotaFeedAsync<ItemDetailData>(
+                $"/itemdata?language=schinese&item_id={itemId}", cancellationToken);
+            var item = data.Items.FirstOrDefault() ?? throw new InvalidOperationException("官方接口没有返回该物品的中文资料");
+            await WriteFileAsync(cachePath, item, cancellationToken);
+            return item;
+        }
+        catch (Exception exception) when (!force)
+        {
+            // 网络失败时回退到过期缓存，保证物品详情离线可读。
+            var stale = await ReadFileAsync<OfficialItemData>(cachePath, cancellationToken);
+            if (stale is not null) return stale;
+            throw new InvalidOperationException($"无法加载该物品的官方中文资料（{exception.Message}）", exception);
+        }
     }
+
+    /// <summary>读取官网详情文件（data\items-details-official.json，itemdata 结构）并按物品 ID 建索引。
+    /// 文件不存在或解析失败时返回空表，不影响网络/缓存路径。</summary>
+    private Dictionary<int, OfficialItemDetailsEntry> LoadOfficialItemDetails()
+    {
+        if (_officialItemDetailsById is not null) return _officialItemDetailsById;
+        lock (_officialDetailsLock)
+        {
+            if (_officialItemDetailsById is not null) return _officialItemDetailsById;
+            var index = new Dictionary<int, OfficialItemDetailsEntry>();
+            try
+            {
+                var path = Path.Combine(OfficialDataDirectory, "items-details-official.json");
+                if (!File.Exists(path)) return _officialItemDetailsById = index;
+                var json = File.ReadAllText(path);
+                var root = JsonSerializer.Deserialize<OfficialItemDetailsRoot>(json, JsonOptions);
+                if (root?.ItemData is null) return _officialItemDetailsById = index;
+                foreach (var entry in root.ItemData.Values)
+                {
+                    if (entry.Id > 0) index.TryAdd(entry.Id, entry);
+                }
+            }
+            catch
+            {
+                // 详情数据文件是可选项，失败不影响既有逻辑。
+            }
+
+            _officialItemDetailsById = index;
+            return index;
+        }
+    }
+
+    /// <summary>把官网 attrib 的 HTML（每行 &lt;p&gt;…&lt;/p&gt;）解析成纯文本属性行（如 "+攻击力：9"）。</summary>
+    private static List<string> ParseAttribLines(string? attribHtml)
+    {
+        if (string.IsNullOrWhiteSpace(attribHtml)) return [];
+        var lines = new List<string>();
+        foreach (Match match in AttribParagraphRegex().Matches(attribHtml))
+        {
+            var text = StripHtmlTags(match.Groups[1].Value).Trim();
+            if (text.Length > 0) lines.Add(text);
+        }
+
+        if (lines.Count == 0)
+        {
+            foreach (var raw in attribHtml.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var text = StripHtmlTags(raw).Trim();
+                if (text.Length > 0) lines.Add(text);
+            }
+        }
+
+        return lines;
+    }
+
+    private static string StripHtmlTags(string html) =>
+        HtmlTagRegex().Replace(html, string.Empty).Replace("&nbsp;", " ").Trim();
+
+    [GeneratedRegex("<p[^>]*>(.*?)</p>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex AttribParagraphRegex();
+
+    [GeneratedRegex("<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
 
     private async Task<List<OfficialItemSummary>> LoadOpenDotaItemsAsync(CancellationToken cancellationToken)
     {
@@ -381,14 +720,48 @@ LIMIT 24";
 
     public async Task<HeroItemPopularity> GetHeroItemPopularityAsync(int heroId, CancellationToken cancellationToken)
     {
-        var result = await GetOpenDotaAsync<HeroItemPopularity>($"/heroes/{heroId}/itemPopularity", cancellationToken);
-        return result ?? new HeroItemPopularity();
+        var cachePath = CachePath($"hero-popularity-{heroId}");
+        if (IsFresh(cachePath, CatalogTtl))
+        {
+            var cached = await ReadFileAsync<HeroItemPopularity>(cachePath, cancellationToken);
+            if (cached is not null) return cached;
+        }
+
+        try
+        {
+            var result = await GetOpenDotaAsync<HeroItemPopularity>($"/heroes/{heroId}/itemPopularity", cancellationToken);
+            if (result is not null) await WriteFileAsync(cachePath, result, cancellationToken);
+            return result ?? new HeroItemPopularity();
+        }
+        catch
+        {
+            var stale = await ReadFileAsync<HeroItemPopularity>(cachePath, cancellationToken);
+            if (stale is not null) return stale;
+            throw;
+        }
     }
 
     public async Task<List<HeroMatchupStat>> GetHeroMatchupsAsync(int heroId, CancellationToken cancellationToken)
     {
-        var result = await GetOpenDotaAsync<List<HeroMatchupStat>>($"/heroes/{heroId}/matchups", cancellationToken);
-        return result ?? [];
+        var cachePath = CachePath($"hero-matchups-{heroId}");
+        if (IsFresh(cachePath, CatalogTtl))
+        {
+            var cached = await ReadFileAsync<List<HeroMatchupStat>>(cachePath, cancellationToken);
+            if (cached is not null) return cached;
+        }
+
+        try
+        {
+            var result = await GetOpenDotaAsync<List<HeroMatchupStat>>($"/heroes/{heroId}/matchups", cancellationToken);
+            if (result is { Count: > 0 }) await WriteFileAsync(cachePath, result, cancellationToken);
+            return result ?? [];
+        }
+        catch
+        {
+            var stale = await ReadFileAsync<List<HeroMatchupStat>>(cachePath, cancellationToken);
+            if (stale is not null) return stale;
+            throw;
+        }
     }
 
     /// <summary>
@@ -437,12 +810,22 @@ FROM (
 WHERE item_id > 0
 GROUP BY item_id";
 
-        var rows = await GetExplorerAsync<ItemMetricRow>(sql, cancellationToken);
-        var metrics = rows
-            .Where(row => row.ItemId > 0)
-            .ToDictionary(row => row.ItemId, row => new ItemMetric { Picks = row.Picks, Wins = row.Wins });
-        await WriteFileAsync(cachePath, metrics, cancellationToken);
-        return metrics;
+        try
+        {
+            var rows = await GetExplorerAsync<ItemMetricRow>(sql, cancellationToken);
+            var metrics = rows
+                .Where(row => row.ItemId > 0)
+                .ToDictionary(row => row.ItemId, row => new ItemMetric { Picks = row.Picks, Wins = row.Wins });
+            await WriteFileAsync(cachePath, metrics, cancellationToken);
+            return metrics;
+        }
+        catch (Exception exception) when (!force)
+        {
+            // 物品统计是增强数据；网络失败时回退过期缓存，仍为空则交给页面降级提示。
+            var stale = await ReadFileAsync<Dictionary<int, ItemMetric>>(cachePath, cancellationToken);
+            if (stale is not null) return stale;
+            throw new InvalidOperationException($"无法加载物品统计（{exception.Message}）", exception);
+        }
     }
 
     public void ClearCache()
@@ -451,6 +834,108 @@ GROUP BY item_id";
         foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "*.json"))
         {
             try { File.Delete(file); } catch { /* Cache cleanup is best effort. */ }
+        }
+    }
+
+    /// <summary>
+    /// 官网（dota2.com.cn）数据文件目录：文档\AegisCoach\data\。
+    /// 用户把官网物品/英雄列表 JSON 保存为 items-official.json / heroes-official.json 后，
+    /// 应用会用它补齐物品价格、官网图片 URL 与中文名，图片由 ImageCacheService 下载到本地缓存。
+    /// </summary>
+    public static string OfficialDataDirectory => Path.Combine(AegisCoachPaths.Root, "data");
+
+    /// <summary>应用官网物品数据：价格 + 官网图片 URL。数据文件不存在时静默跳过。</summary>
+    public static void ApplyOfficialItemOverrides(IEnumerable<OfficialItemSummary> items)
+    {
+        try
+        {
+            var path = Path.Combine(OfficialDataDirectory, "items-official.json");
+            if (!File.Exists(path)) return;
+            var json = File.ReadAllText(path);
+            var response = JsonSerializer.Deserialize<OfficialItemListResponse>(json, JsonOptions);
+            var entries = response?.Result.Basic.Concat(response.Result.Upgrade).Concat(response.Result.Neutral)
+                .SelectMany(section => section.Items)
+                .Where(entry => int.TryParse(entry.ItemId, out _))
+                .ToList();
+            if (entries is null || entries.Count == 0) return;
+            var byId = entries.GroupBy(entry => int.Parse(entry.ItemId)).ToDictionary(group => group.Key, group => group.First());
+            foreach (var item in items)
+            {
+                if (!byId.TryGetValue(item.Id, out var official)) continue;
+                if (official.CostValue > 0) item.Cost = official.CostValue;
+                if (!string.IsNullOrWhiteSpace(official.ImgUrl)) item.ImageUrlOverride = official.ImgUrl;
+                if (string.IsNullOrWhiteSpace(item.LocalizedName) && !string.IsNullOrWhiteSpace(official.NameLoc))
+                {
+                    item.LocalizedName = official.NameLoc;
+                }
+            }
+        }
+        catch
+        {
+            // 官网数据文件是可选项，失败不影响既有目录。
+        }
+    }
+
+    /// <summary>用官网详情文件（items-details-official.json）的价格覆盖目录数据（OpenDota 降级目录价格缺失）。
+    /// 这样合成路线能算出卷轴价格（总价 - 组件价）。</summary>
+    private void ApplyOfficialItemDetailOverrides(List<OfficialItemSummary> items)
+    {
+        if (items.Count == 0) return;
+        var index = LoadOfficialItemDetails();
+        if (index.Count == 0) return;
+        foreach (var item in items)
+        {
+            if (index.TryGetValue(item.Id, out var entry) && entry.Cost > 0)
+            {
+                item.Cost = entry.Cost;
+            }
+        }
+    }
+
+    /// <summary>应用官网英雄数据：官网图片 URL + 中文名。数据文件不存在时静默跳过。</summary>
+    public static void ApplyOfficialHeroOverrides(IEnumerable<HeroStat> heroes)
+    {
+        try
+        {
+            var path = Path.Combine(OfficialDataDirectory, "heroes-official.json");
+            if (!File.Exists(path)) return;
+            var json = File.ReadAllText(path);
+            var response = JsonSerializer.Deserialize<OfficialHeroListResponse>(json, JsonOptions);
+            var byId = response?.Result.Heroes.Where(hero => hero.Id > 0).ToDictionary(hero => hero.Id);
+            if (byId is null || byId.Count == 0) return;
+            foreach (var hero in heroes)
+            {
+                if (!byId.TryGetValue(hero.Id, out var official)) continue;
+                if (!string.IsNullOrWhiteSpace(official.CropsImg)) hero.ImageUrlOverride = official.CropsImg;
+                if (string.IsNullOrWhiteSpace(hero.LocalizedName) && !string.IsNullOrWhiteSpace(official.NameLoc))
+                {
+                    hero.LocalizedName = official.NameLoc;
+                }
+            }
+        }
+        catch
+        {
+            // 官网数据文件是可选项。
+        }
+    }
+
+    /// <summary>官网数据文件提供的物品图片 URL（用于预下载缓存）。</summary>
+    public static IEnumerable<string> OfficialItemImageUrls()
+    {
+        try
+        {
+            var path = Path.Combine(OfficialDataDirectory, "items-official.json");
+            if (!File.Exists(path)) return [];
+            var json = File.ReadAllText(path);
+            var response = JsonSerializer.Deserialize<OfficialItemListResponse>(json, JsonOptions);
+            return response?.Result.Basic.Concat(response.Result.Upgrade).Concat(response.Result.Neutral)
+                .SelectMany(section => section.Items)
+                .Select(entry => entry.ImgUrl)
+                .Where(url => !string.IsNullOrWhiteSpace(url)) ?? [];
+        }
+        catch
+        {
+            return [];
         }
     }
 

@@ -1,5 +1,7 @@
 # Build output
 .build/
+build-out/
+release/
 **/bin/
 **/obj/
 **/.artifacts/

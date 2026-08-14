@@ -56,6 +56,7 @@
       <ResourceDictionary.MergedDictionaries>
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
         <ResourceDictionary Source="Themes/GameReferenceStyles.xaml" />
+        <ResourceDictionary Source="Themes/ItemCatalogTheme.xaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>

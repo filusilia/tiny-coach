@@ -66,6 +66,10 @@ flowchart LR
 | `native/AegisCoach.Native/Models/AppSettings.cs` | 非敏感设置、规则选项、凭据读写协调 |
 | `native/AegisCoach.Native/Models/DotaModels.cs` | API DTO、展示模型、统计公式和技能参数替换 |
 | `native/AegisCoach.Native/Services/DotaDataService.cs` | 官方资料、OpenDota 查询、缓存、重试和降级 |
+| `native/AegisCoach.Native/Views/ItemCatalogPage.xaml(.cs)` | 物品资料库页：官网式分组网格、悬浮详情卡、商店/中立切换与筛选（独立页面，MVVM） |
+| `native/AegisCoach.Native/ViewModels/ItemCatalogViewModel.cs` | 物品页 ViewModel：加载、分组、搜索防抖、子类筛选与详情懒加载 |
+| `native/AegisCoach.Native/Models/ItemCatalogModels.cs` | 物品库展示模型（CatalogItem/ItemAbility/ItemStat/ItemGroup） |
+| `native/AegisCoach.Native/Themes/ItemCatalogTheme.xaml` | 物品主题：金币/法力/属性功能色（ThemeDictionaries）、物品格与悬浮卡模板 |
 | `native/AegisCoach.Native/Services/LiveMatchHeroService.cs` | OpenDota/Stratz 全场英雄查询 |
 | `native/AegisCoach.Native/Core/` | Native 项目内部的可测试逻辑源码目录 |
 | `native/AegisCoach.Native/Core/Models/GsiModels.cs` | GSI DTO、标准化快照、物品槽位、建筑与提醒模型 |
@@ -89,7 +93,8 @@ flowchart LR
 | 英雄分段胜率 | 已完成 | 88% | 8 个分段、胜率、样本量和低样本抑制；缺少可靠 patch/模式/时间筛选 |
 | 英雄职业 BP | 基本完成 | 75% | `pro_pick + pro_ban` 形成职业样本 BP 占比，不代表全体玩家 |
 | 物品目录 | 已接入并可降级 | 93% | 官方中文目录优先，OpenDota 降级；用当前游戏文件生成的白名单过滤历史物品并补完整合成路线 |
-| 物品详情 | 已接入 | 75% | 价格、说明、传说、备注、合成和统计区域已接入；官方详情不可用时保留目录资料 |
+| 物品资料页 | 已重构为独立页面 | 82% | 官网式大分类→子分类分组网格（56x42 物品格、Hover 微缩放）、悬浮详情卡（价格/属性/技能/合成/传说）、商店/中立切换、子类 Chip 多选、名称/英文/拼音防抖搜索；Fluent ThemeResource 主题；仍需多 DPI 与真实悬浮交互实机走查 |
+| 物品详情 | 已接入 | 78% | 价格、说明、传说、备注、合成和统计区域已接入；悬浮卡按需懒加载官方详情，详情失败保留目录级信息 |
 | 物品统计 | 可选增强 | 72% | Explorer 最近 30 天购买/胜局统计；低样本不显示胜率结论，统计失败不阻断目录 |
 | 本地缓存 | 已完成 | 92% | 按目标版本 `v7.41e` 隔离，原子写入，损坏 JSON 隔离为 `.corrupt`；不做旧 AppData 迁移是产品决定 |
 | Wiki 小技巧 | 已实现内置版 | 60% | 按英雄整理的编辑内容，不冒充官方机制或当前版本统计结论 |
@@ -125,6 +130,14 @@ flowchart LR
 目录优先请求 `/datafeed/itemlist?language=schinese`，失败时降级到 OpenDota `/constants/items`。详情请求 `/datafeed/itemdata?language=schinese&item_id={id}`。上游目录包含历史定义，因此项目使用由当前游戏商店和中立物品文件生成的 `CurrentItemCatalog` 白名单，而不是靠不断扩张的黑名单。
 
 物品统计和英雄出装使用 OpenDota Explorer 最近 30 天数据：购买数为最终六格中出现该物品的玩家记录数，胜局数按玩家阵营与 `radiant_win` 对齐计算，胜率为 `wins / picks * 100%`。这不是购买后因果胜率，也不是 BP 率。OpenDota 当前 schema 缺少可靠 `avg_rank_tier` 字段，所以英雄出装查询不能声称按分段过滤。
+
+物品资料页（`Views/ItemCatalogPage`，CommunityToolkit.Mvvm）参考官网物品库结构：
+- 顶级切换「商店物品 / 中立物品」，子类横向 Chip 多选（消耗品/属性/装备/…/T1-T5/附魔），AutoSuggestBox 名称/英文/子类拼音防抖搜索（250ms），实时统计匹配数。
+- 分组网格采用 `CollectionViewSource(IsSourceGrouped)` 分组：大分类（基础物品/升级物品/中立物品）→ 子分类 → 56x42 物品格（圆角 4，Hover 微缩放 1.05 + 强调色描边，VisualStateManager）。
+- 悬浮详情卡（ToolTip + 自定义模板）：头部（图标、名称、子类、金币价格/中立阶级）、属性区（绿字加号）、技能区（[主动]蓝/[被动]强调色 + 冷却/魔法消耗）、合成路线（小件缩略图 + 卷轴价格）、背景故事（斜体三级文本）。
+- 功能色（金币 `GoldPriceBrush`、法力 `ManaBlueBrush`、属性 `StatGreenBrush`）在 ThemeDictionaries 中按深色/浅色/高对比配置；其余一律使用 WinUI 语义 ThemeResource。
+- 详情按悬浮懒加载：先展示目录级信息，再异步补齐官方 `itemdata` 的属性/技能/传说，缓存 12 小时；详情失败不阻断悬浮卡。
+- 页面加载遵守首次启动门控：由 `MainWindow` 在设置保存成功后触发，避免首启无设置时访问在线数据源。
 
 ### 6.3 GSI 与实时教练
 
@@ -164,7 +177,7 @@ flowchart LR
 | `models\` | 用户自行准备的本地模型 |
 | `last-error.txt` | 最近资料加载异常 |
 
-目录缓存 TTL 为 30 分钟，中文详情 TTL 为 12 小时。请求至少间隔 150ms；网络错误、408、429 和 5xx 最多尝试三次，使用指数退避并尊重 `Retry-After`。JSON 写入使用同目录临时文件后替换；解析失败的缓存改名为 `.corrupt` 再重新获取。
+目录缓存 TTL 为 30 分钟，中文详情 TTL 为 12 小时。请求至少间隔 150ms；网络错误、408、429 和 5xx 最多尝试三次，使用指数退避并尊重 `Retry-After`。JSON 写入使用同目录临时文件后替换；解析失败的缓存改名为 `.corrupt` 再重新获取。缓存过期后仍会先尝试联网刷新；网络不可用时自动回退到过期缓存（英雄目录、物品目录、英雄/物品中文详情、出装与物品统计），页面标注数据来源，保证断网时资料页仍然可读。
 
 ## 8. 尚未完成的问题
 

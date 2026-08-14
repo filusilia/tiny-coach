@@ -9,6 +9,8 @@ using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace AegisCoach.Native.Models;
 
+using AegisCoach.Native.Services;
+
 [JsonConverter(typeof(HeroStatConverter))]
 public sealed class HeroStat
 {
@@ -27,11 +29,15 @@ public sealed class HeroStat
     /// </summary>
     public Dictionary<string, object?> Stats { get; set; } = [];
 
+    /// <summary>官网英雄列表数据提供的本地化大图（优先于 Steam CDN 图）。</summary>
     [JsonIgnore]
-    public string ImageUrl => AssetUrl(ImagePath);
+    public string? ImageUrlOverride { get; set; }
 
     [JsonIgnore]
-    public string IconUrl => AssetUrl(string.IsNullOrWhiteSpace(IconPath) ? ImagePath : IconPath);
+    public string ImageUrl => ImageUrlOverride ?? AssetUrl(ImagePath);
+
+    [JsonIgnore]
+    public string IconUrl => ImageUrlOverride ?? AssetUrl(string.IsNullOrWhiteSpace(IconPath) ? ImagePath : IconPath);
 
     /// <summary>OpenDota heroStats 的 roles 字段：Carry / Nuker / Support 等角色标签。</summary>
     [JsonIgnore]
@@ -126,7 +132,7 @@ public sealed class CounterMatchupItem
     {
         HeroId = heroId;
         HeroName = heroName;
-        IconUrl = iconUrl;
+        IconUrl = ImageCacheService.Instance.ResolveText(iconUrl);
         WinRate = winRate;
         GamesPlayed = gamesPlayed;
         CountersTarget = countersTarget;
@@ -155,7 +161,7 @@ public sealed class CounterPickRecommendation
     {
         HeroId = heroId;
         HeroName = heroName;
-        IconUrl = iconUrl;
+        IconUrl = ImageCacheService.Instance.ResolveText(iconUrl);
         AdvantageCount = advantageCount;
         AverageWinRate = averageWinRate;
     }
@@ -187,7 +193,7 @@ public sealed class CoachItemSlot
     {
         try
         {
-            var image = new BitmapImage(new Uri(url));
+            var image = new BitmapImage(ImageCacheService.Instance.Resolve(url));
             IconCache[url] = image;
             return image;
         }
@@ -204,7 +210,7 @@ public sealed class HeroChip
     public HeroChip(string name, string iconUrl)
     {
         Name = name;
-        IconUrl = iconUrl;
+        IconUrl = ImageCacheService.Instance.ResolveText(iconUrl);
     }
 
     public string Name { get; set; }
@@ -284,6 +290,11 @@ public sealed class OfficialItemSummary
     [JsonPropertyName("item_category")] public string CategoryCode { get; set; } = string.Empty;
     [JsonPropertyName("item_type")] public string TypeCode { get; set; } = string.Empty;
     [JsonPropertyName("item_shop_tags")] public string ShopTags { get; set; } = string.Empty;
+    [JsonPropertyName("item_cost")] public int Cost { get; set; }
+
+    /// <summary>官网物品列表提供的图片 URL（优先于 Steam CDN 图）。</summary>
+    [JsonIgnore]
+    public string? ImageUrlOverride { get; set; }
 
     [JsonIgnore]
     public List<ItemRecipeComponent> RecipeComponents { get; } = [];
@@ -292,10 +303,7 @@ public sealed class OfficialItemSummary
     public bool IsRecipe => Name.StartsWith("item_recipe_", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
-    public string ImageUrl
-    {
-        get => ImageUrlFor(Name);
-    }
+    public string ImageUrl => ImageUrlOverride ?? ImageUrlFor(Name);
 
     public static string ImageUrlFor(string name)
     {
@@ -335,6 +343,14 @@ public sealed class OfficialItemData
     [JsonPropertyName("cooldowns"), JsonConverter(typeof(FlexibleDoubleListConverter))] public List<double> Cooldowns { get; set; } = [];
     [JsonPropertyName("mana_costs"), JsonConverter(typeof(FlexibleDoubleListConverter))] public List<double> ManaCosts { get; set; } = [];
     [JsonPropertyName("special_values")] public List<AbilitySpecialValue> SpecialValues { get => _specialValues; set => _specialValues = value ?? []; }
+
+    /// <summary>官网（dota2.com.cn）itemdata 的属性行（已清理 HTML，如 "+攻击力：9"）。</summary>
+    [JsonIgnore]
+    public List<string> AttribLines { get; set; } = [];
+
+    /// <summary>官网合成配方（requirements 数组，元素为内部名，可能带 "*" 或为 recipe_ 卷轴）。</summary>
+    [JsonIgnore]
+    public List<string> Requirements { get; set; } = [];
 }
 
 public sealed class ItemMetric
@@ -356,7 +372,7 @@ public sealed class ItemCardItem
     {
         Item = item;
         Metric = metric ?? new ItemMetric();
-        Image = new BitmapImage(new Uri(item.ImageUrl));
+        Image = new BitmapImage(ImageCacheService.Instance.Resolve(item.ImageUrl));
     }
 
     public OfficialItemSummary Item { get; }
@@ -364,6 +380,7 @@ public sealed class ItemCardItem
     public BitmapImage Image { get; }
     public string Name => LocalizedText.ChineseOr(Item.LocalizedName, "中文名称待同步");
     public string EnglishName => Item.EnglishName;
+    public string CostText => Item.Cost > 0 ? "$" + Item.Cost.ToString("N0") : string.Empty;
     public string PicksText => Metric.Picks > 0 ? $"购买 {Metric.PicksText}" : "暂无统计";
     public string WinRateText => Metric.Picks == 0
         ? "胜率 --"
@@ -463,12 +480,28 @@ public sealed class AbilitySpecialValue
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
     private List<double> _values = [];
     private List<double> _alternateValues = [];
+    private List<TalentBonus> _bonuses = [];
+    /// <summary>该参数在天赋升级时提供的数值（name 为天赋 ID，value 为加成量）。</summary>
+    [JsonPropertyName("bonuses")] public List<TalentBonus> Bonuses { get => _bonuses; set => _bonuses = value ?? []; }
     [JsonPropertyName("values_float"), JsonConverter(typeof(FlexibleDoubleListConverter))] public List<double> Values { get => _values; set => _values = value ?? []; }
     [JsonPropertyName("values"), JsonConverter(typeof(FlexibleDoubleListConverter))] public List<double> AlternateValues { get => _alternateValues; set => _alternateValues = value ?? []; }
+    private List<double> _scepterValues = [];
+    private List<double> _shardValues = [];
+    /// <summary>阿哈利姆神杖/魔晶购买后的专属数值（解析神杖/魔晶文本时优先使用）。</summary>
+    [JsonPropertyName("values_scepter"), JsonConverter(typeof(FlexibleDoubleListConverter))] public List<double> ScepterValues { get => _scepterValues; set => _scepterValues = value ?? []; }
+    [JsonPropertyName("values_shard"), JsonConverter(typeof(FlexibleDoubleListConverter))] public List<double> ShardValues { get => _shardValues; set => _shardValues = value ?? []; }
     [JsonPropertyName("is_percentage")] public bool IsPercentage { get; set; }
 
     [JsonIgnore]
     public IReadOnlyList<double> EffectiveValues => Values.Count > 0 ? Values : AlternateValues;
+}
+
+/// <summary>技能参数上的天赋加成：name 为天赋 ID，value 为该天赋提供的加成量。</summary>
+public sealed class TalentBonus
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("value")] public double Value { get; set; }
+    [JsonPropertyName("operation")] public int Operation { get; set; }
 }
 
 public sealed class LocalizedHeroData
@@ -496,7 +529,8 @@ public sealed partial class TalentDisplay
         var numberMatch = TalentNumberRegex().Match(text);
         if (numberMatch.Success)
         {
-            NumberPrefix = numberMatch.Groups[1].Value;
+            // 正则没有捕获组，必须用 Value（整个匹配）而不是 Groups[1]（返回空导致数值丢失）。
+            NumberPrefix = numberMatch.Value;
             Label = text.Substring(numberMatch.Length).TrimStart(' ', '\u00A0').Trim();
         }
         else
@@ -770,8 +804,8 @@ public sealed class HeroCardItem : INotifyPropertyChanged
     {
         Hero = hero;
         TotalProActions = totalProActions;
-        LargeImage = new BitmapImage(new Uri(hero.ImageUrl));
-        SmallImage = new BitmapImage(new Uri(hero.IconUrl));
+        LargeImage = new BitmapImage(ImageCacheService.Instance.Resolve(hero.ImageUrl));
+        SmallImage = new BitmapImage(ImageCacheService.Instance.Resolve(hero.IconUrl));
         UpdateRank(rank);
     }
 
@@ -965,7 +999,8 @@ public sealed partial class AbilityDisplay
     public AbilityDisplay(string id, AbilityDefinition? baseData, OfficialAbility? official)
     {
         Id = id;
-        Name = LocalizedText.ChineseOr(official?.LocalizedName, "中文技能名称待同步");
+        Name = LocalizedText.ChineseOr(official?.LocalizedName,
+            (baseData?.DisplayName is { Length: > 0 } displayName ? Clean(displayName) : null) ?? "中文技能名称待同步");
         var description = LocalizedText.ChineseOrNull(Clean(official?.Description));
         Description = description is null
             ? "中文说明暂不可用"
@@ -974,8 +1009,13 @@ public sealed partial class AbilityDisplay
         Notes = official?.Notes.Select(Clean).Where(LocalizedText.ContainsChinese).OfType<string>().ToList() ?? [];
         var shard = LocalizedText.ChineseOrNull(Clean(official?.Shard));
         var scepter = LocalizedText.ChineseOrNull(Clean(official?.Scepter));
-        Shard = shard is null ? string.Empty : ResolveParameters(shard, official?.SpecialValues, baseData?.Attributes);
-        Scepter = scepter is null ? string.Empty : ResolveParameters(scepter, official?.SpecialValues, baseData?.Attributes);
+        // 神杖/魔晶文本使用 values_scepter / values_shard 专属数值（存在时优先）。
+        Shard = shard is null ? string.Empty
+            : ResolveParameters(shard, official?.SpecialValues, baseData?.Attributes,
+                value => value.ShardValues.Count > 0 ? value.ShardValues : value.EffectiveValues);
+        Scepter = scepter is null ? string.Empty
+            : ResolveParameters(scepter, official?.SpecialValues, baseData?.Attributes,
+                value => value.ScepterValues.Count > 0 ? value.ScepterValues : value.EffectiveValues);
         Cooldown = Series(official?.Cooldowns) ?? baseData?.Cooldown;
         ManaCost = Series(official?.ManaCosts) ?? baseData?.ManaCost;
         Image = CreateImage(baseData?.ImageUrl);
@@ -1008,21 +1048,23 @@ public sealed partial class AbilityDisplay
     }
 
     private static BitmapImage CreateImage(string? url) =>
-        string.IsNullOrWhiteSpace(url) ? new BitmapImage() : new BitmapImage(new Uri(url));
+        string.IsNullOrWhiteSpace(url) ? new BitmapImage() : new BitmapImage(ImageCacheService.Instance.Resolve(url));
 
     public static string ResolveParameters(
         string text,
         IEnumerable<AbilitySpecialValue>? officialValues,
-        IEnumerable<AbilityAttribute>? openDotaValues)
+        IEnumerable<AbilityAttribute>? openDotaValues,
+        Func<AbilitySpecialValue, IReadOnlyList<double>>? valueSelector = null)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (officialValues is not null)
         {
             foreach (var value in officialValues)
             {
-                if (value.EffectiveValues.Count == 0) continue;
+                var effective = valueSelector is not null ? valueSelector(value) : value.EffectiveValues;
+                if (effective.Count == 0) continue;
                 var suffix = value.IsPercentage ? "%" : string.Empty;
-                AddValue(values, value.Name, string.Join(" / ", value.EffectiveValues.Select(number => $"{number:0.#}{suffix}")));
+                AddValue(values, value.Name, string.Join(" / ", effective.Select(number => $"{number:0.##}{suffix}")));
             }
         }
 
@@ -1136,7 +1178,7 @@ public sealed partial class AbilityDisplay
                 var label = HumanizeStatName(value.Name);
                 var suffix = value.IsPercentage ? "%" : string.Empty;
                 stats.Add(new AbilityDetailStat(label,
-                    string.Join(" / ", value.EffectiveValues.Select(number => $"{number:0.#}{suffix}"))));
+                    string.Join(" / ", value.EffectiveValues.Select(number => $"{number:0.##}{suffix}"))));
             }
         }
 

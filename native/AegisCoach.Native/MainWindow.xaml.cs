@@ -23,10 +23,8 @@ public sealed partial class MainWindow : Window
     private SortOption _selectedSort;
     private int _detailsRequestId;
     private HeroCardItem? _selectedHero;
-    private ItemCardItem? _selectedItem;
     private MatchReport? _selectedReport;
     private string _selectedSectionId = "all-heroes";
-    private string _selectedItemCategory = "商店物品";
     private int _totalProActions;
     private bool _itemsLoaded;
     private bool _itemsLoading;
@@ -99,10 +97,6 @@ public sealed partial class MainWindow : Window
     public ObservableCollection<HeroStatChip> HeroStats { get; } = [];
     public ObservableCollection<BuildRecommendation> SelectedBuilds { get; } = [];
     public ObservableCollection<BuildRecommendationGroup> SelectedBuildGroups { get; } = [];
-    public ObservableCollection<ItemCardItem> VisibleItems { get; } = [];
-    public ObservableCollection<ItemCategoryGroup> VisibleItemGroups { get; } = [];
-    public ObservableCollection<ItemShopSection> VisibleItemSections { get; } = [];
-    public ObservableCollection<AbilityDetailStat> ItemDetailStats { get; } = [];
     public ObservableCollection<WikiTip> SelectedWikiTips { get; } = [];
     public ObservableCollection<HeroAttributeRow> HeroAttributes { get; } = [];
     public ObservableCollection<string> HeroRoleTags { get; } = [];
@@ -136,13 +130,10 @@ public sealed partial class MainWindow : Window
         new() { Id = "name", Label = "名称" },
     ];
 
-    public static IReadOnlyList<string> ItemCategories => ItemCategory.Order;
-
     public MainWindow()
     {
         InitializeComponent();
         RootGrid.DataContext = this;
-        ItemCategoryBox.ItemsSource = new[] { "商店物品", "中立物品" };
         _selectedRank = RankOptions[0];
         _selectedSort = SortOptions[0];
         RootGrid.Loaded += MainWindow_Loaded;
@@ -163,7 +154,6 @@ public sealed partial class MainWindow : Window
         _selectedRank = RankOptions.FirstOrDefault(rank => rank.Id == _settings.DefaultRankId) ?? RankOptions[0];
         RankBox.SelectedItem = _selectedRank;
         SortBox.SelectedIndex = 0;
-        ItemCategoryBox.SelectedIndex = 0;
         AttributeTabs.SelectedIndex = 0;
         PopulateSettings();
         ApplyResponsiveLayout();
@@ -181,9 +171,11 @@ public sealed partial class MainWindow : Window
         if (_applicationStarted) return;
         _applicationStarted = true;
         _dataService.CacheDirectory = _settings.CacheDirectory;
+        ItemCatalogPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
         MatchSessionTracker.HabitsDirectory = AegisCoachPaths.Habits;
         MatchSessionTracker.AnalysisDirectory = _settings.AnalysisDirectory;
         _npuCoach.ModelPath = _settings.NpuModelPath;
+        try { Directory.CreateDirectory(DotaDataService.OfficialDataDirectory); } catch { /* 官网数据文件目录可选 */ }
         NpuStatusText.Text = NpuCapabilityDetector.Detect().Summary;
         UpdateNpuModelStatus();
         _ = RefreshNpuRuntimeAsync();
@@ -193,6 +185,32 @@ public sealed partial class MainWindow : Window
         LoadAnalysisData();
         await LoadCatalogAsync(false);
         _ = LoadItemsInBackgroundAsync();
+        // 预热物品资料页（遵守首次启动门控：仅在设置保存成功后触发）。
+        _ = ItemCatalogPage.LoadAsync(false);
+        _ = RefreshAllHeroDetailsInBackgroundAsync();
+    }
+
+    /// <summary>后台批量刷新全部英雄的中文详情（官网接口优先），并清理不再属于当前版本的旧详情缓存。</summary>
+    private async Task RefreshAllHeroDetailsInBackgroundAsync()
+    {
+        var heroIds = _catalog?.Heroes.Select(hero => hero.Id).ToList() ?? [];
+        if (heroIds.Count == 0) return;
+
+        try
+        {
+            var current = heroIds.ToHashSet();
+            var purged = _dataService.PurgeStaleHeroDetailCaches(current);
+            if (purged > 0) AppendCoachLog($"已清理 {purged} 个旧英雄资料缓存");
+            var updated = await _dataService.RefreshAllHeroDetailsAsync(heroIds, AppToken);
+            AppendCoachLog($"英雄资料同步完成：{updated}/{heroIds.Count} 位英雄详情已更新");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            AppendCoachLog("英雄资料后台同步失败：" + exception.Message);
+        }
     }
 
     private void LoadAnalysisData()
@@ -242,7 +260,10 @@ public sealed partial class MainWindow : Window
             _allHeroes.AddRange(_catalog.Heroes.Select(hero => new HeroCardItem(hero, _selectedRank, _totalProActions)));
             HeroCountText.Text = $"{_allHeroes.Count} 位英雄";
             ApplyFilters();
-            SourceStatusText.Text = $"官方中文数据 + OpenDota · 目标版本 v{DotaDataService.TargetPatch}";
+            // 后台预下载英雄图片到本地缓存，断网时也能显示。
+            _ = ImageCacheService.Instance.PrefetchAsync(
+                _catalog.Heroes.SelectMany(hero => new[] { hero.ImageUrl, hero.IconUrl }), AppToken);
+            SourceStatusText.Text = $"{_dataService.CatalogSourceNote} · 目标版本 v{DotaDataService.TargetPatch}";
         }
         catch (Exception exception)
         {
@@ -256,8 +277,8 @@ public sealed partial class MainWindow : Window
 
     private async Task LoadItemsAsync(bool force)
     {
-        ItemSourceStatusText.Text = "正在同步物品数据…";
-        ItemErrorBar.IsOpen = false;
+        // 教练页依赖 _allItems（推荐热度/胜率与名称反查）；物品资料页由
+        // Views/ItemCatalogPage 独立加载与展示（含官网式分组与悬浮详情卡）。
         try
         {
             var items = await _dataService.LoadItemsAsync(force, AppToken);
@@ -270,27 +291,17 @@ public sealed partial class MainWindow : Window
             {
                 WriteErrorLog(exception);
                 metrics = [];
-                ItemSourceStatusText.Text = "官方物品资料可用 · 最近30天统计暂不可用";
             }
 
             _allItems.Clear();
-            _allItems.AddRange(items.Select(item =>
-                new ItemCardItem(item, metrics.GetValueOrDefault(item.Id))));
+            _allItems.AddRange(items.Select(item => new ItemCardItem(item, metrics.GetValueOrDefault(item.Id))));
             _itemsLoaded = true;
-            ItemCountText.Text = $"{_allItems.Count} 件物品";
-            ApplyItemFilters();
-            if (ItemSourceStatusText.Text == "正在同步物品数据…")
-            {
-                ItemSourceStatusText.Text = $"{_dataService.ItemCatalogSource} · 目标版本 v{DotaDataService.TargetPatch} · OpenDota 最近30天统计";
-            }
+            // 后台预下载物品图片到本地缓存。
+            _ = ImageCacheService.Instance.PrefetchAsync(items.Select(item => item.ImageUrl), AppToken);
         }
         catch (Exception exception)
         {
             WriteErrorLog(exception);
-            ItemSourceStatusText.Text = "物品数据加载失败";
-            ItemErrorBar.Title = "无法加载物品数据";
-            ItemErrorBar.Message = exception.Message;
-            ItemErrorBar.IsOpen = true;
         }
     }
 
@@ -344,14 +355,17 @@ public sealed partial class MainWindow : Window
         var requestId = ++_detailsRequestId;
         HeroDetailPanel.Visibility = Visibility.Visible;
         HeroEmptyState.Visibility = Visibility.Collapsed;
-        HeroDetailHost.Visibility = Visibility.Visible;
+        HeroDetailRoot.Visibility = Visibility.Visible;
         ApplyResponsiveLayout();
+        HeroDetailHost.ChangeView(0, 0, null, disableAnimation: true);
+        SetPageChrome(HeroHeaderBar, HeroHeaderDivider, HeroSearchBar, detailOpen: true);
         HeroNameText.Text = item.Name;
+        HeroDetailHeaderText.Text = item.Name;
         HeroEnglishNameText.Text = LocalizedText.ContainsChinese(item.Hero.EnglishName)
             ? item.Hero.Name.Replace("npc_dota_hero_", string.Empty).Replace('_', ' ').ToUpperInvariant()
             : item.Hero.EnglishName.ToUpperInvariant();
         HeroMetaText.Text = $"{item.AttributeLabel} · {item.AttackLabel}";
-        HeroImage.Source = new BitmapImage(new Uri(item.Hero.ImageUrl));
+        HeroImage.Source = new BitmapImage(ImageCacheService.Instance.Resolve(item.Hero.ImageUrl));
         HeroAttrBadgeText.Text = item.AttributeLabel;
         HeroAttrBadge.Background = item.AttrBrush;
         HeroAttackTypeText.Text = item.AttackLabel;
@@ -369,6 +383,10 @@ public sealed partial class MainWindow : Window
         SelectedRankMetrics.Add(new RankPerformanceItem(
             _selectedRank.Label,
             HeroCardItem.MetricsFor(item.Hero, _selectedRank.Id)));
+        var rankMetric = SelectedRankMetrics.FirstOrDefault();
+        RankSummaryText.Text = rankMetric is null
+            ? $"{_selectedRank.Label} · 暂无样本"
+            : $"{rankMetric.Label} · 胜率 {rankMetric.WinRateText} · {rankMetric.SampleText}";
 
         HeroCountersMe.Clear();
         HeroCountersTarget.Clear();
@@ -398,8 +416,8 @@ public sealed partial class MainWindow : Window
         }
 
         if (requestId != _detailsRequestId) return;
-        HeroHypeText.Text = LocalizedText.ChineseOr(localized.Hype, $"{item.Name}英雄资料");
-        HeroBiographyText.Text = LocalizedText.ChineseOr(localized.Biography, "官方中文背景故事暂不可用。");
+        HeroHypeText.Text = LocalizedText.ChineseOr(CleanText(localized.Hype), $"{item.Name}英雄资料");
+        HeroBiographyText.Text = LocalizedText.ChineseOr(CleanText(localized.Biography), "官方中文背景故事暂不可用。");
 
         var officialByName = localized.Abilities
             .Where(ability => !string.IsNullOrWhiteSpace(ability.Name))
@@ -409,6 +427,7 @@ public sealed partial class MainWindow : Window
             ?? _catalog?.HeroAbilities.GetValueOrDefault(item.Hero.Name.Replace("npc_dota_hero_", string.Empty));
         var abilityIds = (heroAbilityMap?.AbilityIds ?? Enumerable.Empty<string>())
             .Concat(localized.Abilities.Select(ability => ability.Name))
+            .Concat(SummonedUnitAbilityIds(item.Hero.Name))
             .Where(id => !string.IsNullOrWhiteSpace(id) && !id.Equals("generic_hidden", StringComparison.OrdinalIgnoreCase))
             .Where(id => !id.StartsWith("special_bonus", StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -449,8 +468,15 @@ public sealed partial class MainWindow : Window
             var isLeft = index % 2 == 0;
             AbilityDefinition? talentBase = null;
             _catalog?.Abilities.TryGetValue(talent.Name, out talentBase);
+            var talentText = CleanText(talent.LocalizedName);
+            if (string.IsNullOrWhiteSpace(talentText) && talentBase?.DisplayName is { Length: > 0 } displayName)
+            {
+                // 官方中文天赋文本缺失时回退到定义英文名，避免天赋树整行空白；
+                // 数值占位符仍由 ResolveTalentParameters 尽力解析。
+                talentText = CleanText(displayName);
+            }
             var localizedTalent = AbilityDisplay.ResolveTalentParameters(
-                CleanText(talent.LocalizedName), talent, talentBase);
+                talentText, talent, talentBase);
             if (string.IsNullOrWhiteSpace(localizedTalent)) continue;
             if (!resolvedTalents.TryGetValue(level, out var pair)) pair = (string.Empty, string.Empty);
             if (isLeft) pair.Left = localizedTalent;
@@ -474,22 +500,48 @@ public sealed partial class MainWindow : Window
         : $"{SelectedAbilities.Count} 项基础技能 · 中文详情暂不可用";
     }
 
+    /// <summary>英雄召唤物（如德鲁伊的熊）技能不在 OpenDota hero_abilities 映射中，这里按英雄补充，
+    /// 让召唤物的技能也能在详情页查看。</summary>
+    private static IReadOnlyList<string> SummonedUnitAbilityIds(string heroName) => heroName switch
+    {
+        "npc_dota_hero_lone_druid" =>
+        [
+            "lone_druid_spirit_bear_return",
+            "lone_druid_spirit_bear_demolish",
+            "lone_druid_spirit_bear_fetch",
+            "lone_druid_spirit_bear_entangle",
+        ],
+        _ => [],
+    };
+
     private void UpdateHeroAttributes(HeroStat hero)
     {
-        HeroAttributes.Clear();
-        var strBrush = BrushFromResource("HeroAttrStrBrush");
-        var agiBrush = BrushFromResource("HeroAttrAgiBrush");
-        var intBrush = BrushFromResource("HeroAttrIntBrush");
-        AddHeroAttribute("力量", hero.StatDouble("base_str"), hero.StatDouble("str_gain"), strBrush);
-        AddHeroAttribute("敏捷", hero.StatDouble("base_agi"), hero.StatDouble("agi_gain"), agiBrush);
-        AddHeroAttribute("智力", hero.StatDouble("base_int"), hero.StatDouble("int_gain"), intBrush);
+        SetHeroAttribute(HeroAttrStrValue, HeroAttrStrGrowth, hero.StatDouble("base_str"), hero.StatDouble("str_gain"));
+        SetHeroAttribute(HeroAttrAgiValue, HeroAttrAgiGrowth, hero.StatDouble("base_agi"), hero.StatDouble("agi_gain"));
+        SetHeroAttribute(HeroAttrIntValue, HeroAttrIntGrowth, hero.StatDouble("base_int"), hero.StatDouble("int_gain"));
+    }
+
+    private static void SetHeroAttribute(TextBlock valueText, TextBlock growthText, double value, double growth)
+    {
+        valueText.Text = value > 0 ? value.ToString("0.#") : "--";
+        growthText.Text = growth > 0 ? $"+{growth:0.#}/级" : string.Empty;
     }
 
     private void AbilityButton_Click(object sender, RoutedEventArgs _)
     {
         if (sender is Button { DataContext: AbilityDisplay ability })
         {
+            // 技能描述高度变化可能触发 ScrollViewer 重排/焦点滚动，保持当前阅读位置。
+            // 在下一帧布局完成后恢复滚动偏移，覆盖延迟触发的布局跳动（点击技能不得跳回顶部）。
+            var scrollOffset = HeroDetailHost.VerticalOffset;
             SelectedAbilityPanel.DataContext = ability;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (Math.Abs(HeroDetailHost.VerticalOffset - scrollOffset) > 1)
+                {
+                    HeroDetailHost.ChangeView(null, scrollOffset, null, disableAnimation: true);
+                }
+            });
         }
     }
 
@@ -605,7 +657,6 @@ public sealed partial class MainWindow : Window
 
     private void UpdateHeroStats(HeroStat hero)
     {
-        HeroStats.Clear();
         var gold = BrushFromResource("CoachGoldBrush");
         var red = BrushFromResource("CoachDangerBrush");
         var blue = BrushFromResource("CoachInfoBlueBrush");
@@ -617,12 +668,28 @@ public sealed partial class MainWindow : Window
         var attackRange = hero.StatInt("attack_range");
         var baseHealth = hero.StatInt("base_health");
         var baseMana = hero.StatInt("base_mana");
-        HeroStats.Add(new HeroStatChip("攻击", minAttack > 0 && maxAttack > 0 ? $"{minAttack}-{maxAttack}" : "--", red));
-        HeroStats.Add(new HeroStatChip("护甲", $"{hero.StatDouble("base_armor"):0.#}", neutral));
-        HeroStats.Add(new HeroStatChip("移动速度", moveSpeed > 0 ? moveSpeed.ToString() : "--", gold));
-        HeroStats.Add(new HeroStatChip("攻击距离", attackRange > 0 ? attackRange.ToString() : "--", blue));
-        HeroStats.Add(new HeroStatChip("基础生命", baseHealth > 0 ? baseHealth.ToString("N0") : "--", green));
-        HeroStats.Add(new HeroStatChip("基础魔法", baseMana > 0 ? baseMana.ToString("N0") : "--", blue));
+        SetHeroStat(0, "攻击", minAttack > 0 && maxAttack > 0 ? $"{minAttack}-{maxAttack}" : "--", red);
+        SetHeroStat(1, "护甲", $"{hero.StatDouble("base_armor"):0.#}", neutral);
+        SetHeroStat(2, "移动速度", moveSpeed > 0 ? moveSpeed.ToString() : "--", gold);
+        SetHeroStat(3, "攻击距离", attackRange > 0 ? attackRange.ToString() : "--", blue);
+        SetHeroStat(4, "基础生命", baseHealth > 0 ? baseHealth.ToString("N0") : "--", green);
+        SetHeroStat(5, "基础魔法", baseMana > 0 ? baseMana.ToString("N0") : "--", blue);
+    }
+
+    private void SetHeroStat(int index, string label, string value, Brush color)
+    {
+        var (dot, labelText, valueText) = index switch
+        {
+            0 => (HeroStat0Dot, HeroStat0Label, HeroStat0Value),
+            1 => (HeroStat1Dot, HeroStat1Label, HeroStat1Value),
+            2 => (HeroStat2Dot, HeroStat2Label, HeroStat2Value),
+            3 => (HeroStat3Dot, HeroStat3Label, HeroStat3Value),
+            4 => (HeroStat4Dot, HeroStat4Label, HeroStat4Value),
+            _ => (HeroStat5Dot, HeroStat5Label, HeroStat5Value),
+        };
+        dot.Background = color;
+        labelText.Text = label;
+        valueText.Text = value;
     }
 
     private static SolidColorBrush BrushFromResource(string key) =>
@@ -651,7 +718,7 @@ public sealed partial class MainWindow : Window
                     Phase = phase,
                     Name = LocalizedText.ChineseOr(item.LocalizedName, "中文名称待同步"),
                     StatsText = $"样本 {HeroCardItem.CompactNumber(metric.Picks)} · {rate}",
-                    Image = new BitmapImage(new Uri(item.ImageUrl)),
+                    Image = new BitmapImage(ImageCacheService.Instance.Resolve(item.ImageUrl)),
                 });
             }
 
@@ -683,7 +750,7 @@ public sealed partial class MainWindow : Window
                             Phase = phase,
                             Name = LocalizedText.ChineseOr(item.LocalizedName, "中文名称待同步"),
                             StatsText = $"热度 {percent:0.0}%",
-                            Image = new BitmapImage(new Uri(item.ImageUrl)),
+                            Image = new BitmapImage(ImageCacheService.Instance.Resolve(item.ImageUrl)),
                         });
                     }
                 }
@@ -704,57 +771,6 @@ public sealed partial class MainWindow : Window
             SelectedBuildGroups.Clear();
             BuildStatusText.Text = "当前分段出装暂不可用";
             BuildBorder.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private async Task ShowItemAsync(ItemCardItem item)
-    {
-        var requestId = ++_detailsRequestId;
-        ItemDetailPanel.Visibility = Visibility.Visible;
-        ApplyResponsiveLayout();
-        ItemNameText.Text = item.Name;
-        ItemMetaText.Text = item.TierText;
-        ItemCategoryText.Text = item.CategoryLabel;
-        ItemImage.Source = item.Image;
-        ItemCostText.Text = item.Metric.Picks > 0
-            ? $"{item.Metric.WinRateText}  ·  购买 {item.Metric.PicksText}  ·  胜局 {item.Metric.WinsText}"
-            : "暂无最近 30 天统计";
-        ItemDescriptionText.Text = "正在同步官方中文资料…";
-        ItemLoreText.Text = string.Empty;
-        ItemDetailStats.Clear();
-        ItemNotes.ItemsSource = null;
-        ItemRecipeItems.ItemsSource = item.Item.RecipeComponents;
-        ItemRecipeBorder.Visibility = item.Item.RecipeComponents.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-        try
-        {
-            var detail = await _dataService.LoadItemDetailsAsync(item.Item.Id, false, AppToken);
-            if (requestId != _detailsRequestId) return;
-
-            ItemCostText.Text = detail.Cost > 0
-                ? $"价格 {detail.Cost:N0}"
-                : "价格信息暂不可用";
-            var description = CleanText(detail.Description ?? string.Empty);
-            ItemDescriptionText.Text = LocalizedText.ContainsChinese(description)
-                ? AbilityDisplay.ResolveParameters(description, detail.SpecialValues, null)
-                : "中文说明暂不可用";
-            ItemLoreText.Text = LocalizedText.ChineseOrNull(CleanText(detail.Lore ?? string.Empty)) ?? string.Empty;
-            ItemNotes.ItemsSource = detail.Notes
-                .Select(CleanText)
-                .Where(LocalizedText.ContainsChinese)
-                .Select(text => AbilityDisplay.ResolveParameters(text, detail.SpecialValues, null))
-                .Where(text => !string.IsNullOrWhiteSpace(text)).ToList();
-            foreach (var stat in AbilityDisplay.BuildStats(detail.SpecialValues, null))
-            {
-                ItemDetailStats.Add(stat);
-            }
-        }
-        catch (Exception exception)
-        {
-            ItemDescriptionText.Text = "中文详情加载失败";
-            ItemErrorBar.Title = "无法加载该物品的官方中文资料";
-            ItemErrorBar.Message = exception.Message;
-            ItemErrorBar.IsOpen = true;
         }
     }
 
@@ -782,60 +798,6 @@ public sealed partial class MainWindow : Window
 
     private void SearchBox_TextChanged(object _, TextChangedEventArgs __) => ApplyFilters();
 
-    private void ItemSearchBox_TextChanged(object _, TextChangedEventArgs __) => ApplyItemFilters();
-
-    private void ApplyItemFilters()
-    {
-        var keyword = ItemSearchBox.Text.Trim();
-        var query = _allItems.Where(item => string.IsNullOrWhiteSpace(keyword) ||
-            item.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
-            item.EnglishName.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-        query = _selectedItemCategory == "中立物品"
-            ? query.Where(item => item.ShopSection == "中立物品")
-            : query.Where(item => item.ShopSection != "中立物品");
-        VisibleItems.Clear();
-        foreach (var item in query
-            .OrderBy(item => Array.IndexOf(ItemCategory.Order.ToArray(), item.CategoryLabel))
-            .ThenBy(item => item.Name, StringComparer.CurrentCulture))
-        {
-            VisibleItems.Add(item);
-        }
-
-        VisibleItemGroups.Clear();
-        foreach (var category in ItemCategory.Order)
-        {
-            var categoryItems = VisibleItems.Where(item => item.CategoryLabel == category).ToList();
-            if (categoryItems.Count > 0) VisibleItemGroups.Add(new ItemCategoryGroup(category, categoryItems));
-        }
-
-        VisibleItemSections.Clear();
-        if (_selectedItemCategory == "中立物品")
-        {
-            if (VisibleItemGroups.Count > 0)
-            {
-                VisibleItemSections.Add(new ItemShopSection("中立物品", "按当前中立物品层级与名称浏览", VisibleItemGroups));
-            }
-        }
-        else
-        {
-            var basic = VisibleItemGroups.Where(group => group.Name is "消耗品" or "属性" or "装备" or "其他" or "神秘商店").ToList();
-            var recipes = VisibleItemGroups.Where(group => group.Name is "配件" or "辅助" or "法器" or "防具" or "兵刃" or "宝物").ToList();
-            if (basic.Count > 0) VisibleItemSections.Add(new ItemShopSection("基础分类", "基础物品与神秘商店", basic));
-            if (recipes.Count > 0) VisibleItemSections.Add(new ItemShopSection("合成分类", "配件、辅助、法器、防具、兵刃与宝物", recipes));
-        }
-
-        ItemResultCountText.Text = $"显示 {VisibleItems.Count} 件 · {VisibleItemGroups.Count} 个分类";
-    }
-
-    private void ItemCategory_SelectionChanged(object _, SelectionChangedEventArgs __)
-    {
-        if (ItemCategoryBox.SelectedItem is string category)
-        {
-            _selectedItemCategory = category;
-            ApplyItemFilters();
-        }
-    }
-
     private async void AppNavigation_SelectionChanged(NavigationView _, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.IsSettingsSelected)
@@ -851,12 +813,14 @@ public sealed partial class MainWindow : Window
         var showCoach = tag == "coach";
         var showAnalysis = tag == "analysis";
         HeroPage.Visibility = showItems || showCoach || showAnalysis ? Visibility.Collapsed : Visibility.Visible;
-        ItemPage.Visibility = showItems ? Visibility.Visible : Visibility.Collapsed;
+        ItemCatalogPage.Visibility = showItems ? Visibility.Visible : Visibility.Collapsed;
         CoachPage.Visibility = showCoach ? Visibility.Visible : Visibility.Collapsed;
         AnalysisPage.Visibility = showAnalysis ? Visibility.Visible : Visibility.Collapsed;
-        if (showItems && !_itemsLoaded && !_itemsLoading)
+        if (showItems)
         {
-            await LoadItemsAsync(false);
+            // 物品资料页自带加载保护；这里同时为教练页预热 _allItems（推荐反查用）。
+            await ItemCatalogPage.LoadAsync(false);
+            if (!_itemsLoaded && !_itemsLoading) await LoadItemsAsync(false);
         }
     }
 
@@ -902,7 +866,7 @@ public sealed partial class MainWindow : Window
             AnalysisApiHost.Visibility = Visibility.Collapsed;
         }
         AnalysisEmptyState.Visibility = Visibility.Collapsed;
-        AnalysisDetailHost.Visibility = Visibility.Visible;
+        AnalysisDetailRoot.Visibility = Visibility.Visible;
         AnalysisDetailPanel.Visibility = Visibility.Visible;
         ApplyResponsiveLayout();
     }
@@ -1113,29 +1077,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void ItemCardButton_Click(object sender, RoutedEventArgs _)
-    {
-        if (sender is Button { DataContext: ItemCardItem item })
-        {
-            _selectedItem = item;
-            await ShowItemAsync(item);
-        }
-    }
-
     private void HeroCloseButton_Click(object _, RoutedEventArgs __)
     {
         _selectedHero = null;
         _detailsRequestId++;
-        HeroDetailHost.Visibility = Visibility.Collapsed;
+        HeroDetailRoot.Visibility = Visibility.Collapsed;
         HeroDetailPanel.Visibility = Visibility.Collapsed;
-        ApplyResponsiveLayout();
-    }
-
-    private void ItemCloseButton_Click(object _, RoutedEventArgs __)
-    {
-        _selectedItem = null;
-        _detailsRequestId++;
-        ItemDetailPanel.Visibility = Visibility.Collapsed;
+        SetPageChrome(HeroHeaderBar, HeroHeaderDivider, HeroSearchBar, detailOpen: false);
         ApplyResponsiveLayout();
     }
 
@@ -1143,7 +1091,7 @@ public sealed partial class MainWindow : Window
     {
         _selectedReport = null;
         AnalysisList.SelectedItem = null;
-        AnalysisDetailHost.Visibility = Visibility.Collapsed;
+        AnalysisDetailRoot.Visibility = Visibility.Collapsed;
         AnalysisDetailPanel.Visibility = Visibility.Collapsed;
         ApplyResponsiveLayout();
     }
@@ -1185,14 +1133,6 @@ public sealed partial class MainWindow : Window
         if (_selectedHero is not null) await ShowHeroAsync(_selectedHero);
     }
 
-    private async void ItemRefreshButton_Click(object _, RoutedEventArgs __)
-    {
-        _dataService.ClearCache();
-        _itemsLoaded = false;
-        await LoadItemsAsync(true);
-        if (_selectedItem is not null) await ShowItemAsync(_selectedItem);
-    }
-
     private void HeroListHost_SizeChanged(object _, SizeChangedEventArgs __) => UpdateHeroCardLayout();
 
     private void UpdateVisibleAttributeHeroes()
@@ -1230,7 +1170,6 @@ public sealed partial class MainWindow : Window
         var compact = RootGrid.ActualWidth > 0 && RootGrid.ActualWidth < 1100;
         var pagePadding = compact ? new Thickness(12, 12, 12, 16) : new Thickness(24, 18, 24, 22);
         HeroPage.Padding = pagePadding;
-        ItemPage.Padding = pagePadding;
         CoachPage.Padding = pagePadding;
         AnalysisPage.Padding = pagePadding;
 
@@ -1240,12 +1179,6 @@ public sealed partial class MainWindow : Window
             HeroDetailColumn,
             HeroListHost,
             HeroDetailPanel);
-        ConfigureFullPageDetail(
-            _selectedItem is not null,
-            ItemListColumn,
-            ItemDetailColumn,
-            ItemListHost,
-            ItemDetailPanel);
 
         var hasAnalysisDetail = _selectedReport is not null;
         AnalysisDetailPanel.Visibility = hasAnalysisDetail ? Visibility.Visible : Visibility.Collapsed;
@@ -1285,30 +1218,25 @@ public sealed partial class MainWindow : Window
 
     private void ApplyReferenceResponsiveLayout(bool compact)
     {
-        HeroBannerPrimaryColumn.Width = compact ? new GridLength(1, GridUnitType.Star) : new GridLength(2, GridUnitType.Star);
-        HeroBannerBiographyColumn.Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        HeroBannerGrid.Height = compact ? 450 : 390;
-        HeroBannerContentGrid.Margin = compact
-            ? new Thickness(20, 24, 20, 24)
-            : new Thickness(36, 28, 36, 28);
-        Grid.SetRow(HeroBiographyPanel, compact ? 1 : 0);
-        Grid.SetColumn(HeroBiographyPanel, compact ? 0 : 1);
+        // 英雄背景已移出横幅，横幅只保留主信息列。
+        HeroBannerPrimaryColumn.Width = new GridLength(1, GridUnitType.Star);
+        HeroBannerBiographyColumn.Width = new GridLength(0);
+        HeroBannerGrid.Height = 248;
+        HeroBannerContentGrid.Margin = new Thickness(24, 18, 24, 18);
 
         ScepterUpgradeColumn.Width = new GridLength(1, GridUnitType.Star);
         ShardUpgradeColumn.Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetRow(ShardUpgradePanel, compact ? 1 : 0);
         Grid.SetColumn(ShardUpgradePanel, compact ? 0 : 1);
+    }
 
-        ItemDetailImageColumn.Width = compact ? new GridLength(1, GridUnitType.Star) : new GridLength(184);
-        ItemDetailTextColumn.Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        Grid.SetRow(ItemImageFrame, 0);
-        Grid.SetColumn(ItemImageFrame, 0);
-        var itemText = ItemNameText.Parent as FrameworkElement;
-        if (itemText is not null)
-        {
-            Grid.SetRow(itemText, compact ? 1 : 0);
-            Grid.SetColumn(itemText, compact ? 0 : 1);
-        }
+    /// <summary>详情打开时折叠页头与搜索区，让详情铺满页面；返回列表时恢复。</summary>
+    private static void SetPageChrome(UIElement header, UIElement divider, UIElement search, bool detailOpen)
+    {
+        var visibility = detailOpen ? Visibility.Collapsed : Visibility.Visible;
+        header.Visibility = visibility;
+        divider.Visibility = visibility;
+        search.Visibility = visibility;
     }
 
     private static void ConfigureFullPageDetail(
@@ -1527,6 +1455,7 @@ public sealed partial class MainWindow : Window
             ? _settings.NpuModelPath : NpuModelPathBox.Text.Trim();
         _npuCoach.ModelPath = _settings.NpuModelPath;
         _dataService.CacheDirectory = _settings.CacheDirectory;
+        ItemCatalogPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
         MatchSessionTracker.HabitsDirectory = AegisCoachPaths.Habits;
         MatchSessionTracker.AnalysisDirectory = _settings.AnalysisDirectory;
         _settings.LiveHeroTrackingEnabled = LiveHeroTrackingEnabledBox.IsChecked == true;
@@ -2518,7 +2447,7 @@ public sealed partial class MainWindow : Window
             {
                 try
                 {
-                    _coachHeroImageCache[snapshot.Hero.Id] = new BitmapImage(new Uri(iconUrl));
+                    _coachHeroImageCache[snapshot.Hero.Id] = new BitmapImage(ImageCacheService.Instance.Resolve(iconUrl));
                 }
                 catch
                 {

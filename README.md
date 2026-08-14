@@ -62,6 +62,18 @@ dotnet build native\AegisCoach.Native.sln --configuration Debug --no-restore -p:
 
 `native/AegisCoach.Native/bin/x64/Debug/net8.0-windows10.0.19041.0/`
 
+## 打包发布版（可直接运行的 exe）
+
+```powershell
+dotnet publish native\AegisCoach.Native\AegisCoach.Native.csproj --configuration Debug --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64 -p:SelfContained=false -p:PublishSingleFile=false
+```
+
+发布产物（含 Windows App Runtime 与 NPU/OpenVINO 运行时，无需安装额外依赖）位于：
+
+`release/publish/AegisCoach.Native.exe` —— 双击即可运行；也可用 `release/AegisCoach-发布版.zip` 分发。
+
+> 说明：`AegisCoach.Native.csproj` 内置了 publish 后复制 WinUI `.xbf`/`.pri` 资源的 target，发布版 exe 依赖这些 XAML 编译资源，缺了会启动即退出。
+
 ## 测试
 
 无外部依赖的端到端冒烟测试（模拟 Dota 2 向本地接收器 POST 快照，验证解析、token 校验、去重、断线检测、规则触发、cfg 安装、快照落盘与 token 脱敏）：
