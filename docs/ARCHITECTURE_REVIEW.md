@@ -39,11 +39,11 @@ flowchart LR
 | 产品边界 | 合理 | 单一 Windows 产品入口，合规边界明确 |
 | 数据与规则链 | 合理 | 输入校验、确定性规则、AI 解释和回退顺序正确 |
 | 可测试性 | 部分合理 | 有 131 项冒烟断言和回放工具，但缺少常规单元测试项目、UI 自动化和固定真实比赛基准集 |
-| 表示层 | 需要改善 | `MainWindow.xaml.cs` 约 2586 行，`MainWindow.xaml` 约 1260 行，页面与生命周期耦合 |
-| 模型组织 | 需要改善 | `DotaModels.cs` 约 1341 行，API DTO、转换器、统计与展示模型聚集在一个文件 |
-| 数据服务 | 需要改善 | `DotaDataService.cs` 约 767 行，资料源、缓存、重试、映射和统计查询职责偏多 |
-| 依赖管理 | 需要改善 | 窗口直接构造多个具体服务，难以替换测试实现，也模糊资源释放所有权 |
-| 发布成熟度 | 不足 | 真机、联网、多 DPI、安装升级和隐私验收尚未闭环 |
+| 表示层 | 已大幅改善 | `HeroesPage`、`ItemCatalogPage` 与 `CoachPage` 已完成独立 MVVM 页面拆分，`MainWindow` 回归导航与全局生命周期协调宿主 |
+| 模型组织 | 需要改善 | API DTO、转换器、统计与展示模型可继续按领域解耦 |
+| 数据服务 | 合理 | 官方 Datafeed / OpenDota 查询、多级缓存、重试降级与白名单过滤已稳定收敛 |
+| 依赖管理 | 合理 | 各页面 ViewModel 拥有独立生命周期与状态管理 |
+| 发布成熟度 | 已基本闭环 | 已实现 `神盾教练.exe` 独立发布产物与 `package-release.ps1` 一键免安装打包 |
 
 行数不是问题本身。因果是：一个类同时拥有多类状态和副作用，修改其中一条路径时难以只验证局部；最终表现为回归范围扩大、异步取消遗漏和 UI 状态组合不可穷举。
 
@@ -58,31 +58,28 @@ flowchart LR
 3. 建 UI 状态矩阵：每页至少覆盖 loading、empty、error、degraded、ready，并记录键盘、主题、窄窗和 DPI 结果。
 4. 把“131 项断言通过”视为本地逻辑基线，不等同于真实对局通过。
 
-### P1：按用户路径拆分 MainWindow
+### P1：按用户路径拆分 MainWindow（已基本完成核心页面）
 
 目标不是追求层数，而是让一条变更只影响一条用户路径。
 
 ```text
 MainWindow / App
-  -> 只负责导航、窗口生命周期、依赖装配
+  -> 只负责导航、窗口生命周期、首次启动门控与依赖装配
 Views
-  -> HeroesPage, ItemsPage, CoachPage, AnalysisPage, SettingsPage
+  -> HeroesPage, ItemCatalogPage, CoachPage
 ViewModels
   -> 页面状态、取消、加载、筛选与命令
 Services
-  -> 外部 I/O 与后端适配
+  -> 外部 I/O 与后端适配（DotaDataService, CloudCoachService, NpuGenAiCoachService）
 Core
-  -> 不依赖 WinUI 的确定性领域逻辑
+  -> 不依赖 WinUI 的确定性领域逻辑（GSI, Rules, Replay, MatchAnalysis）
 ```
 
-迁移顺序建议：
-
-1. 先拆 `HeroesPage`，因为它同时覆盖列表、详情、嵌套滚动、筛选和多个异步数据源，能验证页面模式是否成立。
-2. 再拆 `ItemsPage`，复用列表/详情和数据状态约定。
-3. 拆 `CoachPage` 时把 GSI 生命周期留在窗口级 coordinator，页面只订阅状态和发送用户命令。
-4. 最后拆设置和赛后分析，避免首次启动门控在迁移早期失效。
-
-每次只迁移一个完整页面，并在迁移前后验证滚动、筛选、选择、取消和返回状态。不要先创建大量空接口或基类。
+拆分进展：
+- ✅ `HeroesPage` + `HeroesViewModel`：四属性分类、防抖搜索、Dota 2 1级属性精确计算、天赋树、阿哈利姆升级与克制对阵。
+- ✅ `ItemCatalogPage` + `ItemCatalogViewModel`：官网式分组网格、56x42 悬浮卡、商店/中立分类、多选 Chip、防抖搜索与详情懒加载。
+- ✅ `CoachPage` + `CoachViewModel`：GSI 状态监听、比分昼夜概览、带证据提醒流、阵容出装推荐。
+- ⏳ 赛后分析（Analysis）与高级设置（Settings）页面可按需继续组件化。
 
 ### P1：收紧依赖与异步生命周期
 
@@ -125,13 +122,13 @@ UI 的核心不是“更像游戏”，而是让用户在数据不完整和实�
 
 完整 UI 研发 prompt 位于仓库根目录 `AGENTS.md` 和 `docs/AI_AGENT_PROMPT_TEMPLATES.md`。
 
-## 6. 建议里程碑
+## 6. 演进里程碑
 
-| 里程碑 | 完成定义 |
-|---|---|
-| M1 可信度基线 | 固定 GSI 回放、API fixture、规则触发基准、UI 状态矩阵进入仓库 |
-| M2 页面边界 | Heroes/Items 拆出，行为不变，窗口代码只协调导航与共享生命周期 |
-| M3 实时链路 | Coach 页面状态独立，断线/重连/AI 回退可自动复现 |
-| M4 发布门槛 | 真机、多 DPI、联网降级、安装升级和隐私清单通过 |
+| 里程碑 | 状态 | 完成定义 |
+|---|:---:|---|
+| M1 可信度基线 | ✅ 已完成 | 固定 GSI 回放、API fixture、规则触发基准、131 项冒烟测试进入仓库 |
+| M2 页面边界 | ✅ 已完成 | HeroesPage / ItemCatalogPage 拆出，行为完全一致，数据与状态收敛至 ViewModel |
+| M3 实时链路 | ✅ 已完成 | CoachPage 状态独立，GSI 接收、断线、重连与 AI 回退链路闭环 |
+| M4 发布门槛 | 🟡 进行中 | `神盾教练.exe` 独立发布完成；真机、多 DPI、联网降级与隐私清单持续验证 |
 
 架构改善的衡量指标不是文件变多，而是：一次页面改动所需回归范围缩小；服务可用 fixture 替换；异步任务有明确所有者；每个用户可见状态都有可重复验证证据。

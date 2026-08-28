@@ -9,7 +9,14 @@ public sealed class CollectionCountToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language)
     {
-        return value is ICollection { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+        var hasItems = value switch
+        {
+            int count => count > 0,
+            ICollection collection => collection.Count > 0,
+            IEnumerable enumerable => enumerable.Cast<object>().Any(),
+            _ => false,
+        };
+        return hasItems ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language) =>

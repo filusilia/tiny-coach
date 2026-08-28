@@ -7,15 +7,15 @@
 本仓库内所有面向用户与面向运行的产出，一律中文优先：
 
 - **提示（Prompt）**：生成的指令、需求描述、教练/分析模板默认中文撰写；代码标识符、API 名、专有名词保留原文。
-- **反馈（Feedback）**：对用户的回答、进度汇报、验证结论、风险说明默认使用中文。
+- **反馈（Feedback）**：对用户的回答、进度汇报、验证结论、风险说明默认使用中文；语言简洁明了、事实导向，不得使用亲和性形容词与客套废话。
 - **运行信息（Runtime Info）**：代码注释、日志消息、CLI 输出、错误提示、UI 文案默认中文优先，技术字段与日志标识符保留原文。
 
-## 1. 开始前
+## 1. 开始前与问题分析原则
 
 1. 先执行 `git status --short`，保留用户和其他 Agent 的已有改动。
 2. 按任务读取 `README.md`、`docs/PROJECT_DOCUMENTATION.md`、`docs/ARCHITECTURE_REVIEW.md` 和相关源码；只有需要历史证据时才查 `docs/OPERATION_LOG.md`。
-3. 先写清因果链：输入或事件 -> 经过的服务/状态 -> 失效点 -> 用户可见结果 -> 验证方式。
-4. 找出任务背后更关键的问题并指出来，但不得用空洞的抽象层级代替证据。
+3. **因果机制标准**：拆解问题时以“讲清楚因果机制”为唯一标准（输入或事件 -> 经过的服务/状态 -> 失效点 -> 用户可见结果 -> 验证方式），不得为了显得深刻而堆砌空洞的抽象层级。
+4. **主动挖掘关键问题**：必须主动找出用户问题背后那个未问、但可能更关键的根本原因、架构隐患或衍生缺陷，并明确指出来。
 
 ## 2. 当前真实架构
 
@@ -80,9 +80,11 @@
 - 当模型文件超过一个领域时按 Hero、Item、Coach、Analysis 拆分；序列化 converter 与 UI 展示模型分开。
 - 抽取后必须保持现有用户状态，包括外层滚动位置、筛选条件、选中英雄/物品和返回路径。
 
-## 6. 验证矩阵
+## 6. 验证矩阵与打包交付清单
 
-按改动范围运行最小充分验证：
+每次执行代码编辑/修复后，必须按以下顺序完成完整验证与发布打包：
+
+### 1. 编译构建与功能冒烟
 
 ```powershell
 dotnet build native\AegisCoach.Native.sln --configuration Debug --no-restore -p:Platform=x64
@@ -102,4 +104,16 @@ dotnet build native\AegisCoach.Native\AegisCoach.Native.csproj --configuration D
 
 不要同时改 `BaseIntermediateOutputPath` 后使用 `--no-restore`，因为新目录没有 `project.assets.json`；网络受限时重新还原也可能失败。
 
-最终答复必须区分：已修改、自动验证、未验证风险。不得把编译成功写成 UI、联网、NPU 或真实 Dota 2 对局验收成功。
+### 2. 自动发布打包（每次代码编辑后必须执行）
+
+每次代码编辑/修复完成后，必须执行打包脚本，生成独立免安装可执行程序与分发压缩包：
+
+```powershell
+pwsh -NoProfile -File .\tools\package-release.ps1
+```
+
+发布产物包含：
+- `release/publish/神盾教练.exe`（直接双击即可运行）
+- `release/AegisCoach-发布版.zip`（分发压缩包）
+
+最终答复必须区分：已修改、自动验证、已生成发布包（文件路径与大小）、未验证风险。不得把编译成功写成 UI、联网、NPU 或真实 Dota 2 对局验收成功。

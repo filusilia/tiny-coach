@@ -4,6 +4,7 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>AegisCoach.Native</RootNamespace>
+    <AssemblyName>神盾教练</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64</Platforms>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
@@ -21,20 +22,33 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2526" />
-    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.2.12" />
-    <PackageReference Include="JYPPX.OpenVINO.CSharp.API" Version="3.3.1" />
-    <PackageReference Include="JYPPX.OpenVINO.GenAI.runtime.win" Version="2026.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- WinUI 3 未打包应用 publish 时不会自动复制 .xbf/.pri 资源，这里在发布后从构建输出补齐
        （含 Views/Themes 子目录，新增页面/主题自动覆盖），否则发布版 exe 因缺少 XAML 编译资源而启动即退出。 -->
   <Target Name="CopyWinUIResourcesForPublish" AfterTargets="Publish">
-    <Exec Command="powershell -NoProfile -Command &quot;$out = '$(OutputPath)'; $pub = '$(PublishDir)'; Get-ChildItem $out -Recurse -Include '*.xbf','*.pri' | ForEach-Object { $rel = $_.FullName.Substring($out.Length); $dest = Join-Path $pub $rel; $dir = Split-Path $dest -Parent; if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; Copy-Item $_.FullName $dest -Force }&quot;" />
+    <Exec Command="powershell -NoProfile -Command &quot;$outPath = (Resolve-Path '$(OutputPath)').Path; $pubPath = [System.IO.Path]::GetFullPath('$(PublishDir)'); Get-ChildItem $outPath -Recurse -Include '*.xbf','*.pri' | Where-Object { $_.FullName -notlike '*\publish\*' } | ForEach-Object { $rel = $_.FullName.Substring($outPath.Length).TrimStart('\','/'); $dest = Join-Path $pubPath $rel; $dir = Split-Path $dest -Parent; if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; Copy-Item $_.FullName $dest -Force }&quot;" />
   </Target>
 
-  <!-- 发布版只保留简体中文与英文界面资源，删除其余 70+ 语言目录，减小分发体积。 -->
-  <Target Name="TrimPublishLanguages" AfterTargets="CopyWinUIResourcesForPublish">
-    <Exec Command="powershell -NoProfile -Command &quot;Get-ChildItem '$(PublishDir)' -Directory | Where-Object { $_.Name -match '^[a-z]{2,3}(-[A-Za-z0-9]{2,4})+$' -and $_.Name -notin @('zh-CN','en-us') } | Remove-Item -Recurse -Force&quot;" />
+  <!-- 发布版精简优化：剔除 70+ 多余语言目录、winmd 元数据、pdb/xml、以及未使用的 WindowsAppSDK 子系统 DLL -->
+  <Target Name="TrimPublishArtifacts" AfterTargets="CopyWinUIResourcesForPublish">
+    <Exec Command="powershell -NoProfile -Command &quot;$p = '$(PublishDir)'; Get-ChildItem $p -Directory | Where-Object { $_.Name -match '^[a-z]{2,3}(-[A-Za-z0-9]{2,4})+$' -and $_.Name -notin @('zh-CN','en-us') } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; Get-ChildItem $p -Recurse -Include '*.pdb','*.xml','*.winmd' | Remove-Item -Force -ErrorAction SilentlyContinue; if (Test-Path \&quot;$p\runtimes\&quot;) { Get-ChildItem \&quot;$p\runtimes\&quot; -Directory | Where-Object { $_.Name -notin @('win-x64') } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }; @('DirectML.dll','onnxruntime.dll','Microsoft.ML.OnnxRuntime.dll','Microsoft.Windows.AI.*','Microsoft.Windows.Internal.*','Microsoft.Windows.Private.*','Microsoft.Windows.Workloads.*','workloads.*.json','Microsoft.Windows.PushNotifications.*','PushNotificationsLongRunningTask.*','Microsoft.Windows.BadgeNotifications.*','Microsoft.Windows.AppNotifications.*','Microsoft.Windows.Widgets.*','Microsoft.Windows.Management.*','Microsoft.Windows.Media.*','Microsoft.Windows.Security.*','Microsoft.Windows.Storage.Pickers.*','Microsoft.Windows.System.Power.*','Microsoft.UI.Designer.dll','RestartAgent.exe','SessionHandleIPCProxyStub.dll','Microsoft.Security.Authentication.OAuth.*') | ForEach-Object { Get-ChildItem $p -Recurse -Filter $_ | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }&quot;" />
+  </Target>
+
+  <!-- 发布完成后在 E:\openSource\demo\release\ 目录下只保留一个 publish 文件夹和一个 zip 压缩包 -->
+  <Target Name="SyncToRootRelease" AfterTargets="TrimPublishArtifacts">
+    <PropertyGroup>
+      <RootReleaseDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\release'))\</RootReleaseDir>
+    </PropertyGroup>
+    <Exec Command="powershell -NoProfile -Command &quot;$root = '$(RootReleaseDir)'; if (-not (Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }; Get-ChildItem $root -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; $pub = Join-Path $root 'publish'; New-Item -ItemType Directory -Path $pub -Force | Out-Null; Copy-Item '$(PublishDir)*' -Destination $pub -Recurse -Force;&quot;" />
+    <ZipDirectory SourceDirectory="$(PublishDir)" DestinationFile="$(RootReleaseDir)神盾教练-v7.41e-x64.zip" Overwrite="true" />
   </Target>
 
 </Project>

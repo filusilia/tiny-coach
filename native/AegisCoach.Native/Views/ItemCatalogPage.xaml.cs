@@ -40,10 +40,20 @@ public sealed partial class ItemCatalogPage : Page
     private void Tile_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: CatalogItem item }) return;
+        _popupCloseTimer?.Stop();
         DetailPopupContent.Content = item;
         _ = ViewModel.EnsureDetailsLoadedAsync(item);
         PositionDetailPopup(e.GetCurrentPoint(RootGrid).Position);
         DetailPopup.IsOpen = true;
+    }
+
+    /// <summary>鼠标在物品格内移动时更新悬浮卡位置，实现平滑跟随与边界限制。</summary>
+    private void Tile_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (DetailPopup.IsOpen)
+        {
+            PositionDetailPopup(e.GetCurrentPoint(RootGrid).Position);
+        }
     }
 
     /// <summary>移出物品格：延迟关闭，允许鼠标移入详情卡继续查看。</summary>
@@ -53,22 +63,44 @@ public sealed partial class ItemCatalogPage : Page
 
     private void DetailPopup_PointerExited(object sender, PointerRoutedEventArgs e) => SchedulePopupClose();
 
-    /// <summary>把详情卡定位到指针附近，并夹取到窗口范围内。
-    /// WinUI Popup 的 HorizontalOffset/VerticalOffset 是窗口客户区坐标，而指针坐标相对 RootGrid
-    /// （NavigationView 内容区，左侧可能被 Pane 偏移），因此先用 TransformToVisual 换算成窗口坐标。</summary>
+    /// <summary>把详情卡定位到指针附近，并夹取到窗口可视区域内。</summary>
     private void PositionDetailPopup(Windows.Foundation.Point pointer)
     {
-        var origin = RootGrid.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(0, 0));
-        var maxX = origin.X + RootGrid.ActualWidth - DetailCardWidth - 6;
-        var maxY = origin.Y + RootGrid.ActualHeight - DetailCardEstimatedHeight - 6;
+        var viewWidth = RootGrid.ActualWidth;
+        var viewHeight = RootGrid.ActualHeight;
+        if (viewWidth <= 0 || viewHeight <= 0) return;
 
-        var offsetX = origin.X + pointer.X + 14;
-        var offsetY = origin.Y + pointer.Y + 14;
-        if (offsetX > maxX) offsetX = Math.Max(origin.X, origin.X + pointer.X - DetailCardWidth - 14);
-        if (offsetY > maxY) offsetY = Math.Max(origin.Y, origin.Y + pointer.Y - DetailCardEstimatedHeight - 14);
+        const double cardWidth = 372;
+        var cardHeight = DetailPopupContent.ActualHeight > 50 ? DetailPopupContent.ActualHeight : 380;
 
-        DetailPopup.HorizontalOffset = Math.Clamp(offsetX, origin.X, maxX);
-        DetailPopup.VerticalOffset = Math.Clamp(offsetY, origin.Y, maxY);
+        // X 方向定位：优先在鼠标右侧 16px，若右侧空间不足则翻转至左侧
+        double offsetX;
+        if (pointer.X + 16 + cardWidth <= viewWidth - 12)
+        {
+            offsetX = pointer.X + 16;
+        }
+        else if (pointer.X - 16 - cardWidth >= 12)
+        {
+            offsetX = pointer.X - 16 - cardWidth;
+        }
+        else
+        {
+            offsetX = Math.Max(12, viewWidth - cardWidth - 12);
+        }
+
+        // Y 方向定位：优先将卡片顶部与指针微调对齐，若下方超出则贴紧底部
+        double offsetY = pointer.Y - 16;
+        if (offsetY + cardHeight > viewHeight - 12)
+        {
+            offsetY = viewHeight - cardHeight - 12;
+        }
+        if (offsetY < 12)
+        {
+            offsetY = 12;
+        }
+
+        DetailPopup.HorizontalOffset = offsetX;
+        DetailPopup.VerticalOffset = offsetY;
     }
 
     private void SchedulePopupClose()

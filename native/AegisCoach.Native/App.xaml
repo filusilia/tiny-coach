@@ -8,8 +8,10 @@
     <ResourceDictionary>
     <local:SeverityToBrushConverter x:Key="SeverityBrushConverter" />
     <local:EmptyToCollapsedConverter x:Key="EmptyToCollapsedConverter" />
+    <local:EmptyToCollapsedConverter x:Key="StringNotEmptyToVisibilityConverter" />
     <local:CollectionCountToVisibilityConverter x:Key="CollectionCountToVisibilityConverter" />
     <local:ResultToBrushConverter x:Key="ResultToBrushConverter" />
+    <local:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
       <SolidColorBrush x:Key="AppBackgroundBrush" Color="{ThemeResource SystemChromeMediumLowColor}" />
       <SolidColorBrush x:Key="ChromeBackgroundBrush" Color="{ThemeResource SystemChromeLowColor}" />
       <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{ThemeResource SystemAltHighColor}" />
@@ -52,7 +54,6 @@
       <SolidColorBrush x:Key="TalentNodeBorderBrush" Color="{ThemeResource SystemBaseLowColor}" />
       <SolidColorBrush x:Key="TalentNodeHoverBrush" Color="#22314D" />
       <SolidColorBrush x:Key="TalentNodeCheckedBrush" Color="#3A2F14" />
-      <SolidColorBrush x:Key="TalentLevelBadgeBrush" Color="#1B2740" />
       <ResourceDictionary.MergedDictionaries>
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
         <ResourceDictionary Source="Themes/GameReferenceStyles.xaml" />

@@ -1,6 +1,6 @@
 # 神盾教练（PC 端）
 
-神盾教练是一个面向 Windows PC 的 Dota 2 资料与教练工具，当前使用 WinUI 3 原生桌面技术实现。项目不再维护 Vue、Vite 或浏览器版本，唯一产品入口是 `native/AegisCoach.Native`。
+神盾教练是一个面向 Windows PC 的 Dota 2 资料与教练工具，当前使用 WinUI 3 原生桌面技术实现。
 
 完整的功能、数据口径、完成度和后续计划见：[项目完整文档](docs/PROJECT_DOCUMENTATION.md)。
 逐日开发、现场诊断和验证结果见：[操作与验证历史](docs/OPERATION_LOG.md)。
@@ -64,13 +64,22 @@ dotnet build native\AegisCoach.Native.sln --configuration Debug --no-restore -p:
 
 ## 打包发布版（可直接运行的 exe）
 
+可直接运行一键打包脚本：
+
+```powershell
+pwsh -NoProfile -File .\tools\package-release.ps1
+```
+
+也可以手动执行 publish 命令：
+
 ```powershell
 dotnet publish native\AegisCoach.Native\AegisCoach.Native.csproj --configuration Debug --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64 -p:SelfContained=false -p:PublishSingleFile=false
 ```
 
 发布产物（含 Windows App Runtime 与 NPU/OpenVINO 运行时，无需安装额外依赖）位于：
 
-`release/publish/AegisCoach.Native.exe` —— 双击即可运行；也可用 `release/AegisCoach-发布版.zip` 分发。
+- `release/publish/神盾教练.exe` —— 双击即可运行
+- `release/AegisCoach-发布版.zip` —— 分发压缩包（已包含全部资源）
 
 > 说明：`AegisCoach.Native.csproj` 内置了 publish 后复制 WinUI `.xbf`/`.pri` 资源的 target，发布版 exe 依赖这些 XAML 编译资源，缺了会启动即退出。
 
@@ -88,17 +97,24 @@ dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj
 dotnet run --project tools\GsiReplay\AegisCoach.Replay.csproj -- "$([Environment]::GetFolderPath('MyDocuments'))\AegisCoach\gsi"
 ```
 
-## 入口
+## 文档索引
 
-- AI Agent 模板与安全边界：docs/AI_AGENT_PROMPT_TEMPLATES.md
-- 研发 Agent 仓库指令：AGENTS.md
-- 架构评审与演进路线：docs/ARCHITECTURE_REVIEW.md
-- 当前功能、完成度与验收计划：docs/PROJECT_DOCUMENTATION.md
-- 历史开发与验证记录：docs/OPERATION_LOG.md
+- **项目完整技术规范与设计**：[docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md)
+- **架构评审与渐进演进路线**：[docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md)
+- **AI 运行时与推理设计**：[docs/AI_RUNTIME_DESIGN.md](docs/AI_RUNTIME_DESIGN.md)
+- **AI Agent Prompt 模板与输入契约**：[docs/AI_AGENT_PROMPT_TEMPLATES.md](docs/AI_AGENT_PROMPT_TEMPLATES.md)
+- **Steam Dota 2 GSI 接入手册**：[docs/STEAM_DOTA2_GSI_GUIDE.md](docs/STEAM_DOTA2_GSI_GUIDE.md)
+- **画面捕获与视觉分析可行性调研**：[docs/SCREEN_CAPTURE_AI_FEASIBILITY.md](docs/SCREEN_CAPTURE_AI_FEASIBILITY.md)
+- **研发 Agent 仓库指令规范**：[AGENTS.md](AGENTS.md)
+- **开发与验证历史日志**：[docs/OPERATION_LOG.md](docs/OPERATION_LOG.md)
+
+## 代码入口
 
 - 解决方案：`native/AegisCoach.Native.sln`
-- WinUI 应用：`native/AegisCoach.Native/AegisCoach.Native.csproj`（主窗口 `MainWindow.xaml`，数据服务 `Services/DotaDataService.cs`）
-- GSI 核心源码：`native/AegisCoach.Native/Core/`（Native 项目内部目录）
+- WinUI 主项目：`native/AegisCoach.Native/AegisCoach.Native.csproj`
+- 视图层（MVVM）：`Views/HeroesPage.xaml`、`Views/ItemCatalogPage.xaml`、`Views/CoachPage.xaml`
+- 视图模型（ViewModels）：`ViewModels/HeroesViewModel.cs`、`ViewModels/ItemCatalogViewModel.cs`、`ViewModels/CoachViewModel.cs`
+- GSI 核心源码：`native/AegisCoach.Native/Core/`（Native 项目内部纯逻辑目录）
 - 冒烟测试：`tools/GsiSmoke/Program.cs`
 - NDJSON 回放：`tools/GsiReplay/Program.cs`
 - 模型与统计口径：`native/AegisCoach.Native/Models/DotaModels.cs`

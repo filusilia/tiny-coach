@@ -32,6 +32,8 @@
   </ResourceDictionary.ThemeDictionaries>
 
   <converters:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+  <converters:EmptyToCollapsedConverter x:Key="EmptyToCollapsedConverter" />
+  <converters:EmptyToCollapsedConverter x:Key="StringNotEmptyToVisibilityConverter" />
 
   <!-- 物品格：56x42 横长（与物品图标素材 88x62 比例一致），图片零边距直接铺满，
        避免方形格子里上下留白；Hover 微缩放 1.05 + 强调色描边（VisualStateManager）。 -->
@@ -176,132 +178,227 @@
     <Setter Property="MaxWidth" Value="400" />
   </Style>
 
-  <!-- 悬浮详情卡内容模板：Header / 属性区 / 技能详情区 / 合成路线 / 背景故事。
+  <!-- 悬浮详情卡内容模板：Header / 属性区 / 技能详情区 / 由以下部件合成 / 可用于合成 / 背景故事。
        DataContext 由 ContentControl.Content 提供（= 被悬浮的 CatalogItem）。 -->
   <DataTemplate x:Key="ItemDetailCardTemplate">
-    <Border Width="372" CornerRadius="8"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+    <Border Width="384" MaxHeight="560" CornerRadius="8"
+            Background="#FA141720"
+            BorderBrush="#405068"
             BorderThickness="1">
-      <StackPanel Spacing="12" Padding="14">
-        <!-- Header：图标 + 名称 + 子类标签 + 金币价格 / 阶级 -->
-        <Grid ColumnSpacing="12">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="72" />
-            <ColumnDefinition Width="*" />
-          </Grid.ColumnDefinitions>
-          <Border Grid.Column="0" Width="72" Height="52" CornerRadius="4"
-                  Background="{ThemeResource LayerFillColorDefaultBrush}"
-                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                  BorderThickness="1">
-            <Image Source="{Binding IconUrl}" Stretch="Uniform" Margin="0" />
-          </Border>
-          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="10" Padding="14">
+          <!-- Header：74x54 图标 + 中英文名称 + 价格/中立等级 + 子类标签 -->
+          <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="74" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Width="74" Height="54" CornerRadius="4"
+                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+              <Image Source="{Binding IconUrl}" Stretch="Uniform" Margin="0" />
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
               <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold"
                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                         TextTrimming="CharacterEllipsis" MaxWidth="190" />
-              <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                      CornerRadius="4" Padding="7,2" VerticalAlignment="Center">
-                <TextBlock Text="{Binding SubCategory}" FontSize="10"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-              </Border>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <StackPanel Orientation="Horizontal" Spacing="4">
-                <FontIcon Glyph="&#xE8C7;" FontSize="13" Foreground="{ThemeResource GoldPriceBrush}" />
-                <TextBlock Text="{Binding PriceText}" FontSize="13" FontWeight="SemiBold"
-                           Foreground="{ThemeResource GoldPriceBrush}" />
-              </StackPanel>
-              <TextBlock Text="{Binding TierText}" FontSize="12"
-                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
-          </StackPanel>
-        </Grid>
-
-        <!-- 属性区：绿字加号格式 -->
-        <ItemsControl ItemsSource="{Binding Stats}"
-                      Visibility="{Binding HasStats, Converter={StaticResource BoolToVisibilityConverter}}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding DisplayText}" FontSize="12"
-                         Foreground="{ThemeResource StatGreenBrush}" Margin="0,0,0,2" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-        <!-- 技能详情区：主动（蓝）/ 被动（主题强调色）+ 说明 + 冷却/魔法消耗 -->
-        <ItemsControl ItemsSource="{Binding Abilities}"
-                      Visibility="{Binding HasAbilities, Converter={StaticResource BoolToVisibilityConverter}}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Spacing="4" Margin="0,0,0,6">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Text="[主动]" FontSize="11" FontWeight="SemiBold"
-                             Foreground="{ThemeResource ManaBlueBrush}"
-                             Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibilityConverter}}" />
-                  <TextBlock Text="[被动]" FontSize="11" FontWeight="SemiBold"
-                             Foreground="{ThemeResource SystemAccentColor}"
-                             Visibility="{Binding NotActive, Converter={StaticResource BoolToVisibilityConverter}}" />
-                  <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
-                             Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Subtitle}" FontSize="11"
+                         Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                         TextTrimming="CharacterEllipsis"
+                         Visibility="{Binding Subtitle, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+              <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
+                <!-- 商店价格 -->
+                <StackPanel Orientation="Horizontal" Spacing="4"
+                            Visibility="{Binding HasPrice, Converter={StaticResource BoolToVisibilityConverter}}">
+                  <FontIcon Glyph="&#xE8C7;" FontSize="13" Foreground="{ThemeResource GoldPriceBrush}" />
+                  <TextBlock Text="{Binding PriceText}" FontSize="13" FontWeight="SemiBold"
+                             Foreground="{ThemeResource GoldPriceBrush}" />
                 </StackPanel>
-                <TextBlock Text="{Binding Description}" FontSize="12" LineHeight="18"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="16"
-                            Visibility="{Binding HasCooldownOrMana, Converter={StaticResource BoolToVisibilityConverter}}">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <FontIcon Glyph="&#xE823;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock Text="{Binding CooldownText}" FontSize="10"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <!-- 中立物品等级 -->
+                <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                        Visibility="{Binding TierText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}">
+                  <TextBlock Text="{Binding TierText}" FontSize="10" FontWeight="SemiBold"
+                             Foreground="{ThemeResource SystemAccentColor}" />
+                </Border>
+                <!-- 物品子分类 -->
+                <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding SubCategory}" FontSize="10"
+                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Border>
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+
+          <!-- 属性区：官网绿字加号格式（+ 10 力量、+ 26 敏捷 等） -->
+          <ItemsControl ItemsSource="{Binding Stats}"
+                        Visibility="{Binding HasStats, Converter={StaticResource BoolToVisibilityConverter}}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding DisplayText}" FontSize="12"
+                           Foreground="{ThemeResource StatGreenBrush}" Margin="0,0,0,2" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <!-- 技能详情区：主动/被动/使用徽章 + 描述 + 冷却/魔法消耗 -->
+          <ItemsControl ItemsSource="{Binding Abilities}"
+                        Visibility="{Binding HasAbilities, Converter={StaticResource BoolToVisibilityConverter}}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="{ThemeResource SubtleFillColorTertiaryBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                  <StackPanel Spacing="6">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <!-- 技能类型标签 + 名称 -->
+                      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Border Background="{ThemeResource ManaBlueBrush}" CornerRadius="3" Padding="5,1"
+                                Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibilityConverter}}">
+                          <TextBlock Text="{Binding TypeLabel}" FontSize="10" FontWeight="Bold" Foreground="White" />
+                        </Border>
+                        <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="3" Padding="5,1"
+                                Visibility="{Binding NotActive, Converter={StaticResource BoolToVisibilityConverter}}">
+                          <TextBlock Text="{Binding TypeLabel}" FontSize="10" FontWeight="Bold" Foreground="White" />
+                        </Border>
+                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                   Visibility="{Binding Name, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                      </StackPanel>
+                      <!-- 冷却与魔法消耗 -->
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                                  Visibility="{Binding HasCooldownOrMana, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" Spacing="3"
+                                    Visibility="{Binding Cooldown, Converter={StaticResource StringNotEmptyToVisibilityConverter}}">
+                          <FontIcon Glyph="&#xE823;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                          <TextBlock Text="{Binding Cooldown}" FontSize="11"
+                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="3"
+                                    Visibility="{Binding ManaCost, Converter={StaticResource StringNotEmptyToVisibilityConverter}}">
+                          <FontIcon Glyph="&#xEA80;" FontSize="11" Foreground="{ThemeResource ManaBlueBrush}" />
+                          <TextBlock Text="{Binding ManaCost}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource ManaBlueBrush}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Grid>
+
+                    <!-- 技能正文描述 -->
+                    <TextBlock Text="{Binding Description}" FontSize="12" LineHeight="18"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                   </StackPanel>
-                  <TextBlock Text="{Binding ManaCostText}" FontSize="10" Foreground="{ThemeResource ManaBlueBrush}" />
-                </StackPanel>
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
 
-        <!-- 合成路线：小件缩略图 + 卷轴价格 -->
-        <StackPanel Spacing="8"
-                    Visibility="{Binding HasComponents, Converter={StaticResource BoolToVisibilityConverter}}">
-          <TextBlock Text="合成路线" FontSize="11" FontWeight="SemiBold"
-                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-          <StackPanel Orientation="Horizontal" Spacing="12">
+          <!-- 物品注意事项列表（Notes） -->
+          <StackPanel Spacing="3"
+                      Visibility="{Binding HasNotes, Converter={StaticResource BoolToVisibilityConverter}}">
+            <ItemsControl ItemsSource="{Binding Notes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding}" FontSize="11" LineHeight="16"
+                             Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- 合成路线（由以下部件合成 / Components） -->
+          <StackPanel Spacing="6"
+                      Visibility="{Binding HasComponents, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock Text="由以下部件合成" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <ItemsControl ItemsSource="{Binding ComponentCards}">
               <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="8" />
+                </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <StackPanel Spacing="2" Width="48">
-                    <Border Width="40" Height="30" CornerRadius="3"
-                            Background="{ThemeResource LayerFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1">
-                      <Image Source="{Binding ImageUrl}" Stretch="Uniform" Margin="3" />
-                    </Border>
-                    <TextBlock Text="{Binding CountText}" FontSize="9"
-                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                               TextAlignment="Center" />
-                  </StackPanel>
+                  <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                          BorderThickness="1" CornerRadius="4" Padding="5,4">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Border Width="38" Height="28" CornerRadius="3"
+                              Background="{ThemeResource LayerFillColorDefaultBrush}">
+                        <Image Source="{Binding ImageUrl}" Stretch="Uniform" />
+                      </Border>
+                      <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="{Binding Name}" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                   MaxWidth="90" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <TextBlock Text="{Binding CostText}" FontSize="9" FontWeight="SemiBold"
+                                     Foreground="{ThemeResource GoldPriceBrush}"
+                                     Visibility="{Binding CostText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                          <TextBlock Text="{Binding CountText}" FontSize="9"
+                                     Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                     Visibility="{Binding CountText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
             <TextBlock Text="{Binding ScrollCostText}" FontSize="10" FontWeight="SemiBold"
-                       Foreground="{ThemeResource GoldPriceBrush}" VerticalAlignment="Center"
+                       Foreground="{ThemeResource GoldPriceBrush}" Margin="2,0,0,0"
                        Visibility="{Binding HasScrollCost, Converter={StaticResource BoolToVisibilityConverter}}" />
           </StackPanel>
-        </StackPanel>
 
-        <!-- 背景故事：分割线下方斜体三级文本 -->
-        <StackPanel Spacing="8"
-                    Visibility="{Binding HasLore, Converter={StaticResource BoolToVisibilityConverter}}">
-          <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-          <TextBlock Text="{Binding Lore}" FontSize="11" FontStyle="Italic" LineHeight="16"
-                     Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+          <!-- 进阶合成（可用于合成 / Builds Into） -->
+          <StackPanel Spacing="6"
+                      Visibility="{Binding HasBuildsInto, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock Text="可用于合成" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <ItemsControl ItemsSource="{Binding BuildsIntoCards}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="8" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                          BorderThickness="1" CornerRadius="4" Padding="5,4">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Border Width="38" Height="28" CornerRadius="3"
+                              Background="{ThemeResource LayerFillColorDefaultBrush}">
+                        <Image Source="{Binding ImageUrl}" Stretch="Uniform" />
+                      </Border>
+                      <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="{Binding Name}" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                   MaxWidth="90" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding CostText}" FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource GoldPriceBrush}"
+                                   Visibility="{Binding CostText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- 背景故事：分割线下方斜体三级文本 -->
+          <StackPanel Spacing="6"
+                      Visibility="{Binding HasLore, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <TextBlock Text="{Binding Lore}" FontSize="11" FontStyle="Italic" LineHeight="16"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+          </StackPanel>
         </StackPanel>
-      </StackPanel>
+      </ScrollViewer>
     </Border>
   </DataTemplate>
 </ResourceDictionary>

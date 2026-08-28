@@ -20,6 +20,7 @@ public sealed class ItemAbility
     public string Description { get; set; } = string.Empty;
     public string? Cooldown { get; set; }
     public string? ManaCost { get; set; }
+    public List<string> Notes { get; set; } = [];
 
     public string TypeLabel => Type switch
     {
@@ -31,8 +32,10 @@ public sealed class ItemAbility
 
     /// <summary>主动类技能用蓝色高亮，被动类用主题强调色。</summary>
     public bool IsActive => Type is AbilityType.Active or AbilityType.Toggle or AbilityType.Use;
+    public bool NotActive => !IsActive;
     public bool HasCooldownOrMana =>
         !string.IsNullOrWhiteSpace(Cooldown) || !string.IsNullOrWhiteSpace(ManaCost);
+    public bool HasNotes => Notes.Count > 0;
 }
 
 /// <summary>物品属性加成条目（如 +10 全属性；官网 attrib 行则直接以原文展示 "+攻击力：9"）。</summary>
@@ -41,18 +44,31 @@ public sealed class ItemStat
     public string Label { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 
-    /// <summary>Value 为空时直接展示官网原文（Label 已含 "＋攻击力：9" 完整文本），否则以绿字加号格式展示。</summary>
-    public string DisplayText => string.IsNullOrWhiteSpace(Value)
-        ? Label
-        : $"+{Value.TrimStart('+', '-', '−')} {Label}".TrimEnd();
+    /// <summary>Value 为空时直接展示官网原文，否则以绿字加号格式展示（如 "+ 10 力量"）。</summary>
+    public string DisplayText
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Value))
+            {
+                return Label.StartsWith('+') ? Label : $"+ {Label}";
+            }
+
+            var cleanVal = Value.TrimStart('+', '-', '−', ' ');
+            return $"+ {cleanVal} {Label}".TrimEnd();
+        }
+    }
 }
 
-/// <summary>合成小件（悬浮详情卡“合成路线”缩略图）。</summary>
+/// <summary>合成小件或进阶合成物品（悬浮详情卡“合成路线”与“可用于合成”卡片）。</summary>
 public sealed class ItemComponentCard
 {
+    public string Id { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
     public string ImageUrl { get; init; } = string.Empty;
     public string CountText { get; init; } = string.Empty;
+    public int Cost { get; init; }
+    public string CostText => Cost > 0 ? $"$ {Cost:N0}" : string.Empty;
 }
 
 /// <summary>
@@ -84,6 +100,8 @@ public sealed partial class CatalogItem : ObservableObject
     public ObservableCollection<ItemStat> Stats { get; } = [];
     public ObservableCollection<ItemAbility> Abilities { get; } = [];
     public ObservableCollection<ItemComponentCard> ComponentCards { get; } = [];
+    public ObservableCollection<ItemComponentCard> BuildsIntoCards { get; } = [];
+    public List<string> Notes { get; set; } = [];
     public string? Lore { get; set; }
 
     /// <summary>合成卷轴价格（总价 - 各小件价格之和，无法计算时为 null）。</summary>
@@ -94,13 +112,15 @@ public sealed partial class CatalogItem : ObservableObject
 
     public string PriceText => Price is > 0 ? $"$ {Price.Value:N0}" : string.Empty;
     public bool HasPrice => Price is > 0;
-    public string TierText => Tier is > 0 ? $"中立物品 T{Tier}" : string.Empty;
+    public string TierText => Tier is > 0 ? $"第 {Tier} 级中立物品" : string.Empty;
     public string ScrollCostText => RecipeScrollCost is > 0 ? $"卷轴 $ {RecipeScrollCost.Value:N0}" : string.Empty;
     public bool HasScrollCost => RecipeScrollCost is > 0;
 
     public bool HasStats => Stats.Count > 0;
     public bool HasAbilities => Abilities.Count > 0;
     public bool HasComponents => ComponentCards.Count > 0;
+    public bool HasBuildsInto => BuildsIntoCards.Count > 0;
+    public bool HasNotes => Notes.Count > 0;
     public bool HasLore => !string.IsNullOrWhiteSpace(Lore);
 
     /// <summary>详情异步加载完成后通知悬浮卡刷新显示状态。</summary>
@@ -109,9 +129,13 @@ public sealed partial class CatalogItem : ObservableObject
         OnPropertyChanged(nameof(HasStats));
         OnPropertyChanged(nameof(HasAbilities));
         OnPropertyChanged(nameof(HasComponents));
+        OnPropertyChanged(nameof(HasBuildsInto));
+        OnPropertyChanged(nameof(HasNotes));
         OnPropertyChanged(nameof(HasLore));
         OnPropertyChanged(nameof(ScrollCostText));
         OnPropertyChanged(nameof(HasScrollCost));
+        OnPropertyChanged(nameof(TierText));
+        OnPropertyChanged(nameof(PriceText));
     }
 }
 

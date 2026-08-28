@@ -34,55 +34,47 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- ===== Row 0：标题 + 数据源状态 + 刷新 ===== -->
-    <Grid Grid.Row="0" MinHeight="26" ColumnSpacing="8">
-      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-        <TextBlock Text="物品资料" FontSize="20" FontWeight="SemiBold"
-                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-        <TextBlock Text="官网式分类 · 悬浮查看详情" FontSize="11"
-                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-      </StackPanel>
-      <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
-        <TextBlock Text="{Binding StatusText}" FontSize="10"
-                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-        <Button Command="{Binding RefreshCommand}" Style="{StaticResource GameIconButtonStyle}"
-                ToolTipService.ToolTip="刷新物品资料" AutomationProperties.Name="刷新物品资料">
-          <FontIcon Glyph="&#xE72C;" FontSize="16" />
-        </Button>
-      </StackPanel>
-    </Grid>
-    <Border Grid.Row="1" Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,2" />
-
-    <!-- ===== Row 2：商店/中立切换 + 搜索 + 统计 ===== -->
-    <Grid Grid.Row="2" ColumnSpacing="12">
+    <!-- ===== Row 0：紧凑功能顶栏（标题 + 商店/中立切换 + 搜索 + 统计 + 刷新） ===== -->
+    <Grid Grid.Row="0" ColumnSpacing="8" MinHeight="34">
       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-      <RadioButtons Grid.Column="0" MaxColumns="2" VerticalAlignment="Center"
+
+      <TextBlock Grid.Column="0" Text="物品资料" FontSize="16" FontWeight="SemiBold"
+                 Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+
+      <RadioButtons Grid.Column="1" MaxColumns="2" VerticalAlignment="Center"
                     SelectedIndex="{Binding ModeIndex, Mode=TwoWay}"
                     AutomationProperties.Name="物品分类切换">
         <x:String>商店物品</x:String>
         <x:String>中立物品</x:String>
       </RadioButtons>
-      <AutoSuggestBox Grid.Column="1" x:Name="SearchBox" VerticalAlignment="Center"
-                      QueryIcon="Find" PlaceholderText="搜索物品名称 / 英文 / 子类拼音"
+
+      <AutoSuggestBox Grid.Column="2" x:Name="SearchBox" Height="34" MinWidth="160" VerticalAlignment="Center"
+                      QueryIcon="Find" PlaceholderText="搜索物品名称 / 英文 / 拼音"
                       Text="{Binding SearchText, Mode=TwoWay}"
                       QuerySubmitted="SearchBox_QuerySubmitted"
                       AutomationProperties.Name="搜索物品" />
-      <TextBlock Grid.Column="2" Text="{Binding CountText}" Margin="0,0,4,0" FontSize="12"
+
+      <TextBlock Grid.Column="3" Text="{Binding CountText}" Margin="4,0" FontSize="11"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+
+      <Button Grid.Column="4" Command="{Binding RefreshCommand}" Width="34" Height="34" Padding="0" CornerRadius="6"
+              ToolTipService.ToolTip="刷新物品资料" AutomationProperties.Name="刷新物品资料" VerticalAlignment="Center">
+        <FontIcon Glyph="&#xE72C;" FontSize="14" />
+      </Button>
     </Grid>
 
-    <!-- ===== Row 3：子类多选筛选 Chips ===== -->
-    <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
-                  VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
+    <!-- ===== Row 1：子类多选筛选 Chips ===== -->
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
+                  VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled" Margin="0,2,0,2">
       <ItemsControl ItemsSource="{Binding SubCategoryFilters}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
@@ -160,6 +152,7 @@
                       <Button Style="{StaticResource ItemTileStyle}" Margin="0,0,6,6"
                               AutomationProperties.Name="{Binding Name}"
                               PointerEntered="Tile_PointerEntered"
+                              PointerMoved="Tile_PointerMoved"
                               PointerExited="Tile_PointerExited">
                         <!-- 图标素材为 88x62 横长图，格子同比例且零边距，图片直接铺满不留白（悬浮详情由窗口内 Popup 提供） -->
                         <Image Source="{Binding IconUrl}" Stretch="Uniform" Margin="0" />

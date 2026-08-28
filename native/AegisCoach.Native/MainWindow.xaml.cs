@@ -16,16 +16,8 @@ namespace AegisCoach.Native;
 public sealed partial class MainWindow : Window
 {
     private readonly DotaDataService _dataService = new();
-    private readonly List<HeroCardItem> _allHeroes = [];
     private readonly List<ItemCardItem> _allItems = [];
-    private DotaCatalog? _catalog;
-    private RankOption _selectedRank;
-    private SortOption _selectedSort;
-    private int _detailsRequestId;
-    private HeroCardItem? _selectedHero;
     private MatchReport? _selectedReport;
-    private string _selectedSectionId = "all-heroes";
-    private int _totalProActions;
     private bool _itemsLoaded;
     private bool _itemsLoading;
     private CoachRuleEngine _coachRules = new();
@@ -37,10 +29,8 @@ public sealed partial class MainWindow : Window
     private readonly MatchSessionTracker _sessionTracker = new();
     private readonly Dictionary<int, DotaDataService.HeroItemPopularity> _popularityCache = new();
     private readonly Dictionary<int, List<DotaDataService.HeroMatchupStat>> _matchupCache = new();
-    private readonly Dictionary<int, Microsoft.UI.Xaml.Media.Imaging.BitmapImage> _coachHeroImageCache = new();
     private Dictionary<string, int> _cooldownDraft = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedCooldownKey;
-    private List<string> _lastCoachItems = [];
     private readonly SemaphoreSlim _recommendationGate = new(1, 1);
     private readonly SemaphoreSlim _counterGate = new(1, 1);
     private readonly CancellationTokenSource _appLifetimeCts = new();
@@ -58,6 +48,7 @@ public sealed partial class MainWindow : Window
     private NavigationViewItem? _lastNavigationItem;
     private static string SnapshotDirectory => AegisCoachPaths.Snapshots;
     private CancellationToken AppToken => _appLifetimeCts.Token;
+    private DotaCatalog? Catalog => HeroesPage.ViewModel.Catalog;
     private static IReadOnlyList<RuleCooldownChoice> RuleCooldownChoices { get; } =
     [
         new("game_state", "比赛阶段"),
@@ -81,64 +72,16 @@ public sealed partial class MainWindow : Window
         new("map_awareness", "关键时间"),
     ];
 
-    public ObservableCollection<HeroCardItem> VisibleHeroes { get; } = [];
-    public ObservableCollection<HeroCardItem> VisibleAttributeHeroes { get; } = [];
-    public ObservableCollection<HeroSection> HeroSections { get; } =
-    [
-        new("all-heroes", "全部", "全英雄"),
-        new("str", "力量", "力量英雄"),
-        new("agi", "敏捷", "敏捷英雄"),
-        new("int", "智力", "智力英雄"),
-        new("all", "全才", "全才英雄"),
-    ];
-    public ObservableCollection<RankPerformanceItem> SelectedRankMetrics { get; } = [];
-    public ObservableCollection<AbilityDisplay> SelectedAbilities { get; } = [];
-    public ObservableCollection<TalentLevelRow> TalentRows { get; } = [];
-    public ObservableCollection<HeroStatChip> HeroStats { get; } = [];
-    public ObservableCollection<BuildRecommendation> SelectedBuilds { get; } = [];
-    public ObservableCollection<BuildRecommendationGroup> SelectedBuildGroups { get; } = [];
-    public ObservableCollection<WikiTip> SelectedWikiTips { get; } = [];
-    public ObservableCollection<HeroAttributeRow> HeroAttributes { get; } = [];
-    public ObservableCollection<string> HeroRoleTags { get; } = [];
-    public ObservableCollection<CounterMatchupItem> HeroCountersMe { get; } = [];
-    public ObservableCollection<CounterMatchupItem> HeroCountersTarget { get; } = [];
-    public ObservableCollection<CoachAdvice> CoachAdvices { get; } = [];
-    public ObservableCollection<HeroChip> CoachAllyHeroes { get; } = [];
-    public ObservableCollection<HeroChip> CoachEnemyHeroes { get; } = [];
-    public ObservableCollection<CounterMatchupItem> CoachCountersMe { get; } = [];
-    public ObservableCollection<CounterMatchupItem> CoachCountersTarget { get; } = [];
-    public ObservableCollection<CounterPickRecommendation> CoachPickRecommendations { get; } = [];
-    public ObservableCollection<CoachItemSlot> CoachHeroItems { get; } = [];
     public ObservableCollection<MatchReport> AnalysisReports { get; } = [];
     private PlayerHabits _habits = new();
-    public List<RankOption> RankOptions { get; } =
-    [
-        new() { Id = "all", Label = "全部分段" },
-        new() { Id = "1", Label = "先锋" },
-        new() { Id = "2", Label = "卫士" },
-        new() { Id = "3", Label = "中军" },
-        new() { Id = "4", Label = "统帅" },
-        new() { Id = "5", Label = "传奇" },
-        new() { Id = "6", Label = "万古" },
-        new() { Id = "7", Label = "超凡" },
-        new() { Id = "8", Label = "冠绝" },
-    ];
-    public List<SortOption> SortOptions { get; } =
-    [
-        new() { Id = "winrate", Label = "胜率" },
-        new() { Id = "samples", Label = "样本量" },
-        new() { Id = "name", Label = "名称" },
-    ];
 
     public MainWindow()
     {
         InitializeComponent();
         RootGrid.DataContext = this;
-        _selectedRank = RankOptions[0];
-        _selectedSort = SortOptions[0];
         RootGrid.Loaded += MainWindow_Loaded;
         Closed += MainWindow_Closed;
-        HeroListHost.SizeChanged += HeroListHost_SizeChanged;
+        CoachPage.ViewModel.OpenSettingsRequested += async () => await OpenCoachSettingsAsync();
     }
 
     private void MainWindow_Closed(object _, WindowEventArgs __)
@@ -151,10 +94,6 @@ public sealed partial class MainWindow : Window
     private async void MainWindow_Loaded(object _, RoutedEventArgs __)
     {
         _settings = AppSettings.Load();
-        _selectedRank = RankOptions.FirstOrDefault(rank => rank.Id == _settings.DefaultRankId) ?? RankOptions[0];
-        RankBox.SelectedItem = _selectedRank;
-        SortBox.SelectedIndex = 0;
-        AttributeTabs.SelectedIndex = 0;
         PopulateSettings();
         ApplyResponsiveLayout();
         if (!_settings.SetupCompleted)
@@ -171,7 +110,17 @@ public sealed partial class MainWindow : Window
         if (_applicationStarted) return;
         _applicationStarted = true;
         _dataService.CacheDirectory = _settings.CacheDirectory;
+        HeroesPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
         ItemCatalogPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
+        HeroesPage.ViewModel.SetDefaultRank(_settings.DefaultRankId);
+        HeroesPage.ViewModel.OnRankChanged = rankId =>
+        {
+            _settings.DefaultRankId = rankId;
+            if (_applicationStarted && !_settings.Save())
+            {
+                WriteErrorLog(new IOException(_settings.LastSaveError));
+            }
+        };
         MatchSessionTracker.HabitsDirectory = AegisCoachPaths.Habits;
         MatchSessionTracker.AnalysisDirectory = _settings.AnalysisDirectory;
         _npuCoach.ModelPath = _settings.NpuModelPath;
@@ -183,7 +132,7 @@ public sealed partial class MainWindow : Window
         if (_settings.AutoStartGsi) ToggleCoach(true);
         else UpdateCoachStatusUi();
         LoadAnalysisData();
-        await LoadCatalogAsync(false);
+        _ = HeroesPage.LoadAsync(false);
         _ = LoadItemsInBackgroundAsync();
         // 预热物品资料页（遵守首次启动门控：仅在设置保存成功后触发）。
         _ = ItemCatalogPage.LoadAsync(false);
@@ -193,7 +142,8 @@ public sealed partial class MainWindow : Window
     /// <summary>后台批量刷新全部英雄的中文详情（官网接口优先），并清理不再属于当前版本的旧详情缓存。</summary>
     private async Task RefreshAllHeroDetailsInBackgroundAsync()
     {
-        var heroIds = _catalog?.Heroes.Select(hero => hero.Id).ToList() ?? [];
+        await HeroesPage.LoadAsync(false);
+        var heroIds = Catalog?.Heroes.Select(hero => hero.Id).ToList() ?? [];
         if (heroIds.Count == 0) return;
 
         try
@@ -211,23 +161,6 @@ public sealed partial class MainWindow : Window
         {
             AppendCoachLog("英雄资料后台同步失败：" + exception.Message);
         }
-    }
-
-    private void LoadAnalysisData()
-    {
-        _habits = MatchSessionTracker.LoadHabits();
-        AnalysisReports.Clear();
-        foreach (var report in MatchSessionTracker.LoadReports()) AnalysisReports.Add(report);
-        UpdateHabitsSummary();
-        AnalysisCountText.Text = $"{AnalysisReports.Count} 份报告";
-    }
-
-    private void UpdateHabitsSummary()
-    {
-        if (AnalysisSummaryText is null) return;
-        AnalysisSummaryText.Text = _habits.TotalMatches == 0
-            ? "暂无历史对局：通过 GSI 打完一局后，这里会自动记录你的游戏习惯并生成赛后分析。"
-            : $"共 {_habits.TotalMatches} 场 · 胜率 {_habits.WinRateText} · 常用英雄 {_habits.MostPlayedHero} · 平均 KDA {_habits.AverageKda} · 常见装备 {_habits.MostBoughtItem} · 场均时长 {_habits.AverageDuration}";
     }
 
     private async Task LoadItemsInBackgroundAsync()
@@ -248,31 +181,21 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task LoadCatalogAsync(bool force)
+    private void LoadAnalysisData()
     {
-        ErrorBar.IsOpen = false;
-        SourceStatusText.Text = "正在同步数据…";
-        try
-        {
-            _catalog = await _dataService.LoadCatalogAsync(force, AppToken);
-            _allHeroes.Clear();
-            _totalProActions = _catalog.Heroes.Sum(hero => hero.StatInt("pro_pick") + hero.StatInt("pro_ban"));
-            _allHeroes.AddRange(_catalog.Heroes.Select(hero => new HeroCardItem(hero, _selectedRank, _totalProActions)));
-            HeroCountText.Text = $"{_allHeroes.Count} 位英雄";
-            ApplyFilters();
-            // 后台预下载英雄图片到本地缓存，断网时也能显示。
-            _ = ImageCacheService.Instance.PrefetchAsync(
-                _catalog.Heroes.SelectMany(hero => new[] { hero.ImageUrl, hero.IconUrl }), AppToken);
-            SourceStatusText.Text = $"{_dataService.CatalogSourceNote} · 目标版本 v{DotaDataService.TargetPatch}";
-        }
-        catch (Exception exception)
-        {
-            WriteErrorLog(exception);
-            SourceStatusText.Text = "数据加载失败";
-            ErrorBar.Title = "无法加载英雄数据";
-            ErrorBar.Message = exception.Message;
-            ErrorBar.IsOpen = true;
-        }
+        _habits = MatchSessionTracker.LoadHabits();
+        AnalysisReports.Clear();
+        foreach (var report in MatchSessionTracker.LoadReports()) AnalysisReports.Add(report);
+        UpdateHabitsSummary();
+        AnalysisCountText.Text = $"{AnalysisReports.Count} 份报告";
+    }
+
+    private void UpdateHabitsSummary()
+    {
+        if (AnalysisSummaryText is null) return;
+        AnalysisSummaryText.Text = _habits.TotalMatches == 0
+            ? "暂无历史对局：通过 GSI 打完一局后，这里会自动记录你的游戏习惯并生成赛后分析。"
+            : $"共 {_habits.TotalMatches} 场 · 胜率 {_habits.WinRateText} · 常用英雄 {_habits.MostPlayedHero} · 平均 KDA {_habits.AverageKda} · 常见装备 {_habits.MostBoughtItem} · 场均时长 {_habits.AverageDuration}";
     }
 
     private async Task LoadItemsAsync(bool force)
@@ -305,475 +228,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ApplyFilters()
-    {
-        var keyword = SearchBox.Text.Trim();
-        foreach (var hero in _allHeroes) hero.UpdateRank(_selectedRank);
-
-        var query = _allHeroes.Where(item => string.IsNullOrWhiteSpace(keyword) ||
-            item.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
-            item.Hero.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-        query = _selectedSort.Id switch
-        {
-            "samples" => query.OrderByDescending(item => HeroCardItem.MetricsFor(item.Hero, _selectedRank.Id).Picks),
-            "name" => query.OrderBy(item => item.Name, StringComparer.CurrentCulture),
-            _ => query.OrderByDescending(item => item.WinRate),
-        };
-
-        var filteredHeroes = query.ToList();
-        VisibleHeroes.Clear();
-        foreach (var item in filteredHeroes) VisibleHeroes.Add(item);
-        foreach (var section in HeroSections)
-        {
-            section.Heroes.Clear();
-            var sectionHeroes = section.Id == "all-heroes"
-                ? filteredHeroes
-                : filteredHeroes.Where(item => AttributeId(item.Hero) == section.Id);
-            foreach (var item in sectionHeroes)
-            {
-                section.Heroes.Add(item);
-            }
-        }
-        UpdateVisibleAttributeHeroes();
-
-        RankCaptionText.Text = _selectedRank.Label;
-        UpdateHeroCardLayout();
-    }
-
-    private async void HeroGrid_SelectionChanged(object sender, SelectionChangedEventArgs _)
-    {
-        if (sender is GridView grid && grid.SelectedItem is HeroCardItem item)
-        {
-            _selectedHero = item;
-            await ShowHeroAsync(item);
-            grid.SelectedItem = null;
-        }
-    }
-
-    private async Task ShowHeroAsync(HeroCardItem item)
-    {
-        var requestId = ++_detailsRequestId;
-        HeroDetailPanel.Visibility = Visibility.Visible;
-        HeroEmptyState.Visibility = Visibility.Collapsed;
-        HeroDetailRoot.Visibility = Visibility.Visible;
-        ApplyResponsiveLayout();
-        HeroDetailHost.ChangeView(0, 0, null, disableAnimation: true);
-        SetPageChrome(HeroHeaderBar, HeroHeaderDivider, HeroSearchBar, detailOpen: true);
-        HeroNameText.Text = item.Name;
-        HeroDetailHeaderText.Text = item.Name;
-        HeroEnglishNameText.Text = LocalizedText.ContainsChinese(item.Hero.EnglishName)
-            ? item.Hero.Name.Replace("npc_dota_hero_", string.Empty).Replace('_', ' ').ToUpperInvariant()
-            : item.Hero.EnglishName.ToUpperInvariant();
-        HeroMetaText.Text = $"{item.AttributeLabel} · {item.AttackLabel}";
-        HeroImage.Source = new BitmapImage(ImageCacheService.Instance.Resolve(item.Hero.ImageUrl));
-        HeroAttrBadgeText.Text = item.AttributeLabel;
-        HeroAttrBadge.Background = item.AttrBrush;
-        HeroAttackTypeText.Text = item.AttackLabel;
-        HeroHypeText.Text = "正在读取英雄资料";
-        HeroBiographyText.Text = "官方中文背景故事正在同步。";
-        HeroUpgradesSection.Visibility = Visibility.Collapsed;
-        ScepterUpgradePanel.Visibility = Visibility.Collapsed;
-        ShardUpgradePanel.Visibility = Visibility.Collapsed;
-        UpdateHeroStats(item.Hero);
-        UpdateHeroAttributes(item.Hero);
-        HeroRoleTags.Clear();
-        foreach (var role in item.Hero.Roles) HeroRoleTags.Add(role);
-
-        SelectedRankMetrics.Clear();
-        SelectedRankMetrics.Add(new RankPerformanceItem(
-            _selectedRank.Label,
-            HeroCardItem.MetricsFor(item.Hero, _selectedRank.Id)));
-        var rankMetric = SelectedRankMetrics.FirstOrDefault();
-        RankSummaryText.Text = rankMetric is null
-            ? $"{_selectedRank.Label} · 暂无样本"
-            : $"{rankMetric.Label} · 胜率 {rankMetric.WinRateText} · {rankMetric.SampleText}";
-
-        HeroCountersMe.Clear();
-        HeroCountersTarget.Clear();
-        HeroCountersBorder.Visibility = Visibility.Visible;
-        HeroCountersStatusText.Text = "正在读取对阵数据…";
-        SelectedAbilities.Clear();
-        TalentRows.Clear();
-        SelectedBuilds.Clear();
-        SelectedBuildGroups.Clear();
-        SelectedWikiTips.Clear();
-        foreach (var tip in WikiTipCatalog.ForHero(item.Hero.Name)) SelectedWikiTips.Add(tip);
-        TalentBorder.Visibility = Visibility.Collapsed;
-        BuildBorder.Visibility = Visibility.Collapsed;
-        BuildStatusText.Text = "正在读取当前分段样本…";
-        AbilityStatusText.Text = "正在同步官方中文…";
-        LocalizedHeroData localized = new() { Id = item.Hero.Id };
-        try
-        {
-            localized = await _dataService.LoadLocalizedHeroAsync(item.Hero.Id, false, AppToken);
-        }
-        catch (Exception exception)
-        {
-            AbilityStatusText.Text = "官方中文详情暂不可用，显示基础技能";
-            ErrorBar.Title = "无法加载该英雄的官方中文技能";
-            ErrorBar.Message = exception.Message;
-            ErrorBar.IsOpen = true;
-        }
-
-        if (requestId != _detailsRequestId) return;
-        HeroHypeText.Text = LocalizedText.ChineseOr(CleanText(localized.Hype), $"{item.Name}英雄资料");
-        HeroBiographyText.Text = LocalizedText.ChineseOr(CleanText(localized.Biography), "官方中文背景故事暂不可用。");
-
-        var officialByName = localized.Abilities
-            .Where(ability => !string.IsNullOrWhiteSpace(ability.Name))
-            .GroupBy(ability => ability.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-        var heroAbilityMap = _catalog?.HeroAbilities.GetValueOrDefault(item.Hero.Name)
-            ?? _catalog?.HeroAbilities.GetValueOrDefault(item.Hero.Name.Replace("npc_dota_hero_", string.Empty));
-        var abilityIds = (heroAbilityMap?.AbilityIds ?? Enumerable.Empty<string>())
-            .Concat(localized.Abilities.Select(ability => ability.Name))
-            .Concat(SummonedUnitAbilityIds(item.Hero.Name))
-            .Where(id => !string.IsNullOrWhiteSpace(id) && !id.Equals("generic_hidden", StringComparison.OrdinalIgnoreCase))
-            .Where(id => !id.StartsWith("special_bonus", StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-        var abilityIndex = 0;
-        foreach (var abilityId in abilityIds)
-        {
-            AbilityDefinition? baseAbility = null;
-            _catalog?.Abilities.TryGetValue(abilityId, out baseAbility);
-            officialByName.TryGetValue(abilityId, out var officialAbility);
-            var display = new AbilityDisplay(abilityId, baseAbility, officialAbility)
-            {
-                SlotLabel = abilityIndex switch
-                {
-                    0 => "Q",
-                    1 => "W",
-                    2 => "E",
-                    3 => "R",
-                    4 => "R",
-                    _ => string.Empty,
-                },
-            };
-            SelectedAbilities.Add(display);
-            abilityIndex++;
-        }
-
-        SelectedAbilityPanel.DataContext = SelectedAbilities.FirstOrDefault();
-        UpdateHeroUpgrades();
-
-        // 技能加载完成后按实际技能数据重新生成实战小技巧。
-        SelectedWikiTips.Clear();
-        foreach (var tip in WikiTipCatalog.ForHero(item.Hero, SelectedAbilities)) SelectedWikiTips.Add(tip);
-
-        var resolvedTalents = new Dictionary<int, (string Left, string Right)>();
-        for (var index = 0; index < localized.Talents.Count; index++)
-        {
-            var talent = localized.Talents[index];
-            var level = 10 + index / 2 * 5;
-            var isLeft = index % 2 == 0;
-            AbilityDefinition? talentBase = null;
-            _catalog?.Abilities.TryGetValue(talent.Name, out talentBase);
-            var talentText = CleanText(talent.LocalizedName);
-            if (string.IsNullOrWhiteSpace(talentText) && talentBase?.DisplayName is { Length: > 0 } displayName)
-            {
-                // 官方中文天赋文本缺失时回退到定义英文名，避免天赋树整行空白；
-                // 数值占位符仍由 ResolveTalentParameters 尽力解析。
-                talentText = CleanText(displayName);
-            }
-            var localizedTalent = AbilityDisplay.ResolveTalentParameters(
-                talentText, talent, talentBase);
-            if (string.IsNullOrWhiteSpace(localizedTalent)) continue;
-            if (!resolvedTalents.TryGetValue(level, out var pair)) pair = (string.Empty, string.Empty);
-            if (isLeft) pair.Left = localizedTalent;
-            else pair.Right = localizedTalent;
-            resolvedTalents[level] = pair;
-        }
-
-        foreach (var (level, pair) in resolvedTalents.OrderBy(item => item.Key))
-        {
-            if (string.IsNullOrWhiteSpace(pair.Left) && string.IsNullOrWhiteSpace(pair.Right)) continue;
-            TalentRows.Add(new TalentLevelRow(
-                level,
-                new TalentDisplay(level, true, pair.Left),
-                new TalentDisplay(level, false, pair.Right)));
-        }
-        TalentBorder.Visibility = TalentRows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        await LoadHeroBuildsAsync(item, requestId);
-        await LoadHeroCountersAsync(item, requestId);
-        AbilityStatusText.Text = localized.Abilities.Count > 0
-            ? $"{SelectedAbilities.Count} 项技能"
-        : $"{SelectedAbilities.Count} 项基础技能 · 中文详情暂不可用";
-    }
-
-    /// <summary>英雄召唤物（如德鲁伊的熊）技能不在 OpenDota hero_abilities 映射中，这里按英雄补充，
-    /// 让召唤物的技能也能在详情页查看。</summary>
-    private static IReadOnlyList<string> SummonedUnitAbilityIds(string heroName) => heroName switch
-    {
-        "npc_dota_hero_lone_druid" =>
-        [
-            "lone_druid_spirit_bear_return",
-            "lone_druid_spirit_bear_demolish",
-            "lone_druid_spirit_bear_fetch",
-            "lone_druid_spirit_bear_entangle",
-        ],
-        _ => [],
-    };
-
-    private void UpdateHeroAttributes(HeroStat hero)
-    {
-        SetHeroAttribute(HeroAttrStrValue, HeroAttrStrGrowth, hero.StatDouble("base_str"), hero.StatDouble("str_gain"));
-        SetHeroAttribute(HeroAttrAgiValue, HeroAttrAgiGrowth, hero.StatDouble("base_agi"), hero.StatDouble("agi_gain"));
-        SetHeroAttribute(HeroAttrIntValue, HeroAttrIntGrowth, hero.StatDouble("base_int"), hero.StatDouble("int_gain"));
-    }
-
-    private static void SetHeroAttribute(TextBlock valueText, TextBlock growthText, double value, double growth)
-    {
-        valueText.Text = value > 0 ? value.ToString("0.#") : "--";
-        growthText.Text = growth > 0 ? $"+{growth:0.#}/级" : string.Empty;
-    }
-
-    private void AbilityButton_Click(object sender, RoutedEventArgs _)
-    {
-        if (sender is Button { DataContext: AbilityDisplay ability })
-        {
-            // 技能描述高度变化可能触发 ScrollViewer 重排/焦点滚动，保持当前阅读位置。
-            // 在下一帧布局完成后恢复滚动偏移，覆盖延迟触发的布局跳动（点击技能不得跳回顶部）。
-            var scrollOffset = HeroDetailHost.VerticalOffset;
-            SelectedAbilityPanel.DataContext = ability;
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (Math.Abs(HeroDetailHost.VerticalOffset - scrollOffset) > 1)
-                {
-                    HeroDetailHost.ChangeView(null, scrollOffset, null, disableAnimation: true);
-                }
-            });
-        }
-    }
-
-    private void UpdateHeroUpgrades()
-    {
-        var scepter = SelectedAbilities
-            .Where(ability => !string.IsNullOrWhiteSpace(ability.Scepter))
-            .Select(ability => $"{ability.Name}：{ability.Scepter}")
-            .ToList();
-        var shard = SelectedAbilities
-            .Where(ability => !string.IsNullOrWhiteSpace(ability.Shard))
-            .Select(ability => $"{ability.Name}：{ability.Shard}")
-            .ToList();
-
-        ScepterUpgradeText.Text = string.Join("\n\n", scepter);
-        ShardUpgradeText.Text = string.Join("\n\n", shard);
-        ScepterUpgradePanel.Visibility = scepter.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ShardUpgradePanel.Visibility = shard.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        HeroUpgradesSection.Visibility = scepter.Count + shard.Count > 0
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private void RebuildBuildGroups()
-    {
-        SelectedBuildGroups.Clear();
-        foreach (var phase in new[] { "出门", "前期", "核心", "中期", "后期" })
-        {
-            var items = SelectedBuilds.Where(item => item.Phase == phase).ToList();
-            if (items.Count > 0)
-            {
-                SelectedBuildGroups.Add(new BuildRecommendationGroup($"{phase}装备", items));
-            }
-        }
-    }
-
-    private void AddHeroAttribute(string label, double value, double growth, Brush color)
-    {
-        HeroAttributes.Add(new HeroAttributeRow(
-            label,
-            value > 0 ? value.ToString("0.#") : "--",
-            growth > 0 ? growth.ToString("0.#") : string.Empty,
-            color));
-    }
-
-    private void AddHeroAttribute(string label, string value, string growth, Brush color)
-    {
-        HeroAttributes.Add(new HeroAttributeRow(label, value, growth, color));
-    }
-
-    private async Task LoadHeroCountersAsync(HeroCardItem hero, int requestId)
-    {
-        try
-        {
-            var matchups = await GetMatchupsAsync(hero.Hero.Id);
-            if (requestId != _detailsRequestId) return;
-            var samples = matchups
-                .Where(item => item.HeroId != hero.Hero.Id && item.GamesPlayed >= 30)
-                .ToList();
-            var meList = samples.Where(item => item.WinRate >= 52).OrderByDescending(item => item.WinRate).Take(6).ToList();
-            var targetList = samples.Where(item => item.WinRate <= 48).OrderBy(item => item.WinRate).Take(6).ToList();
-
-            // OpenDota 当前样本量小，阈值过滤后可能一边为空；用胜率两端补足，保证两边都有内容。
-            if (meList.Count < 3)
-            {
-                meList.AddRange(samples
-                    .Where(item => !meList.Contains(item))
-                    .OrderByDescending(item => item.WinRate)
-                    .Take(6 - meList.Count));
-            }
-            if (targetList.Count < 3)
-            {
-                targetList.AddRange(samples
-                    .Where(item => !targetList.Contains(item))
-                    .OrderBy(item => item.WinRate)
-                    .Take(6 - targetList.Count));
-            }
-
-            foreach (var stat in meList)
-            {
-                HeroCountersMe.Add(new CounterMatchupItem(
-                    stat.HeroId,
-                    LocalizedHeroNameById(stat.HeroId),
-                    LocalizedHeroIconById(stat.HeroId),
-                    stat.WinRate,
-                    stat.GamesPlayed,
-                    countersTarget: true));
-            }
-
-            foreach (var stat in targetList)
-            {
-                HeroCountersTarget.Add(new CounterMatchupItem(
-                    stat.HeroId,
-                    LocalizedHeroNameById(stat.HeroId),
-                    LocalizedHeroIconById(stat.HeroId),
-                    stat.WinRate,
-                    stat.GamesPlayed,
-                    countersTarget: false));
-            }
-
-            HeroCountersStatusText.Text = samples.Count > 0
-                ? $"样本来自 OpenDota 对阵数据（样本 ≥30，共 {samples.Count} 组）"
-                : "暂无足够对阵样本";
-            HeroCountersBorder.Visibility = Visibility.Visible;
-        }
-        catch (Exception exception)
-        {
-            WriteErrorLog(exception);
-            HeroCountersStatusText.Text = "对阵数据暂不可用：" + exception.Message;
-            HeroCountersBorder.Visibility = Visibility.Visible;
-        }
-    }
-
-    private void UpdateHeroStats(HeroStat hero)
-    {
-        var gold = BrushFromResource("CoachGoldBrush");
-        var red = BrushFromResource("CoachDangerBrush");
-        var blue = BrushFromResource("CoachInfoBlueBrush");
-        var green = BrushFromResource("CoachSuccessBrush");
-        var neutral = BrushFromResource("CoachNeutralBrush");
-        var minAttack = hero.StatInt("base_attack_min");
-        var maxAttack = hero.StatInt("base_attack_max");
-        var moveSpeed = hero.StatInt("move_speed");
-        var attackRange = hero.StatInt("attack_range");
-        var baseHealth = hero.StatInt("base_health");
-        var baseMana = hero.StatInt("base_mana");
-        SetHeroStat(0, "攻击", minAttack > 0 && maxAttack > 0 ? $"{minAttack}-{maxAttack}" : "--", red);
-        SetHeroStat(1, "护甲", $"{hero.StatDouble("base_armor"):0.#}", neutral);
-        SetHeroStat(2, "移动速度", moveSpeed > 0 ? moveSpeed.ToString() : "--", gold);
-        SetHeroStat(3, "攻击距离", attackRange > 0 ? attackRange.ToString() : "--", blue);
-        SetHeroStat(4, "基础生命", baseHealth > 0 ? baseHealth.ToString("N0") : "--", green);
-        SetHeroStat(5, "基础魔法", baseMana > 0 ? baseMana.ToString("N0") : "--", blue);
-    }
-
-    private void SetHeroStat(int index, string label, string value, Brush color)
-    {
-        var (dot, labelText, valueText) = index switch
-        {
-            0 => (HeroStat0Dot, HeroStat0Label, HeroStat0Value),
-            1 => (HeroStat1Dot, HeroStat1Label, HeroStat1Value),
-            2 => (HeroStat2Dot, HeroStat2Label, HeroStat2Value),
-            3 => (HeroStat3Dot, HeroStat3Label, HeroStat3Value),
-            4 => (HeroStat4Dot, HeroStat4Label, HeroStat4Value),
-            _ => (HeroStat5Dot, HeroStat5Label, HeroStat5Value),
-        };
-        dot.Background = color;
-        labelText.Text = label;
-        valueText.Text = value;
-    }
-
-    private static SolidColorBrush BrushFromResource(string key) =>
-        (SolidColorBrush)Application.Current.Resources[key];
-
-    private async Task LoadHeroBuildsAsync(HeroCardItem hero, int requestId)
-    {
-        try
-        {
-            var metrics = await _dataService.LoadHeroBuildsAsync(hero.Hero.Id, _selectedRank.Id, false, AppToken);
-            if (requestId != _detailsRequestId) return;
-            var itemCatalog = await _dataService.LoadItemsAsync(false, AppToken);
-            var byId = itemCatalog.ToDictionary(item => item.Id);
-            var order = 0;
-            foreach (var metric in metrics)
-            {
-                if (!byId.TryGetValue(metric.ItemId, out var item)) continue;
-                order++;
-                var phase = item.IsPregameSuggested ? "出门" : item.IsEarlyGameSuggested ? "前期" : item.IsLateGameSuggested ? "后期" : "核心";
-                var rate = metric.HasReliableSample && metric.WinRate is double value
-                    ? $"胜率 {value:0.0}%"
-                    : "样本不足";
-                SelectedBuilds.Add(new BuildRecommendation
-                {
-                    Order = order,
-                    Phase = phase,
-                    Name = LocalizedText.ChineseOr(item.LocalizedName, "中文名称待同步"),
-                    StatsText = $"样本 {HeroCardItem.CompactNumber(metric.Picks)} · {rate}",
-                    Image = new BitmapImage(ImageCacheService.Instance.Resolve(item.ImageUrl)),
-                });
-            }
-
-            if (metrics.Count == 0)
-            {
-                // OpenDota Explorer 近 30 天样本极少（当前全站仅数百场），大多数英雄查不到出装；
-                // 用 itemPopularity 的早/中/后期购买热度兜底，避免推荐为空。
-                var popularity = await GetPopularityAsync(hero.Hero.Id);
-                if (requestId != _detailsRequestId) return;
-                var stages = new (string Phase, Dictionary<int, int> Items)[]
-                {
-                    ("出门", popularity.StartGameItems),
-                    ("前期", popularity.EarlyGameItems),
-                    ("中期", popularity.MidGameItems),
-                    ("后期", popularity.LateGameItems),
-                };
-                foreach (var (phase, items) in stages)
-                {
-                    if (items.Count == 0) continue;
-                    var total = items.Values.Sum();
-                    foreach (var pair in items.OrderByDescending(item => item.Value).Take(3))
-                    {
-                        if (!byId.TryGetValue(pair.Key, out var item)) continue;
-                        order++;
-                        var percent = total > 0 ? pair.Value * 100d / total : 0;
-                        SelectedBuilds.Add(new BuildRecommendation
-                        {
-                            Order = order,
-                            Phase = phase,
-                            Name = LocalizedText.ChineseOr(item.LocalizedName, "中文名称待同步"),
-                            StatsText = $"热度 {percent:0.0}%",
-                            Image = new BitmapImage(ImageCacheService.Instance.Resolve(item.ImageUrl)),
-                        });
-                    }
-                }
-                BuildStatusText.Text = SelectedBuilds.Count > 0
-                    ? "近30天样本不足，已按购买热度给出推荐"
-                    : "当前分段暂无足够样本";
-            }
-            else
-            {
-                BuildStatusText.Text = $"{_selectedRank.Label} · 最近30天 · 按出场率";
-            }
-            RebuildBuildGroups();
-            BuildBorder.Visibility = SelectedBuildGroups.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-        catch (Exception exception)
-        {
-            WriteErrorLog(exception);
-            SelectedBuildGroups.Clear();
-            BuildStatusText.Text = "当前分段出装暂不可用";
-            BuildBorder.Visibility = Visibility.Collapsed;
-        }
-    }
-
     private static string CleanText(string value)
     {
         return HtmlTagRegex().Replace(value.Replace("<br>", "\n"), string.Empty).Trim();
@@ -796,8 +250,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void SearchBox_TextChanged(object _, TextChangedEventArgs __) => ApplyFilters();
-
     private async void AppNavigation_SelectionChanged(NavigationView _, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.IsSettingsSelected)
@@ -809,14 +261,19 @@ public sealed partial class MainWindow : Window
 
         if (args.SelectedItem is NavigationViewItem selectedItem) _lastNavigationItem = selectedItem;
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag?.ToString();
+        var showHeroes = tag == "heroes" || string.IsNullOrEmpty(tag);
         var showItems = tag == "items";
         var showCoach = tag == "coach";
         var showAnalysis = tag == "analysis";
-        HeroPage.Visibility = showItems || showCoach || showAnalysis ? Visibility.Collapsed : Visibility.Visible;
+        HeroesPage.Visibility = showHeroes ? Visibility.Visible : Visibility.Collapsed;
         ItemCatalogPage.Visibility = showItems ? Visibility.Visible : Visibility.Collapsed;
         CoachPage.Visibility = showCoach ? Visibility.Visible : Visibility.Collapsed;
         AnalysisPage.Visibility = showAnalysis ? Visibility.Visible : Visibility.Collapsed;
-        if (showItems)
+        if (showHeroes)
+        {
+            await HeroesPage.LoadAsync(false);
+        }
+        else if (showItems)
         {
             // 物品资料页自带加载保护；这里同时为教练页预热 _allItems（推荐反查用）。
             await ItemCatalogPage.LoadAsync(false);
@@ -932,7 +389,7 @@ public sealed partial class MainWindow : Window
     }
 
     private string ResolveApiHeroInternalName(int heroId) =>
-        _catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.Name ?? string.Empty;
+        Catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.Name ?? string.Empty;
 
     private static string ResolveApiItemName(string keyOrFullName) =>
         CoachRuleEngine.FriendlyItemName(keyOrFullName);
@@ -945,10 +402,10 @@ public sealed partial class MainWindow : Window
 
     private void EnrichApiNames(ApiMatchSummary api)
     {
-        if (_catalog is null) return;
+        if (Catalog is null) return;
         foreach (var player in api.AllPlayers)
         {
-            var hero = _catalog.Heroes.FirstOrDefault(item => item.Id == player.HeroId);
+            var hero = Catalog.Heroes.FirstOrDefault(item => item.Id == player.HeroId);
             if (hero is not null && !string.IsNullOrWhiteSpace(hero.LocalizedName))
             {
                 player.HeroName = hero.LocalizedName;
@@ -1077,16 +534,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void HeroCloseButton_Click(object _, RoutedEventArgs __)
-    {
-        _selectedHero = null;
-        _detailsRequestId++;
-        HeroDetailRoot.Visibility = Visibility.Collapsed;
-        HeroDetailPanel.Visibility = Visibility.Collapsed;
-        SetPageChrome(HeroHeaderBar, HeroHeaderDivider, HeroSearchBar, detailOpen: false);
-        ApplyResponsiveLayout();
-    }
-
     private void AnalysisCloseButton_Click(object _, RoutedEventArgs __)
     {
         _selectedReport = null;
@@ -1096,89 +543,14 @@ public sealed partial class MainWindow : Window
         ApplyResponsiveLayout();
     }
 
-    private void AttributeTabs_SelectionChanged(object _, SelectionChangedEventArgs __)
-    {
-        if (AttributeTabs.SelectedItem is HeroSection section)
-        {
-            _selectedSectionId = section.Id;
-            UpdateVisibleAttributeHeroes();
-        }
-    }
-
-    private async void RankBox_SelectionChanged(object _, SelectionChangedEventArgs __)
-    {
-        if (RankBox.SelectedItem is RankOption rank)
-        {
-            _selectedRank = rank;
-            _settings.DefaultRankId = rank.Id;
-            if (_applicationStarted && !_settings.Save()) WriteErrorLog(new IOException(_settings.LastSaveError));
-            ApplyFilters();
-            if (_selectedHero is not null) await ShowHeroAsync(_selectedHero);
-        }
-    }
-
-    private void SortBox_SelectionChanged(object _, SelectionChangedEventArgs __)
-    {
-        if (SortBox.SelectedItem is SortOption sort)
-        {
-            _selectedSort = sort;
-            ApplyFilters();
-        }
-    }
-
-    private async void RefreshButton_Click(object _, RoutedEventArgs __)
-    {
-        _dataService.ClearCache();
-        await LoadCatalogAsync(true);
-        if (_selectedHero is not null) await ShowHeroAsync(_selectedHero);
-    }
-
-    private void HeroListHost_SizeChanged(object _, SizeChangedEventArgs __) => UpdateHeroCardLayout();
-
-    private void UpdateVisibleAttributeHeroes()
-    {
-        var section = HeroSections.FirstOrDefault(item => item.Id == _selectedSectionId);
-        VisibleAttributeHeroes.Clear();
-        if (section is null) return;
-        foreach (var hero in section.Heroes) VisibleAttributeHeroes.Add(hero);
-        var scope = section.Id == "all-heroes" ? "英雄" : $"{section.Title}英雄";
-        ResultCountText.Text = $"{VisibleAttributeHeroes.Count} 位{scope} · {_selectedRank.Label}";
-    }
-
-    private void UpdateHeroCardLayout()
-    {
-        var availableWidth = HeroListHost.ActualWidth;
-        if (availableWidth <= 0) return;
-
-        var columns = availableWidth switch
-        {
-            < 520 => 3,
-            < 820 => 4,
-            < 1120 => 5,
-            _ => 6,
-        };
-        const double gap = 12;
-        var cardWidth = Math.Clamp((availableWidth - (columns - 1) * gap) / columns, 112, 224);
-        foreach (var hero in _allHeroes) hero.UpdateLayout(cardWidth);
-    }
-
     private void RootGrid_SizeChanged(object _, SizeChangedEventArgs __) => ApplyResponsiveLayout();
 
     private void ApplyResponsiveLayout()
     {
-        if (RootGrid is null || HeroPage is null) return;
+        if (RootGrid is null) return;
         var compact = RootGrid.ActualWidth > 0 && RootGrid.ActualWidth < 1100;
         var pagePadding = compact ? new Thickness(12, 12, 12, 16) : new Thickness(24, 18, 24, 22);
-        HeroPage.Padding = pagePadding;
-        CoachPage.Padding = pagePadding;
         AnalysisPage.Padding = pagePadding;
-
-        ConfigureFullPageDetail(
-            _selectedHero is not null,
-            HeroListColumn,
-            HeroDetailColumn,
-            HeroListHost,
-            HeroDetailPanel);
 
         var hasAnalysisDetail = _selectedReport is not null;
         AnalysisDetailPanel.Visibility = hasAnalysisDetail ? Visibility.Visible : Visibility.Collapsed;
@@ -1211,23 +583,7 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(AnalysisImportPanel, 0);
         AnalysisImportPanel.HorizontalAlignment = compact ? HorizontalAlignment.Left : HorizontalAlignment.Right;
 
-        ApplyCoachResponsiveLayout(compact);
-        ApplyReferenceResponsiveLayout(compact);
-        UpdateHeroCardLayout();
-    }
-
-    private void ApplyReferenceResponsiveLayout(bool compact)
-    {
-        // 英雄背景已移出横幅，横幅只保留主信息列。
-        HeroBannerPrimaryColumn.Width = new GridLength(1, GridUnitType.Star);
-        HeroBannerBiographyColumn.Width = new GridLength(0);
-        HeroBannerGrid.Height = 248;
-        HeroBannerContentGrid.Margin = new Thickness(24, 18, 24, 18);
-
-        ScepterUpgradeColumn.Width = new GridLength(1, GridUnitType.Star);
-        ShardUpgradeColumn.Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        Grid.SetRow(ShardUpgradePanel, compact ? 1 : 0);
-        Grid.SetColumn(ShardUpgradePanel, compact ? 0 : 1);
+        CoachPage.ApplyResponsiveLayout(compact);
     }
 
     /// <summary>详情打开时折叠页头与搜索区，让详情铺满页面；返回列表时恢复。</summary>
@@ -1252,84 +608,6 @@ public sealed partial class MainWindow : Window
         listColumn.MinWidth = 0;
         detailColumn.Width = hasDetail ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         detailColumn.MinWidth = 0;
-    }
-
-    private void ApplyCoachResponsiveLayout(bool compact)
-    {
-        if (compact)
-        {
-            CoachPrimaryGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
-            CoachPrimaryGrid.ColumnDefinitions[0].MinWidth = 0;
-            CoachPrimaryGrid.ColumnDefinitions[1].Width = new GridLength(0);
-            CoachPrimaryGrid.ColumnDefinitions[1].MinWidth = 0;
-            Place(CoachHeroPanel, 0, 0);
-            Place(CoachAdvicePanel, 1, 0);
-
-            StackThreeColumns(CoachRosterGrid, CoachAlliesPanel, CoachEnemiesPanel, CoachRecommendationPanel);
-            StackThreeColumns(CoachCounterGrid, CoachCounterRiskPanel, CoachCounterAdvantagePanel, CoachCounterPickPanel);
-
-            Place(CoachStatusLeft, 0, 0);
-            Place(CoachActionsPanel, 0, 2);
-            Place(CoachOverviewPanel, 1, 0, 3);
-        }
-        else
-        {
-            CoachPrimaryGrid.ColumnDefinitions[0].Width = new GridLength(0.95, GridUnitType.Star);
-            CoachPrimaryGrid.ColumnDefinitions[0].MinWidth = 320;
-            CoachPrimaryGrid.ColumnDefinitions[1].Width = new GridLength(1.05, GridUnitType.Star);
-            CoachPrimaryGrid.ColumnDefinitions[1].MinWidth = 360;
-            Place(CoachHeroPanel, 0, 0);
-            Place(CoachAdvicePanel, 0, 1);
-
-            RestoreThreeColumns(CoachRosterGrid, CoachAlliesPanel, CoachEnemiesPanel, CoachRecommendationPanel, 180, 180, 260);
-            RestoreThreeColumns(CoachCounterGrid, CoachCounterRiskPanel, CoachCounterAdvantagePanel, CoachCounterPickPanel, 200, 200, 200);
-
-            Place(CoachStatusLeft, 0, 0);
-            Place(CoachOverviewPanel, 0, 1);
-            Place(CoachActionsPanel, 0, 2);
-        }
-    }
-
-    private static void StackThreeColumns(Grid grid, FrameworkElement first, FrameworkElement second, FrameworkElement third)
-    {
-        grid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
-        grid.ColumnDefinitions[0].MinWidth = 0;
-        for (var index = 1; index < 3; index++)
-        {
-            grid.ColumnDefinitions[index].Width = new GridLength(0);
-            grid.ColumnDefinitions[index].MinWidth = 0;
-        }
-        Place(first, 0, 0);
-        Place(second, 1, 0);
-        Place(third, 2, 0);
-    }
-
-    private static void RestoreThreeColumns(
-        Grid grid,
-        FrameworkElement first,
-        FrameworkElement second,
-        FrameworkElement third,
-        double firstMin,
-        double secondMin,
-        double thirdMin)
-    {
-        var weights = new[] { 1d, 1d, 1.3d };
-        var minimums = new[] { firstMin, secondMin, thirdMin };
-        for (var index = 0; index < 3; index++)
-        {
-            grid.ColumnDefinitions[index].Width = new GridLength(weights[index], GridUnitType.Star);
-            grid.ColumnDefinitions[index].MinWidth = minimums[index];
-        }
-        Place(first, 0, 0);
-        Place(second, 0, 1);
-        Place(third, 0, 2);
-    }
-
-    private static void Place(FrameworkElement element, int row, int column, int columnSpan = 1)
-    {
-        Grid.SetRow(element, row);
-        Grid.SetColumn(element, column);
-        Grid.SetColumnSpan(element, columnSpan);
     }
 
     private static string AttributeId(HeroStat hero) => hero.PrimaryAttribute switch
@@ -1373,22 +651,17 @@ public sealed partial class MainWindow : Window
         CoachPathBox.Text = _settings.DotaCfgManualPath ?? string.Empty;
         CoachAutoStartBox.IsOn = _settings.AutoStartGsi;
         SmartCoachEnabledBox.IsChecked = _settings.SmartCoachEnabled;
+        HeroesPage.ViewModel.SetDefaultRank(_settings.DefaultRankId);
         AiBackendBox.ItemsSource = new List<string>
         {
-            "NPU 本地推理（低功耗，推荐）",
-            "云端 API（零本地性能开销）",
-            "规则原文（零消耗）",
+            "规则引擎（毫秒级响应，零性能消耗，推荐）",
+            "AI 智能解释（兼容 OpenAI / DeepSeek / Ollama / 本地大模型）",
         };
-        AiBackendBox.SelectedIndex = _settings.BackendKind switch
-        {
-            AiBackendKind.Cloud => 1,
-            AiBackendKind.Rules => 2,
-            _ => 0,
-        };
+        AiBackendBox.SelectedIndex = _settings.BackendKind == AiBackendKind.Rules ? 0 : 1;
         CloudEndpointBox.Text = _settings.CloudEndpoint;
         CloudModelBox.Text = _settings.CloudModel;
         CloudApiKeyBox.Password = _settings.CloudApiKey;
-        CloudSection.Visibility = _settings.BackendKind == AiBackendKind.Cloud ? Visibility.Visible : Visibility.Collapsed;
+        CloudSection.Visibility = _settings.BackendKind != AiBackendKind.Rules ? Visibility.Visible : Visibility.Collapsed;
         SmartCoachIntervalBox.Text = _settings.SmartCoachMinIntervalSeconds.ToString();
         NpuStatusText.Text = _applicationStarted ? NpuCapabilityDetector.Detect().Summary : "保存后检查本机能力";
         NpuModelPathBox.Text = _settings.NpuModelPath;
@@ -1397,7 +670,7 @@ public sealed partial class MainWindow : Window
         StratzApiKeyBox.Password = _settings.StratzApiKey;
         LiveHeroTrackingEnabledBox.IsChecked = _settings.LiveHeroTrackingEnabled;
         UpdateNpuModelStatus();
-        if (!_settings.LiveHeroTrackingEnabled) CoachHeroesStatusText.Text = "未启用";
+        if (!_settings.LiveHeroTrackingEnabled) CoachPage.ViewModel.HeroesStatusText = "未启用";
         CoachInfoBar.IsOpen = false;
         UpdateCoachStatusUi();
     }
@@ -1438,12 +711,7 @@ public sealed partial class MainWindow : Window
         _settings.DotaCfgManualPath = string.IsNullOrWhiteSpace(CoachPathBox.Text) ? null : CoachPathBox.Text.Trim();
         _settings.AutoStartGsi = CoachAutoStartBox.IsOn;
         _settings.SmartCoachEnabled = SmartCoachEnabledBox.IsChecked == true;
-        _settings.AiBackend = AiBackendBox.SelectedIndex switch
-        {
-            1 => "cloud",
-            2 => "rules",
-            _ => "npu",
-        };
+        _settings.AiBackend = AiBackendBox.SelectedIndex == 0 ? "rules" : "cloud";
         _settings.CloudEndpoint = string.IsNullOrWhiteSpace(CloudEndpointBox.Text)
             ? "https://api.openai.com/v1" : CloudEndpointBox.Text.Trim();
         _settings.CloudModel = string.IsNullOrWhiteSpace(CloudModelBox.Text)
@@ -1455,6 +723,7 @@ public sealed partial class MainWindow : Window
             ? _settings.NpuModelPath : NpuModelPathBox.Text.Trim();
         _npuCoach.ModelPath = _settings.NpuModelPath;
         _dataService.CacheDirectory = _settings.CacheDirectory;
+        HeroesPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
         ItemCatalogPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
         MatchSessionTracker.HabitsDirectory = AegisCoachPaths.Habits;
         MatchSessionTracker.AnalysisDirectory = _settings.AnalysisDirectory;
@@ -1497,7 +766,7 @@ public sealed partial class MainWindow : Window
         }
         SmartCoachIntervalBox.Text = _settings.SmartCoachMinIntervalSeconds.ToString();
         UpdateNpuModelStatus();
-        if (!_settings.LiveHeroTrackingEnabled) CoachHeroesStatusText.Text = "未启用";
+        if (!_settings.LiveHeroTrackingEnabled) CoachPage.ViewModel.HeroesStatusText = "未启用";
         CoachLowHealthBox.Text = rules.LowHealthPercent.ToString("0.#");
         CoachLowManaBox.Text = rules.LowManaPercent.ToString("0.#");
         CoachFightHealthBox.Text = rules.FightReadyHealthPercent.ToString("0.#");
@@ -1553,13 +822,12 @@ public sealed partial class MainWindow : Window
             if (finishedMatch is not null) HandleFinishedMatch(finishedMatch);
             foreach (var item in advice)
             {
-                CoachAdvices.Insert(0, item);
+                CoachPage.ViewModel.AddAdvice(item);
                 if (_settings.SmartCoachEnabled && TryReserveSmartExplanation()) _ = ExplainAdviceAsync(item, snapshot);
             }
 
-            while (CoachAdvices.Count > 200) CoachAdvices.RemoveAt(CoachAdvices.Count - 1);
-            CoachAdviceCountText.Text = $"{CoachAdvices.Count} 条提醒";
-            UpdateCoachSnapshotUi(snapshot);
+            CoachPage.ViewModel.UpdateSnapshot(snapshot, LocalizedHeroNameById, LocalizedHeroIconById);
+            _ = RefreshItemRecommendationAsync(snapshot);
             UpdateCoachStatusUi();
         });
     }
@@ -1825,23 +1093,11 @@ public sealed partial class MainWindow : Window
         CloudSection.Visibility = AiBackendBox.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>天赋树节点点击：每级左右二选一。</summary>
-    private void TalentNode_Click(object sender, RoutedEventArgs _)
-    {
-        if (sender is not ToggleButton toggle || toggle.DataContext is not TalentLevelRow row) return;
-        if (toggle.IsChecked != true) return;
-        var isLeft = string.Equals(toggle.Tag as string, "Left", StringComparison.Ordinal);
-        (isLeft ? row.Right : row.Left).IsSelected = false;
-    }
-
     private void OnConnectionChanged(object? _, bool connected)
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            CoachStatusDot.Fill = connected
-                ? new SolidColorBrush(Microsoft.UI.Colors.MediumSeaGreen)
-                : ThemeBrush("TertiaryTextBrush");
-            CoachStatusText.Text = connected ? "已连接" : "未连接";
+            CoachPage.ViewModel.UpdateStatus(_coachRunning, connected, _receiver?.LastError);
         });
     }
 
@@ -1855,6 +1111,7 @@ public sealed partial class MainWindow : Window
         if (!_settings.LiveHeroTrackingEnabled)
         {
             CancelHeroTracking();
+            CoachPage.ViewModel.HeroesStatusText = "未启用";
             return;
         }
 
@@ -1873,7 +1130,7 @@ public sealed partial class MainWindow : Window
         {
             _heroTrackingCts = CancellationTokenSource.CreateLinkedTokenSource(AppToken);
             _ = TrackLiveMatchAsync(matchId, steamId, snapshot.Player.TeamName ?? string.Empty, _heroTrackingCts.Token);
-            CoachHeroesStatusText.Text = "正在检索公开对局（人机/私人局不可用）…";
+            CoachPage.ViewModel.HeroesStatusText = "正在检索公开对局（人机/私人局不可用）…";
         }
     }
 
@@ -1935,7 +1192,7 @@ public sealed partial class MainWindow : Window
                         : string.IsNullOrWhiteSpace(_settings.StratzApiKey)
                             ? "本局尚未被 OpenDota 收录：热门对局可实时获取，普通对局通常在结束后收录，正在自动重试…"
                             : "Stratz 暂未返回本局数据，正在自动重试…";
-                    DispatcherQueue.TryEnqueue(() => CoachHeroesStatusText.Text = status);
+                    DispatcherQueue.TryEnqueue(() => CoachPage.ViewModel.HeroesStatusText = status);
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(40), cancellationToken);
@@ -1946,31 +1203,13 @@ public sealed partial class MainWindow : Window
         }
         catch
         {
-            DispatcherQueue.TryEnqueue(() => CoachHeroesStatusText.Text = "全场英雄检索失败（网络或接口不可用）");
+            DispatcherQueue.TryEnqueue(() => CoachPage.ViewModel.HeroesStatusText = "全场英雄检索失败（网络或接口不可用）");
         }
     }
 
     private void UpdateLiveHeroUi(LiveMatchInfo info)
     {
-        var picked = info.Heroes.Where(hero => hero.HeroId > 0).ToList();
-        CoachHeroesStatusText.Text = picked.Count == 0
-            ? $"比赛 {info.MatchId}：选人阶段"
-            : $"已获取 {picked.Count} 名英雄（比赛 {info.MatchId}）";
-
-        CoachAllyHeroes.Clear();
-        foreach (var hero in picked.Where(hero => hero.Team == info.MyTeam))
-        {
-            CoachAllyHeroes.Add(new HeroChip(LocalizedHeroNameById(hero.HeroId), LocalizedHeroIconById(hero.HeroId)));
-        }
-        CoachAllyHeroesText.Text = CoachAllyHeroes.Count > 0 ? $"{CoachAllyHeroes.Count} 人" : "";
-
-        CoachEnemyHeroes.Clear();
-        foreach (var hero in picked.Where(hero => hero.Team != info.MyTeam))
-        {
-            CoachEnemyHeroes.Add(new HeroChip(LocalizedHeroNameById(hero.HeroId), LocalizedHeroIconById(hero.HeroId)));
-        }
-        CoachEnemyHeroesText.Text = CoachEnemyHeroes.Count > 0 ? $"{CoachEnemyHeroes.Count} 人" : "";
-
+        CoachPage.ViewModel.UpdateLiveHeroes(info, LocalizedHeroNameById, LocalizedHeroIconById);
         if (_latestSnapshot is not null) _ = RefreshItemRecommendationAsync(_latestSnapshot);
         if (_latestSnapshot is not null) _ = RefreshCounterAnalysisAsync(_latestSnapshot);
     }
@@ -1982,14 +1221,14 @@ public sealed partial class MainWindow : Window
         {
             if (_liveMatch is null)
             {
-                CoachCounterStatusText.Text = "等待全场英雄数据（仅公开比赛）…";
+                CoachPage.ViewModel.CounterStatusText = "等待全场英雄数据（仅公开比赛）…";
                 return;
             }
 
             var myHeroId = snapshot.Hero.Id;
             if (myHeroId <= 0)
             {
-                CoachCounterStatusText.Text = "等待英雄数据…";
+                CoachPage.ViewModel.CounterStatusText = "等待英雄数据…";
                 return;
             }
 
@@ -1999,14 +1238,14 @@ public sealed partial class MainWindow : Window
             var enemyIds = enemies.Select(hero => hero.HeroId).Distinct().ToList();
             if (enemyIds.Count == 0)
             {
-                CoachCounterStatusText.Text = "敌方英雄尚未确认…";
+                CoachPage.ViewModel.CounterStatusText = "敌方英雄尚未确认…";
                 return;
             }
 
             // 敌方克制我 / 我克制敌方：以我方英雄的公开对阵胜率为准。
             var myMatchups = await GetMatchupsAsync(myHeroId);
-            CoachCountersMe.Clear();
-            CoachCountersTarget.Clear();
+            var countersMe = new List<CounterMatchupItem>();
+            var countersTarget = new List<CounterMatchupItem>();
             var enemyStats = new List<DotaDataService.HeroMatchupStat>();
             foreach (var enemy in enemies)
             {
@@ -2015,7 +1254,7 @@ public sealed partial class MainWindow : Window
                 enemyStats.Add(stat);
                 if (stat.WinRate <= 48)
                 {
-                    CoachCountersMe.Add(new CounterMatchupItem(
+                    countersMe.Add(new CounterMatchupItem(
                         enemy.HeroId,
                         LocalizedHeroNameById(enemy.HeroId),
                         LocalizedHeroIconById(enemy.HeroId),
@@ -2025,7 +1264,7 @@ public sealed partial class MainWindow : Window
                 }
                 else if (stat.WinRate >= 52)
                 {
-                    CoachCountersTarget.Add(new CounterMatchupItem(
+                    countersTarget.Add(new CounterMatchupItem(
                         enemy.HeroId,
                         LocalizedHeroNameById(enemy.HeroId),
                         LocalizedHeroIconById(enemy.HeroId),
@@ -2036,11 +1275,11 @@ public sealed partial class MainWindow : Window
             }
 
             // OpenDota 样本量小时用两端补足，保证克制与被克制都有展示。
-            if (CoachCountersMe.Count == 0)
+            if (countersMe.Count == 0)
             {
                 foreach (var stat in enemyStats.OrderBy(item => item.WinRate).Take(3))
                 {
-                    CoachCountersMe.Add(new CounterMatchupItem(
+                    countersMe.Add(new CounterMatchupItem(
                         stat.HeroId,
                         LocalizedHeroNameById(stat.HeroId),
                         LocalizedHeroIconById(stat.HeroId),
@@ -2049,11 +1288,11 @@ public sealed partial class MainWindow : Window
                         countersTarget: false));
                 }
             }
-            if (CoachCountersTarget.Count == 0)
+            if (countersTarget.Count == 0)
             {
                 foreach (var stat in enemyStats.OrderByDescending(item => item.WinRate).Take(3))
                 {
-                    CoachCountersTarget.Add(new CounterMatchupItem(
+                    countersTarget.Add(new CounterMatchupItem(
                         stat.HeroId,
                         LocalizedHeroNameById(stat.HeroId),
                         LocalizedHeroIconById(stat.HeroId),
@@ -2065,7 +1304,7 @@ public sealed partial class MainWindow : Window
 
             // 选人推荐：统计候选英雄对敌方阵容的克制面。用敌方英雄自身的对阵数据反向推导：
             // 敌方英雄对候选者的胜率越低，说明该候选者越克制它。
-            CoachPickRecommendations.Clear();
+            var pickRecommendations = new List<CounterPickRecommendation>();
             var taken = _liveMatch.Heroes.Where(hero => hero.HeroId > 0).Select(hero => hero.HeroId).ToHashSet();
             var scores = new Dictionary<int, (int Count, double WinRateSum)>();
             foreach (var enemyId in enemyIds)
@@ -2100,7 +1339,7 @@ public sealed partial class MainWindow : Window
                 .ThenBy(pair => pair.Value.WinRateSum / pair.Value.Count)
                 .Take(6))
             {
-                CoachPickRecommendations.Add(new CounterPickRecommendation(
+                pickRecommendations.Add(new CounterPickRecommendation(
                     pair.Key,
                     LocalizedHeroNameById(pair.Key),
                     LocalizedHeroIconById(pair.Key),
@@ -2108,13 +1347,15 @@ public sealed partial class MainWindow : Window
                     pair.Value.WinRateSum / pair.Value.Count));
             }
 
-            CoachCounterStatusText.Text = CoachCountersMe.Count + CoachCountersTarget.Count + CoachPickRecommendations.Count > 0
+            var statusText = countersMe.Count + countersTarget.Count + pickRecommendations.Count > 0
                 ? "基于 OpenDota 对阵胜率（样本 ≥30）"
                 : "暂无足够对阵样本";
+
+            CoachPage.ViewModel.UpdateCounters(countersMe, countersTarget, pickRecommendations, statusText);
         }
         catch (Exception exception)
         {
-            CoachCounterStatusText.Text = "克制分析暂不可用：" + exception.Message;
+            CoachPage.ViewModel.CounterStatusText = "克制分析暂不可用：" + exception.Message;
         }
         finally
         {
@@ -2123,17 +1364,17 @@ public sealed partial class MainWindow : Window
     }
 
     private string LocalizedHeroNameById(int heroId) =>
-        _catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.LocalizedName ?? $"英雄{heroId}";
+        Catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.LocalizedName ?? $"英雄{heroId}";
 
     private string LocalizedHeroIconById(int heroId) =>
-        _catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.IconUrl ?? string.Empty;
+        Catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.IconUrl ?? string.Empty;
 
     private async Task RefreshItemRecommendationAsync(MatchSnapshot snapshot)
     {
         if (!await _recommendationGate.WaitAsync(0)) return;
         if (_liveMatch is null)
         {
-            CoachItemRecommendText.Text = "等待全场英雄数据（仅公开比赛）…";
+            CoachPage.ViewModel.ItemRecommendText = "等待全场英雄数据（仅公开比赛）…";
             _recommendationGate.Release();
             return;
         }
@@ -2143,7 +1384,7 @@ public sealed partial class MainWindow : Window
             var myHeroId = snapshot.Hero.Id;
             if (myHeroId <= 0)
             {
-                CoachItemRecommendText.Text = "等待英雄数据…";
+                CoachPage.ViewModel.ItemRecommendText = "等待英雄数据…";
                 return;
             }
 
@@ -2175,13 +1416,13 @@ public sealed partial class MainWindow : Window
             var hints = BuildThreatHints();
             if (hints.Count > 0) lines.Add("提示：" + string.Join("；", hints.Take(2)));
 
-            CoachItemRecommendText.Text = lines.Count > 0
+            CoachPage.ViewModel.ItemRecommendText = lines.Count > 0
                 ? string.Join("\n", lines)
                 : "暂无推荐数据（数据源未返回该英雄物品热度）";
         }
         catch (Exception exception)
         {
-            CoachItemRecommendText.Text = "推荐数据获取失败：" + exception.Message;
+            CoachPage.ViewModel.ItemRecommendText = "推荐数据获取失败：" + exception.Message;
         }
         finally
         {
@@ -2230,7 +1471,7 @@ public sealed partial class MainWindow : Window
     {
         if (_liveMatch is null || _latestSnapshot is null) return [];
         var profiles = new Dictionary<int, HeroProfile>();
-        foreach (var hero in _catalog?.Heroes ?? [])
+        foreach (var hero in Catalog?.Heroes ?? [])
         {
             profiles[hero.Id] = new HeroProfile(hero.Name, hero.LocalizedName, hero.PrimaryAttribute);
         }
@@ -2258,22 +1499,7 @@ public sealed partial class MainWindow : Window
 
     private void UpdateCoachStatusUi()
     {
-        if (_coachRunning)
-        {
-            var connected = _receiver?.IsConnected == true;
-            CoachStatusDot.Fill = connected
-                ? new SolidColorBrush(Microsoft.UI.Colors.MediumSeaGreen)
-                : ThemeBrush("TertiaryTextBrush");
-            CoachStatusText.Text = _receiver?.LastError is null
-                ? (connected ? "已连接" : "未连接")
-                : "GSI 启动失败";
-        }
-        else
-        {
-            CoachStatusText.Text = "已停止";
-            CoachStatusDot.Fill = ThemeBrush("TertiaryTextBrush");
-        }
-
+        CoachPage.ViewModel.UpdateStatus(_coachRunning, _receiver?.IsConnected == true, _receiver?.LastError);
         CoachToggleButton.Content = _coachRunning ? "停止监听" : "启动监听";
     }
 
@@ -2422,88 +1648,6 @@ public sealed partial class MainWindow : Window
             ShowCoachInfo(InfoBarSeverity.Error, "无法打开数据目录", exception.Message);
         }
     }
-
-    private void CoachClearButton_Click(object _, RoutedEventArgs __)
-    {
-        CoachAdvices.Clear();
-        CoachAdviceCountText.Text = "0 条提醒";
-    }
-
-    private void UpdateCoachSnapshotUi(MatchSnapshot snapshot)
-    {
-        var matchParts = new List<string> { snapshot.PhaseText, snapshot.GameTimeText };
-        if (snapshot.InMatch) matchParts.Add($"比分 {snapshot.ScoreText}");
-        matchParts.Add(snapshot.Daytime ? "白天" : "夜晚");
-        if (!string.IsNullOrWhiteSpace(snapshot.BuildingSummary)) matchParts.Add("建筑 " + snapshot.BuildingSummary);
-        CoachOverviewText.Text = string.Join(" · ", matchParts);
-
-        if (snapshot.Hero.Id > 0)
-        {
-            CoachHeroPanel.Visibility = Visibility.Visible;
-            CoachHeroNameText.Text = LocalizedHeroNameById(snapshot.Hero.Id);
-            CoachHeroLevelText.Text = $"Lv{snapshot.Hero.Level}";
-            var iconUrl = LocalizedHeroIconById(snapshot.Hero.Id);
-            if (!string.IsNullOrWhiteSpace(iconUrl) && !_coachHeroImageCache.TryGetValue(snapshot.Hero.Id, out _))
-            {
-                try
-                {
-                    _coachHeroImageCache[snapshot.Hero.Id] = new BitmapImage(ImageCacheService.Instance.Resolve(iconUrl));
-                }
-                catch
-                {
-                    /* 图标失败不影响状态卡 */
-                }
-            }
-            if (_coachHeroImageCache.TryGetValue(snapshot.Hero.Id, out var heroImage))
-            {
-                CoachHeroImage.Source = heroImage;
-            }
-
-            if (snapshot.Hero.MaxHealth > 0)
-            {
-                CoachHeroHpBar.Maximum = snapshot.Hero.MaxHealth;
-                CoachHeroHpBar.Value = snapshot.Hero.Health;
-                CoachHeroHpText.Text = $"{snapshot.Hero.Health}/{snapshot.Hero.MaxHealth}（{snapshot.Hero.HealthPercent:0}%）";
-            }
-
-            if (snapshot.Hero.MaxMana > 0)
-            {
-                CoachHeroManaBar.Maximum = snapshot.Hero.MaxMana;
-                CoachHeroManaBar.Value = snapshot.Hero.Mana;
-                CoachHeroManaText.Text = $"{snapshot.Hero.Mana}/{snapshot.Hero.MaxMana}（{snapshot.Hero.ManaPercent:0}%）";
-            }
-
-            CoachHeroKdaText.Text = $"KDA {snapshot.Player.Kills}/{snapshot.Player.Deaths}/{snapshot.Player.Assists}";
-            CoachHeroStatsText.Text =
-                $"金钱 {snapshot.Player.Gold:N0} · GPM {snapshot.Player.Gpm} · XPM {snapshot.Player.Xpm} · 补刀 {snapshot.Player.LastHits}";
-            var mainItems = snapshot.Items
-                .Where(item => item.SlotKind == ItemSlotKind.Main && !string.IsNullOrWhiteSpace(item.Name))
-                .Take(6)
-                .Select(item => item.Name)
-                .ToList();
-            if (!mainItems.SequenceEqual(_lastCoachItems, StringComparer.OrdinalIgnoreCase))
-            {
-                CoachHeroItems.Clear();
-                foreach (var item in snapshot.Items
-                    .Where(item => item.SlotKind == ItemSlotKind.Main && !string.IsNullOrWhiteSpace(item.Name))
-                    .Take(6))
-                {
-                    CoachHeroItems.Add(new CoachItemSlot(
-                        CoachRuleEngine.FriendlyItemName(item.Name),
-                        OfficialItemSummary.ImageUrlFor(item.Name)));
-                }
-                _lastCoachItems = mainItems;
-            }
-        }
-        else
-        {
-            CoachHeroPanel.Visibility = Visibility.Collapsed;
-        }
-
-        _ = RefreshItemRecommendationAsync(snapshot);
-    }
-
-    private async void CoachSettingsButton_Click(object _, RoutedEventArgs __) => await OpenCoachSettingsAsync();
 
     private sealed record RuleCooldownChoice(string Key, string Label)
     {

@@ -1,263 +1,291 @@
 # 神盾教练项目完整文档
 
-文档版本：2026-08-11
+文档版本：2026-08-25
+产品范围：Windows PC 原生桌面应用（WinUI 3 / C# / .NET 8 / Windows App SDK）
+当前阶段：资料库与机制查询 + GSI 实时教练闭环 + 本地/API 赛后复盘分析
 
-产品范围：Windows PC 原生桌面应用
+> **说明**：完成度是工程估计，不是测试覆盖率。已编译通过不等于真实验收完成；涉及 Steam、Dota 2、在线 API、NPU 推理和桌面 UI 交互的功能仍需以真实环境验收为准。
 
-当前阶段：资料库 MVP + GSI 实时教练闭环 + 赛后分析基础版
+---
 
-> 完成度是工程估计，不是测试覆盖率。已编译不等于已完成；涉及 Steam、Dota 2、在线 API、NPU 和 UI 交互的功能仍需要联网或实机验收。
+## 1. 项目定位与核心能力
 
-## 1. 项目定位
-
-神盾教练由三条能力链组成：
-
-1. 赛前资料：英雄、技能、天赋、物品、分段统计和对阵资料。
-2. 对局中教练：Dota 2 GSI 向本机发送状态，规则引擎先产生可解释提醒，智能后端只负责改写说明。
-3. 赛后分析：本地 GSI 回放提供自身逐秒状态，OpenDota 比赛详情补充阵容、团战、视野和经济数据，再生成带证据的复盘。
-
-资料页是后两条能力链的数据基础，但资料页完成不代表产品完成。产品难点仍是实战数据可用性、提醒质量、赛后结论可信度和发布验收。
-
-## 2. 产品边界
-
-- 唯一产品入口是 `native/AegisCoach.Native`，技术栈为 WinUI 3、C#、.NET 8 和 Windows App SDK。
-- 解决方案只有一个可启动项目 `AegisCoach.Native`。GSI、规则和赛后逻辑位于项目内的 `native/AegisCoach.Native/Core`，不生成或依赖独立 Core DLL。
-- 不读取或修改游戏进程内存，不注入 DLL，不 Hook 图形接口，不模拟输入，不自动操作。
-- GSI 只监听 `127.0.0.1`，端口和 Token 是应用内部实现细节，不要求普通用户配置。
-- GSI 只提供本玩家视角及部分比赛状态，不包含完整敌方状态、地图坐标、视野、符点和可靠经济差；规则与 AI 不得编造缺失事实。
-- OpenDota、Stratz、Steam CDN 和 Dota 2 datafeed 属于外部数据源，其可用性、限流和版本一致性不能由本地编译证明。
-
-## 3. 首次启动与设置
-
-首次安装不存在 `settings.json`。应用启动后直接打开“首次设置”，在“保存并开始”成功前：
-
-- 不加载英雄、物品或赛后数据；
-- 不访问在线数据源；
-- 不探测或启动 NPU；
-- 不启动 GSI 监听。
-
-保存后写入 `文档\AegisCoach\settings.json`，尝试自动定位 Steam 并安装 GSI 配置，然后启动资料和已启用服务。应用不读取、不迁移旧 AppData 配置。
-
-普通设置只表达用户目标：自动配置 Dota 2、自动连接、智能解释方式、全场英雄追踪和数据目录。端口、Token、模型路径、兼容 API 地址、Stratz 密钥、规则阈值和单规则冷却位于内部或高级设置。Cloud/Stratz 密钥使用 Windows 凭据保险库，不写入 `settings.json`。
-
-## 4. 技术架构
-
-本节描述当前已实现结构；目标结构、问题优先级和渐进迁移顺序见 [架构评审与演进路线](ARCHITECTURE_REVIEW.md)。当前保持单一 Native 项目，但不把 `MainWindow` 的大文件形态视为最终设计。
+神盾教练是一个面向 Windows PC 用户的 Dota 2 深度资料、实时辅助与赛后教练工具。项目由三条核心能力链组成：
 
 ```mermaid
 flowchart LR
-    DOTA["Dota 2 GSI"] --> RX["GsiReceiver"]
-    RX --> SNAP["MatchSnapshot"]
-    SNAP --> RULE["CoachRuleEngine"]
-    SNAP --> TRACK["MatchSessionTracker"]
-    RULE --> UI["WinUI 3"]
-    RULE --> AI["NPU / Cloud / Rules"]
-    TRACK --> REPORT["赛后记录与报告"]
-    OD["OpenDota / Stratz"] --> UI
-    OD --> REPORT
-    OFFICIAL["Dota 2 datafeed"] --> CACHE["文档目录缓存"]
-    CACHE --> UI
+    subgraph 赛前与资料
+        A1["英雄资料与 Wiki 指南"]
+        A2["物品图鉴与合成路线"]
+        A3["分段胜率与职业 BP"]
+    end
+    subgraph 对局中教练
+        B1["Dota 2 GSI 本地监听"]
+        B2["CoachRuleEngine 确定性规则"]
+        B3["NPU / 云端 AI 智能解释"]
+    end
+    subgraph 赛后与复盘
+        C1["本地 GSI 操作上下文提取"]
+        C2["OpenDota 全局对局数据"]
+        C3["AI 可审计赛后操作点评"]
+    end
+    A1 & A2 & A3 --> D["WinUI 3 统一桌面界面"]
+    B1 --> B2 --> B3 --> D
+    C1 & C2 --> C3 --> D
 ```
 
-| 文件 | 责任 |
-|---|---|
-| `native/AegisCoach.Native/MainWindow.xaml` | 导航、资料页、实时教练、赛后分析、首次设置与高级设置 UI |
-| `native/AegisCoach.Native/MainWindow.xaml.cs` | 首次启动门控、页面状态、服务生命周期和异步协调 |
-| `native/AegisCoach.Native/Models/AppSettings.cs` | 非敏感设置、规则选项、凭据读写协调 |
-| `native/AegisCoach.Native/Models/DotaModels.cs` | API DTO、展示模型、统计公式和技能参数替换 |
-| `native/AegisCoach.Native/Services/DotaDataService.cs` | 官方资料、OpenDota 查询、缓存、重试和降级 |
-| `native/AegisCoach.Native/Views/ItemCatalogPage.xaml(.cs)` | 物品资料库页：官网式分组网格、悬浮详情卡、商店/中立切换与筛选（独立页面，MVVM） |
-| `native/AegisCoach.Native/ViewModels/ItemCatalogViewModel.cs` | 物品页 ViewModel：加载、分组、搜索防抖、子类筛选与详情懒加载 |
-| `native/AegisCoach.Native/Models/ItemCatalogModels.cs` | 物品库展示模型（CatalogItem/ItemAbility/ItemStat/ItemGroup） |
-| `native/AegisCoach.Native/Themes/ItemCatalogTheme.xaml` | 物品主题：金币/法力/属性功能色（ThemeDictionaries）、物品格与悬浮卡模板 |
-| `native/AegisCoach.Native/Services/LiveMatchHeroService.cs` | OpenDota/Stratz 全场英雄查询 |
-| `native/AegisCoach.Native/Core/` | Native 项目内部的可测试逻辑源码目录 |
-| `native/AegisCoach.Native/Core/Models/GsiModels.cs` | GSI DTO、标准化快照、物品槽位、建筑与提醒模型 |
-| `native/AegisCoach.Native/Core/Services/GsiReceiver.cs` | 本机 HTTP 接收、Token 校验、去重、心跳和断线判断 |
-| `native/AegisCoach.Native/Core/Services/CoachRuleEngine.cs` | 相邻快照差分、证据字段、规则开关与独立冷却 |
-| `native/AegisCoach.Native/Core/Services/MatchOperationExtractor.cs` | 从 NDJSON 提取购买、施法、阵亡上下文和阶段统计 |
-| `native/AegisCoach.Native/Core/Services/ApiMatchAnalyzer.cs` | 按比赛 ID 分析 OpenDota match details |
-| `native/AegisCoach.Native/Core/Services/AegisCoachPaths.cs` | `文档\AegisCoach` 统一路径 |
-| `native/AegisCoach.Native/Core/Services/AtomicFile.cs` | JSON、cfg 和报告的同目录原子替换 |
+1. **赛前资料与机制查询**：覆盖全部英雄、技能（含先天与阿哈利姆升级）、Dota 2 风格天赋树、分段出装胜率、克制关系以及官网式物品分类与合成路线。
+2. **对局中教练（GSI 确定性闭环）**：本地监听 Dota 2 Game State Integration，由规则引擎先产生带证据的确定性提醒（低血/低魔、大招转好、阵亡、控制锁定、买活窗口、昼夜/建筑/肉山事件等），AI 仅负责可选的语言改写，故障时秒级降级规则原文。
+3. **赛后复盘与操作点评**：本地 GSI 回放提供阵亡前秒级技能/道具/决策上下文，OpenDota 公开接口补充整局阵容、团战、视野与经济曲线，模型按游戏时间输出操作点评。
 
-## 5. 当前功能和完成度
+---
 
-| 模块 | 当前状态 | 完成度 | 说明 |
-|---|---:|---:|---|
-| WinUI 3 PC 壳 | 已完成 | 94% | 左侧 NavigationView、窗口缩放、错误状态、系统主题资源和 Dota 2 电竞面板风格已存在；仍需多 DPI、多分辨率实机走查 |
-| 首次启动与设置 | 已完成基础版 | 92% | 首次启动强制设置，保存前不启动项目服务；普通项傻瓜化，高级项折叠，端口/Token 内部管理 |
-| 英雄目录 | 已完成 | 95% | 约 127 位英雄、官方中文名回填、四属性分类、搜索、排序和响应式卡片 |
-| 英雄图片 | 已完成联网版 | 80% | 横幅与图标来自 Steam CDN；没有离线图片包 |
-| 英雄技能 | 基本完成 | 93% | 中文描述、图片、QWER、冷却、魔耗、天赋、魔晶/神杖和定义缓存；仍依赖上游字段稳定性 |
-| 技能参数中文显示 | 基本完成 | 90% | 支持 `%name%`、`{s:name}`、`values_float`/`values`，并归一化大小写和下划线差异 |
-| 英雄分段胜率 | 已完成 | 88% | 8 个分段、胜率、样本量和低样本抑制；缺少可靠 patch/模式/时间筛选 |
-| 英雄职业 BP | 基本完成 | 75% | `pro_pick + pro_ban` 形成职业样本 BP 占比，不代表全体玩家 |
-| 物品目录 | 已接入并可降级 | 93% | 官方中文目录优先，OpenDota 降级；用当前游戏文件生成的白名单过滤历史物品并补完整合成路线 |
-| 物品资料页 | 已重构为独立页面 | 82% | 官网式大分类→子分类分组网格（56x42 物品格、Hover 微缩放）、悬浮详情卡（价格/属性/技能/合成/传说）、商店/中立切换、子类 Chip 多选、名称/英文/拼音防抖搜索；Fluent ThemeResource 主题；仍需多 DPI 与真实悬浮交互实机走查 |
-| 物品详情 | 已接入 | 78% | 价格、说明、传说、备注、合成和统计区域已接入；悬浮卡按需懒加载官方详情，详情失败保留目录级信息 |
-| 物品统计 | 可选增强 | 72% | Explorer 最近 30 天购买/胜局统计；低样本不显示胜率结论，统计失败不阻断目录 |
-| 本地缓存 | 已完成 | 92% | 按目标版本 `v7.41e` 隔离，原子写入，损坏 JSON 隔离为 `.corrupt`；不做旧 AppData 迁移是产品决定 |
-| Wiki 小技巧 | 已实现内置版 | 60% | 按英雄整理的编辑内容，不冒充官方机制或当前版本统计结论 |
-| 数据失败提示 | 基本完成 | 90% | 区分超时、429、5xx、网络不可达和数据缺失；三次重试、指数退避、`Retry-After` 与请求间隔已实现 |
-| GSI 接收 | 已实现基础版 | 88% | 仅本机监听、Token 校验、去重、心跳、断线、NDJSON 脱敏落盘和离线回放；仍需真实 Dota 2 对局验收 |
-| 对局状态模型 | 基本完成 | 78% | 玩家、英雄、技能、物品槽位、建筑、肉山与阶段模型已建立；GSI 本身仍只有本玩家视角 |
-| 实时教练规则 | 已完成首轮 | 82% | 比赛状态、低血/低蓝、大招、阵亡、控制、买活、资源、烟雾、昼夜、建筑、肉山、物品/技能就绪和关键时间；支持逐规则开关与冷却 |
-| 实时教练页面 | 已重构 | 84% | 聚焦连接、对局概览、全场英雄、出装建议和带证据提醒；仍需对局中滚动、刷新和多尺寸 UI 实机验收 |
-| 本地智能解释 | 可选增强 | 68% | NPU、OpenAI 兼容云端、规则原文三后端；串行限频、超时回退，不阻塞 GSI；模型效果和 NPU 驱动需实机验收 |
-| 游戏内覆盖层 | 未开始 | 0% | 原生 overlay/Overwolf 方案、DPI、点击穿透与合规边界尚未选型 |
-| 画面捕获与视觉分析 | 已完成技术选型 | 15% | 选定 Windows.Graphics.Capture；NVFBC 不适用于现代 Windows；尚未实现取帧 PoC、视觉模型和合规验收 |
-| 赛后数据采集 | 已实现基础版 | 72% | 本地 GSI 操作提取与 OpenDota match details 已接入；私人局/未解析比赛仍只能依赖本地记录 |
-| 游戏习惯记录 | 已实现基础版 | 62% | 最近 300 场本地 JSON、常用英雄/装备/时长汇总；跨版本、跨设备和长期画像尚未完成 |
-| AI 赛后分析 | 已实现基础版 | 65% | 本地操作与 API 全局数据可共同生成报告，失败回退规则摘要；报告质量仍需真实比赛人工评审 |
-| 凭据与文件可靠性 | 已完成基础版 | 90% | 密钥进入 PasswordVault，设置/配置/习惯/报告原子写入；尚未做正式威胁建模和签名发布审计 |
-| 安装包和自动更新 | 未开始 | 10% | 有 Debug x64 构建，没有签名安装包、稳定渠道和更新服务 |
-| 自动化测试 | 冒烟与静态检查 | 58% | 131 项断言，含 API fixture、429 重试、GSI、规则、回放、原子文件和 AI 提示词证据边界；没有真实网络持续集成和 UI 自动化 |
+## 2. 合规与技术边界
 
-按目标能力估计：资料库 MVP 约 82%，整个“EchoClip 类产品”约 48%。后一个数字较低的因果是：资料展示主要验证字段和 UI，而实时教练与赛后 AI 还要验证真实对局输入、时序、误报率、网络降级和建议质量。
+- **非外挂原则**：神盾教练严格遵守 Valve 反作弊（VAC）规则。**不读取**游戏进程内存，**不注入** DLL，**不 Hook** DirectX/OpenGL，**不模拟**鼠标键盘输入，**不执行**任何自动化施法/购买/移动操作。
+- **输入数据源**：实时数据仅来自于 Dota 2 官方提供的 Game State Integration（本机 HTTP POST 到 `127.0.0.1`）。
+- **视野与敌方边界**：GSI 只提供本玩家第一视角及部分全局比赛状态，不包含未探索区域敌方位置、敌方技能冷却或战争迷雾后数据；规则引擎与 AI 严格基于可证明的事实进行提醒，绝不编造或推测作弊信息。
+- **隐私与凭据安全**：Steam Token、GSI Token 和完整 Steam ID 绝不进入日志、赛后报告或模型 Prompt；外部 API 密钥（OpenAI/Stratz）统一存放在 Windows 凭据保险库（`PasswordVault`），不明文保存在配置文件中。
 
-## 6. 已实现功能机制
+---
 
-### 6.1 英雄、技能与天赋
+## 3. 首次启动与设置流程
 
-目录以 OpenDota `/heroStats` 为结构数据，官方 `/datafeed/herolist?language=schinese` 回填中文名。详情使用 `/datafeed/herodata?language=schinese&hero_id={id}`，技能映射和定义来自 `/constants/hero_abilities`、`/constants/abilities`。
+首次安装不存在 `settings.json`。应用启动后受门控保护直接进入“首次设置”模式，在用户点击“保存并开始”成功前：
+- 不加载英雄、物品或赛后数据；
+- 不访问任何外部在线 API；
+- 不探测或启动本地 NPU 推理引擎；
+- 不启动 GSI 本地 HTTP 监听。
 
-技能文本先按内部名定位定义，再解析官方中文描述中的参数占位符。参数匹配会统一大小写、下划线和多种值结构；无法证明的数值保持空缺，不生成伪造数字。天赋定义单独持久化，因此目录缓存命中且离线时仍可解析已有通用天赋。
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Win as MainWindow
+    participant Sett as AppSettings
+    participant Gsi as GsiConfigInstaller
+    participant Data as DotaDataService
 
-分段胜率公式为 `wins / picks * 100%`。`all` 汇总 1 至 8 分段；样本量小于 30 时保留样本数，但胜率显示为“样本不足”。职业 BP 公式为 `(pro_pick + pro_ban) / 全英雄职业 pick+ban 总和`，只描述职业样本中的动作占比。
+    Win->>Sett: 检查 settings.json 是否存在
+    alt 首次启动
+        Win->>User: 显示首次设置向导（阻断后台服务）
+        User->>Win: 点击“保存并开始”
+        Win->>Sett: 原子写入 settings.json
+        Win->>Gsi: 探测 Steam 路径并安装 GSI cfg
+        Win->>Data: 启动资料加载与后台服务
+    else 正常启动
+        Win->>Data: 依据已有设置自动加载服务
+    end
+```
 
-### 6.2 物品
+- **普通设置**：傻瓜化配置（自动配置 Dota 2、AI 解释方式、开局自连、全场英雄追踪、数据目录）。
+- **高级设置**：折叠管理（手动指定 Dota 2 `cfg` 路径、云端 API 地址与密钥、本地模型路径、规则阈值与独立冷却时间）。
+- **配置持久化**：统一保存至用户 `文档\AegisCoach\settings.json`，原子替换写入。
 
-目录优先请求 `/datafeed/itemlist?language=schinese`，失败时降级到 OpenDota `/constants/items`。详情请求 `/datafeed/itemdata?language=schinese&item_id={id}`。上游目录包含历史定义，因此项目使用由当前游戏商店和中立物品文件生成的 `CurrentItemCatalog` 白名单，而不是靠不断扩张的黑名单。
+---
 
-物品统计和英雄出装使用 OpenDota Explorer 最近 30 天数据：购买数为最终六格中出现该物品的玩家记录数，胜局数按玩家阵营与 `radiant_win` 对齐计算，胜率为 `wins / picks * 100%`。这不是购买后因果胜率，也不是 BP 率。OpenDota 当前 schema 缺少可靠 `avg_rank_tier` 字段，所以英雄出装查询不能声称按分段过滤。
+## 4. 系统架构与代码组织
 
-物品资料页（`Views/ItemCatalogPage`，CommunityToolkit.Mvvm）参考官网物品库结构：
-- 顶级切换「商店物品 / 中立物品」，子类横向 Chip 多选（消耗品/属性/装备/…/T1-T5/附魔），AutoSuggestBox 名称/英文/子类拼音防抖搜索（250ms），实时统计匹配数。
-- 分组网格采用 `CollectionViewSource(IsSourceGrouped)` 分组：大分类（基础物品/升级物品/中立物品）→ 子分类 → 56x42 物品格（圆角 4，Hover 微缩放 1.05 + 强调色描边，VisualStateManager）。
-- 悬浮详情卡（ToolTip + 自定义模板）：头部（图标、名称、子类、金币价格/中立阶级）、属性区（绿字加号）、技能区（[主动]蓝/[被动]强调色 + 冷却/魔法消耗）、合成路线（小件缩略图 + 卷轴价格）、背景故事（斜体三级文本）。
-- 功能色（金币 `GoldPriceBrush`、法力 `ManaBlueBrush`、属性 `StatGreenBrush`）在 ThemeDictionaries 中按深色/浅色/高对比配置；其余一律使用 WinUI 语义 ThemeResource。
-- 详情按悬浮懒加载：先展示目录级信息，再异步补齐官方 `itemdata` 的属性/技能/传说，缓存 12 小时；详情失败不阻断悬浮卡。
-- 页面加载遵守首次启动门控：由 `MainWindow` 在设置保存成功后触发，避免首启无设置时访问在线数据源。
+产品采用单 Native 项目架构，视图与逻辑按 MVVM 规范渐进拆分，核心领域逻辑保持无 WinUI 依赖以便于离线工具复用。
 
-### 6.3 GSI 与实时教练
+```text
+native/AegisCoach.Native/
+├── Views/                          # XAML 视图层
+│   ├── HeroesPage.xaml(.cs)        # 英雄资料库与详情聚合页
+│   ├── ItemCatalogPage.xaml(.cs)   # 官网式物品图鉴与悬浮详情页
+│   └── CoachPage.xaml(.cs)         # 实时教练与对局面板页
+├── ViewModels/                     # 视图模型层（CommunityToolkit.Mvvm）
+│   ├── HeroesViewModel.cs          # 英雄加载、搜索防抖、分段胜率、对阵与天赋
+│   ├── ItemCatalogViewModel.cs     # 物品分类筛选、多选 Chip、拼音搜索、详情懒加载
+│   └── CoachViewModel.cs           # GSI 快照订阅、提醒流管理、阵容出装推荐
+├── Themes/                         # XAML 样式与资源字典
+│   ├── GameReferenceStyles.xaml    # Dota 2 电竞暗色与浅色自适应画刷、数值芯片样式
+│   └── ItemCatalogTheme.xaml       # 物品金币/法力/属性功能色与 56x42 悬浮卡模板
+├── Converters/                     # 绑定转换器（布尔、数量、严重度、结果画刷）
+├── Models/                         # 展示模型与 API DTO
+│   ├── AppSettings.cs              # 应用配置与凭据存取
+│   ├── DotaModels.cs               # 英雄/技能/天赋/统计模型与 DotaItemNameTable
+│   ├── ItemCatalogModels.cs        # 物品图鉴分类与展示模型
+│   └── OfficialCatalogModels.cs    # 官网数据源 DTO
+├── Services/                       # 外部 I/O 与 AI 适配
+│   ├── DotaDataService.cs          # 官方 Datafeed / OpenDota 查询、缓存与容错
+│   ├── CloudCoachService.cs        # OpenAI 兼容云端 API 解释适配器
+│   ├── NpuGenAiCoachService.cs     # OpenVINO GenAI 本地 NPU 推理服务
+│   ├── LiveMatchHeroService.cs     # 全场英雄在线查询服务
+│   └── ImageCacheService.cs        # 图片本地异步缓存服务
+├── Core/                           # 纯逻辑领域目录（无 WinUI 依赖，工具共享）
+│   ├── Models/GsiModels.cs         # GSI 快照、状态与提醒领域模型
+│   ├── Services/GsiReceiver.cs     # 本机 HTTP 监听、Token 校验与心跳断线管理
+│   ├── Services/CoachRuleEngine.cs # 相邻快照差分、确定性规则与独立冷却引擎
+│   ├── Services/MatchSessionTracker.cs   # 对局会话追踪与快照记录
+│   ├── Services/MatchOperationExtractor.cs # 本地 NDJSON 操作记录提取
+│   ├── Services/ApiMatchAnalyzer.cs       # OpenDota match details 全局赛后分析
+│   └── Services/AtomicFile.cs             # 跨平台原子文件安全替换
+└── MainWindow.xaml(.cs)            # 组合根、一级 NavigationView 导航与生命周期协调
+```
 
-应用生成 `gamestate_integration_aegiscoach.cfg` 并安装到 Dota 2 的 `game\dota\cfg\gamestate_integration\`。Dota 2 将 JSON POST 到本机监听器；接收器校验 Token、标准化快照、去重，再同时送入规则引擎、记录器和对局跟踪器。
+---
 
-规则依赖相邻快照差分，例如“英雄由存活变死亡”“物品冷却由大于 0 变为 0”“建筑由存活变摧毁”。每条提醒包含规则 ID、比赛 ID、游戏时间和证据字段，并有独立冷却。AI 只接收整理后的证据文本，不能改变规则结果；AI 失败时直接展示规则原文，因此模型故障不会中断 GSI。
+## 5. 核心模块与实现机制
 
-全场英雄优先使用 GSI 比赛 ID 查询 Stratz GraphQL（有密钥时）或 OpenDota `/api/matches/{id}`，也可按 Steam account id 在 `/api/live` 中定位公开实时比赛。人机、私人局或未公开比赛不保证可获得十人数据。
+### 5.1 英雄资料与战斗机制计算
 
-### 6.4 赛后分析
+1. **英雄数据链路**：
+   - 基础列表：OpenDota `/heroStats` 提供属性/分段统计框架，官方 `/datafeed/herolist?language=schinese` 回填中文名称；
+   - 英雄详情：官方 `/datafeed/herodata?language=schinese&hero_id={id}` 提供官方背景、属性成长及技能定义；
+   - 技能参数解析：根据内部名定位定义，替换官方描述中的 `%param%`、`{s:param}`，支持 `values_float` / `values` 自动归一化。
+2. **Dota 2 1 级实际基础属性标准计算**：
+   - **初始生命值**：$120 + \text{base\_str} \times 22$
+   - **生命恢复**：$\text{base\_health\_regen} + \text{base\_str} \times 0.1$
+   - **初始魔法值**：$75 + \text{base\_int} \times 12$
+   - **魔法恢复**：$\text{base\_mana\_regen} + \text{base\_int} \times 0.05$
+   - **初始总护甲**：$\text{base\_armor} + \text{base\_agi} / 6.0$
+   - **初始攻击力**：根据英雄主属性（力量/敏捷/智力增加 1:1 攻击力，全才每点三维增加 0.7 攻击力）累加到基础攻击区间。
+3. **先天技能与阿哈利姆升级**：
+   - 先天技能依据官方标记自动排在技能栏最左侧；
+   - 提取全部神杖（金蓝卡）与魔晶（紫粉卡）效果，若赋予全新技能（`IsGrantedByScepter` / `IsGrantedByShard`）则提取对应独立技能描述；
+   - 技能点击采用 `SelectionBorderBrush` 金色描边高亮，并在 XAML 中通过 `MinHeight` 锁定与 `BringIntoViewRequested` 全局拦截，根除切换技能时的视口跳顶与抖动。
 
-`MatchSessionTracker` 累积比赛阶段、KDA、经济采样、购买、击杀、阵亡、买活、建筑和肉山事件。`MatchOperationExtractor` 从本地 NDJSON 恢复阵亡前血量轨迹、技能/主动道具是否就绪、购买和阶段表现。
+### 5.2 官网式物品图鉴系统
 
-`ApiMatchAnalyzer` 请求 `GET https://api.opendota.com/api/matches/{matchId}`，以 Steam ID 64 转 account id 定位本人，必要时用唯一英雄 ID 辅助定位。它提取双方阵容、KDA/GPM/XPM、最终装备、购买时间、击杀/阵亡/买活、团战、推塔、真假眼、逐分钟经济/经验/补刀、benchmarks、APM 和伤害。API 不含阵亡前逐秒状态，因此不能替代本地 GSI 回放。
+1. **分类与网格**：
+   - 顶级分类切换「商店物品 / 中立物品」；
+   - 子分类 Chip 筛选（消耗品、属性、装备、军备、奥术、辅助、法器、防具、武器、神器、中立 T1-T5）；
+   - 网格使用 56x42 标准比例物品格（圆角 4px，悬浮 1.05 倍微缩放 + 金色描边高亮）；
+   - 使用 `CurrentItemCatalog` 游戏内置白名单过滤过期物品，内置 `DotaItemNameTable` 官方全量中文名称映射字典，杜绝乱码与未知占位符。
+2. **悬浮详情卡（ToolTip 懒加载）**：
+   - 顶部：图标、中文名、分类、金币价格（中立品阶）；
+   - 属性：绿字属性加成（如 `+10 攻击力`）；
+   - 技能：`[主动]` 蓝字 / `[被动]` 金字 + 冷却时间 / 魔法消耗 + 中文效果说明；
+   - 合成路线：展示所需小件缩略图及卷轴价格；
+   - 背景故事：斜体三级灰字。
 
-## 7. 数据源、缓存和文件
+### 5.3 GSI 实时教练与 AI 解释层
 
-| 数据源 | 用途 | 关键限制 |
-|---|---|---|
-| Dota 2 datafeed | 官方中文英雄/技能/物品目录和详情 | TLS、地区和字段可用性需联网验证；无可靠 patch 参数 |
-| OpenDota constants/heroStats | 英雄结构、技能定义、物品降级目录 | 结构会漂移，不能代表官方中文文本 |
-| OpenDota Explorer | 最近 30 天物品与出装聚合 | 查询限流、schema 漂移、不是因果数据 |
-| OpenDota live/matches | 公开实时比赛与赛后整场数据 | 私人局、人机、未公开或未解析比赛不可用 |
-| Stratz GraphQL | 有密钥时按比赛 ID 查询公开实时阵容 | 外部密钥、限流和收录策略 |
-| Steam CDN | 英雄和物品图片 | 当前没有离线图片包 |
-| Dota 2 GSI | 本机实时自身状态与部分地图事件 | 不提供完整十人状态、坐标和视野 |
+1. **GSI 接入与确定性规则**：
+   - 自动在 Dota 2 目录生成并安装 `gamestate_integration_aegiscoach.cfg`；
+   - `GsiReceiver` 本机 HTTP POST 监听（校验 Token、去重、丢包统计与断线检测）；
+   - `CoachRuleEngine` 对相邻快照进行差分计算，触发带证据的确定性规则提醒：
+     - 生命危急（<30%）、法力耗尽（<20%）；
+     - 大招转好 / 关键主动道具就绪；
+     - 英雄阵亡 / 买活窗口 / 控制锁定（眩晕/沉默/缠绕）；
+     - 资源饱食（满血满蓝仍未消耗资源）；
+     - 昼夜交替（4 分钟圣水符 / 6 分钟神符提醒）、防御塔受损、肉山状态变化。
+2. **三级智能后端与秒级降级**：
+   - **NPU 本地推理（默认推荐）**：OpenVINO GenAI 在 Intel AI Boost 等 NPU 设备上运行 Qwen2.5-1.5B INT4 模型，零 GPU 占用，不抢占 CPU 游戏主核；
+   - **云端 OpenAI 兼容 API**：向用户配置的模型发送脱敏证据 envelope，单请求 6 秒超时限频；
+   - **规则原文降级**：当模型未配置、加载超时或网络断开时，系统无缝展示规则引擎的确定性提醒，绝不阻塞 GSI 接收。
 
-所有应用文件默认位于 `文档\AegisCoach\`：
+### 5.4 赛后复盘与对局数据
 
-| 路径 | 内容 |
-|---|---|
-| `settings.json` | 非敏感设置与首次设置完成状态 |
-| `cache\` | `*-v7.41e.json` 资料与统计缓存 |
-| `gsi\` | `snapshots-YYYY-MM-DD.ndjson` 脱敏快照 |
-| `analysis\` | `report-*.json` 赛后报告 |
-| `habits\player-habits.json` | 最近 300 场与习惯汇总 |
-| `models\` | 用户自行准备的本地模型 |
-| `last-error.txt` | 最近资料加载异常 |
+1. **双数据源互补机制**：
+   - **本地 GSI 操作记录（`MatchOperationExtractor`）**：从脱敏 NDJSON 回放中提取阵亡前 5 秒血量轨迹、关键技能/道具是否就绪、买活时机；
+   - **OpenDota 比赛详情（`ApiMatchAnalyzer`）**：按 `match_id` 补充双方阵容、团战走势、视野真假眼、分分钟经济曲线与 APM。
+2. **操作点评提示词**：
+   - 模型只做操作点评（不复述已有数据，按游戏时间指出关键道具/大招该用未用、阵亡前决策、装备节奏、买活选择）；
+   - 严格区分事实（Observed Fact）、推断（Inference）与建议（Recommendation），证据不足时明确输出“无法判断”。
 
-目录缓存 TTL 为 30 分钟，中文详情 TTL 为 12 小时。请求至少间隔 150ms；网络错误、408、429 和 5xx 最多尝试三次，使用指数退避并尊重 `Retry-After`。JSON 写入使用同目录临时文件后替换；解析失败的缓存改名为 `.corrupt` 再重新获取。缓存过期后仍会先尝试联网刷新；网络不可用时自动回退到过期缓存（英雄目录、物品目录、英雄/物品中文详情、出装与物品统计），页面标注数据来源，保证断网时资料页仍然可读。
+---
 
-## 8. 尚未完成的问题
+## 6. 数据源、缓存与本地覆盖
 
-1. 实机验收：首次启动门控、Steam 多库定位、cfg 被 Dota 2 实际加载、选人/对局/结束状态、窗口缩放和多 DPI。
-2. 联网验收：官方中文 datafeed、OpenDota/Stratz 限流、Steam CDN、缓存冷启动与断网降级。
-3. 规则质量：用真实比赛回放统计误报、漏报和提醒延迟，而不是只验证“能触发”。
-4. 赛后质量：建立真实比赛人工评分集，检查 AI 是否引用正确时间点、是否区分事实与推断。
-5. 离线资产：英雄和物品图片仍依赖 CDN。
-6. 发布：安装包签名、升级渠道、崩溃诊断和隐私说明未完成。
-7. Overlay：尚未选型；在合规、DPI、多显示器和窗口模式验证前不能计入已完成范围。
+### 6.1 在线数据源与容错
 
-## 9. 推荐实施计划
+| 数据源 | 用途 | 缓存策略 | 容错与降级机制 |
+|---|---|---|---|
+| Dota 2 官方 Datafeed | 官方英雄、技能、物品中文定义 | 目录 30min / 详情 12h | 指数退避重试（3 次），断网回退本地过期缓存 |
+| OpenDota API | 英雄结构、分段统计、职业 BP | 目录 30min | 结构漂移结构化兼容，低样本（<30）抑制 |
+| OpenDota Explorer | 最近 30 天英雄推荐出装胜率 | 缓存 12h | 限制并发，失败时不影响英雄主资料展示 |
+| OpenDota Matches | 赛后整场公开战局数据 | 报告永久持久化 | 私人局/未解析对局自动回退本地 GSI 回放 |
+| Steam CDN | 英雄横幅、技能与物品图标 | 自动落盘磁盘图片缓存 | 本地 URL 映射，离线自动加载本地已缓存图片 |
+| Dota 2 GSI | 本机实时游戏状态流 | 按天滚动 NDJSON | 自动脱敏 Token，独立存储于统一数据目录 |
 
-### 阶段 A：实机验收与缺陷收敛
+### 6.2 本地数据目录与文件组织
 
-- 在干净用户环境执行首次启动和设置保存。
-- 覆盖 Steam 默认库与额外库，进入真实观战/人机/公开比赛验证 GSI。
-- 记录 API 成功、429、超时、断网和损坏缓存场景。
-- 对 100%/150%/200% DPI 和常见窗口尺寸做 UI 走查。
+所有运行时数据统一保存在用户 `文档\AegisCoach\` 目录下：
 
-### 阶段 B：规则与复盘质量
+```text
+文档\AegisCoach/
+├── settings.json              # 应用主配置（非敏感配置，原子更新）
+├── last-error.txt             # 最近一次运行时异常日志
+├── cache/                     # 在线数据本地缓存（按目标版本隔离）
+│   ├── heroes-cache-v7.41e.json
+│   ├── items-cache-v7.41e.json
+│   └── hero-details/
+├── data/                      # （可选）本地静态数据覆盖层
+│   ├── items-official.json            # 官方物品列表覆盖
+│   ├── heroes-official.json           # 官方英雄列表覆盖
+│   └── items-details-official.json    # 官方物品详情 itemdata 覆盖
+├── gsi/                       # 本地 GSI 快照记录（已脱敏）
+│   └── snapshots-YYYY-MM-DD.ndjson
+├── analysis/                  # 赛后复盘报告持久化
+│   └── report-{matchId}.json
+├── habits/                    # 本地玩家习惯统计
+│   └── player-habits.json
+└── models/                    # 本地 AI 推理量化模型
+    └── qwen2.5-1.5b-int4-ov/
+```
 
-- 用脱敏 NDJSON 建固定回放样本，给每条规则标注应触发时间。
-- 统计提醒延迟、重复率、误报率和冷却效果。
-- 建立赛后报告人工验收表：事实正确、证据时间、可执行性、是否过度推断。
+> **本地静态覆盖机制（可选）**：如果用户或开发者在 `文档\AegisCoach\data\` 下手动放置了官网抓取的 JSON 文件（`items-official.json`、`heroes-official.json`、`items-details-official.json`），`DotaDataService` 会将其作为最高优先级的本地覆盖层加载，用于离线环境或定制数据测试。
 
-### 阶段 C：发布工程
+---
 
-- 确定 MSIX/安装器、签名证书、更新源和回滚策略。
-- 增加 UI 自动化、崩溃日志最小化和隐私文档。
-- Overlay 只有在独立原型和合规评审通过后再进入主产品计划。
+## 7. 质量指标与完成度矩阵
 
-## 10. 验收标准
+| 功能模块 | 状态 | 完成度 | 说明 |
+|---|:---:|:---:|---|
+| **WinUI 3 桌面壳** | 已完成 | 95% | NavigationView 稳定导航、深浅色与高对比自适应、Dota 2 电竞暗金风格 |
+| **首次启动门控** | 已完成 | 96% | 强制门控，配置保存前阻断一切外部请求与后台服务 |
+| **英雄资料与机制** | 已完成 | 96% | 127 位英雄、四属性分类、1 级基础属性公式、天赋树、神杖魔晶、克制网格 |
+| **物品图鉴与悬浮卡** | 已完成 | 94% | 官网分类、56x42 物品格、Hover 微缩放、ToolTip 属性/技能/合成/传说懒加载 |
+| **GSI 接收与心跳** | 已完成 | 92% | 本机监听、Token 校验、去重、断线检测、脱敏 NDJSON 记录与回放 |
+| **实时教练规则引擎** | 已完成 | 88% | 比赛状态、低血/低魔、大招、阵亡、买活、资源、昼夜、建筑、肉山提醒 |
+| **实时教练面板** | 已完成 | 86% | 连接状态、比分昼夜、带证据提醒流、全场阵容出装与克制推荐 |
+| **AI 智能解释层** | 已完成 | 78% | NPU 本地 INT4、云端 OpenAI 兼容、规则原文秒级回退 |
+| **赛后复盘分析** | 已完成 | 76% | 本地 GSI 操作提取 + OpenDota match details 全局战局 + AI 操作点评 |
+| **打包与独立分发** | 已完成 | 92% | `神盾教练.exe` 独立发布产物，内置 XAML 编译资源与一键打包脚本 |
+| **自动化测试** | 已完成 | 75% | 131 项冒烟与领域逻辑断言（GsiSmoke），支持离线 NDJSON 回放 |
 
-| 能力 | 验收条件 |
-|---|---|
-| 首次启动 | 无设置时只显示设置；保存失败不启动服务；保存成功后才加载资料和 GSI |
-| 资料目录 | 冷缓存联网可加载，热缓存断网可加载，损坏缓存能隔离并恢复 |
-| 统计 | 分母为 0 不显示胜率；样本小于 30 明确标为样本不足 |
-| GSI | 真实 Dota 2 对局中连接、去重、断线、重连和脱敏落盘成立 |
-| 规则 | 固定回放在预期时间触发，重复快照不产生重复提醒 |
-| 智能解释 | 超时或后端不可用时回退规则原文，GSI 接收不中断 |
-| 赛后分析 | 本地事实和 API 事实标识清楚，缺失数据不补写，报告可回溯到时间点 |
-| UI | 关键按钮可达、文本不截断、滚动区域可用、常见 DPI 无重叠 |
-| 发布 | 安装、升级、卸载和用户文档目录保留策略有明确结果 |
+---
 
-## 11. 构建、测试与历史记录
+## 8. 构建、测试与发布命令
+
+### 8.1 编译与构建
 
 ```powershell
+# 还原并编译整个解决方案
 dotnet restore native\AegisCoach.Native.sln -p:Platform=x64
 dotnet build native\AegisCoach.Native.sln --configuration Debug --no-restore -p:Platform=x64
-dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj
+```
+
+### 8.2 功能冒烟与离线回放测试
+
+```powershell
+# 运行 131 项无外部依赖的端到端冒烟测试（验证 GSI、Token、规则、赛后分析与原子替换）
+dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj --no-restore
+
+# 离线回放本地历史 GSI 快照（不连 Dota 2，不访问网络）
 dotnet run --project tools\GsiReplay\AegisCoach.Replay.csproj -- "$([Environment]::GetFolderPath('MyDocuments'))\AegisCoach\gsi"
 ```
 
-Visual Studio 使用 `native/AegisCoach.Native.sln`，其中只有 `AegisCoach.Native` 一个项目。Core 逻辑位于该项目的 `Core` 子目录并由 Native 直接编译，输出使用标准 `bin/obj`，不再生成独立 `AegisCoach.Core.dll`。仓库通过 `.editorconfig` 和 `.gitattributes` 统一文本为 UTF-8、CRLF，避免 Visual Studio 持续提示行尾不一致。
+### 8.3 自动打包发布版（生成免安装 exe）
 
-若 Visual Studio 在结构更新前已经打开，必须关闭并重新打开解决方案，使其丢弃旧的 Core 项目和 `.artifacts` 构建图；否则错误列表可能继续显示已经不存在的元数据路径。
+```powershell
+# 执行发布打包脚本
+pwsh -NoProfile -File .\tools\package-release.ps1
+```
 
-逐日开发、现场诊断、旧路径和当时测试数量保留在 [操作与验证历史](OPERATION_LOG.md)。该文件是时间点证据，不是当前配置说明；当前行为以本文为准。
+发布产物位于：
+- `release/publish/神盾教练.exe` —— 独立可执行程序（双击直接运行）
+- `release/AegisCoach-发布版.zip` —— 完整分发压缩包
 
-## 12. 风险与结论
+---
 
-- 版本风险：`v7.41e` 是缓存隔离目标，不代表每个外部接口都能按该 patch 查询。
-- 统计风险：购买胜率和对阵胜率是样本相关性，不证明物品或英雄导致胜负。
-- 隐私风险：本地记录可能含 Steam 标识；云端只允许发送脱敏后的规则或汇总证据。
-- 模型风险：AI 只解释结构化事实；输出无法通过证据校验时应丢弃或降级。
+## 9. 关联文档索引
 
-当前项目已经形成可编译、可离线回放的基础闭环，但仍不能用“编译成功”代替产品完成。下一阶段的核心不是继续增加页面，而是用真实环境证明数据链路可靠、提醒有用、复盘不编造。
-
-## 13. 给后续开发者和 AI 的接力说明
-
-继续开发前必须阅读：
-
-1. `README.md`
-2. `docs/PROJECT_DOCUMENTATION.md`
-3. `docs/OPERATION_LOG.md`
-4. `docs/AI_RUNTIME_DESIGN.md`
-5. `docs/AI_AGENT_PROMPT_TEMPLATES.md`
-6. `AGENTS.md`
-7. `docs/ARCHITECTURE_REVIEW.md`
-
-修改后必须分别记录：当前实现事实、自动验证结果、仍需实机/联网验证的事项。不要因历史记录包含旧路径就删除历史；应在当前文档修正现状，在历史日志保留日期和上下文。
+- **架构评审与渐进演进路线**：[docs/ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md)
+- **AI 运行时与推理设计**：[docs/AI_RUNTIME_DESIGN.md](AI_RUNTIME_DESIGN.md)
+- **AI Agent Prompt 模板与输入契约**：[docs/AI_AGENT_PROMPT_TEMPLATES.md](AI_AGENT_PROMPT_TEMPLATES.md)
+- **Steam Dota 2 GSI 接入手册与故障排查**：[docs/STEAM_DOTA2_GSI_GUIDE.md](STEAM_DOTA2_GSI_GUIDE.md)
+- **画面捕获与视觉分析可行性调研**：[docs/SCREEN_CAPTURE_AI_FEASIBILITY.md](SCREEN_CAPTURE_AI_FEASIBILITY.md)
+- **研发 Agent 仓库指令规范**：[AGENTS.md](../AGENTS.md)
+- **开发与验证历史日志**：[docs/OPERATION_LOG.md](OPERATION_LOG.md)

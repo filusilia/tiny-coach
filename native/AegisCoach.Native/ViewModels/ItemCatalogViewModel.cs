@@ -126,11 +126,19 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
     /// <summary>悬浮卡打开时异步补齐官方详情；失败时保留目录级信息。</summary>
     public async Task EnsureDetailsLoadedAsync(CatalogItem item)
     {
-        if (item.DetailsLoaded) return;
+        if (item.DetailsLoaded)
+        {
+            PopulateBuildsInto(item);
+            return;
+        }
         try
         {
             var detail = await GetDetailAsync(item.OriginalId);
-            if (item.DetailsLoaded) return;
+            if (item.DetailsLoaded)
+            {
+                PopulateBuildsInto(item);
+                return;
+            }
             ApplyDetails(item, detail);
         }
         catch (OperationCanceledException)
@@ -139,6 +147,7 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
         catch (Exception)
         {
             // 详情失败不阻断悬浮卡展示目录级信息。
+            PopulateBuildsInto(item);
         }
     }
 
@@ -173,9 +182,9 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 应用官网详情：属性区优先使用官网 attrib 行（"+攻击力：9" 最终文本），
+    /// 应用官网详情：属性区优先使用官网 attrib 行（"+ 10 力量" 最终文本），
     /// 技能区按 desc 的 &lt;h1&gt;主动/被动/使用…&lt;/h1&gt; 分段，冷却/魔耗用官网 cd/mc，
-    /// 价格与背景故事同步补齐。
+    /// 价格、注意事项与背景故事同步补齐。
     /// </summary>
     private void ApplyDetails(CatalogItem item, OfficialItemData detail)
     {
@@ -188,28 +197,20 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             ApplyOfficialRecipe(item, detail.Requirements);
         }
 
-        if (detail.AttribLines.Count > 0)
+        item.Stats.Clear();
+        foreach (var stat in ExtractItemStats(detail))
         {
-            foreach (var line in detail.AttribLines)
-            {
-                item.Stats.Add(new ItemStat { Label = line });
-            }
-        }
-        else
-        {
-            foreach (var stat in AbilityDisplay.BuildStats(specials, null))
-            {
-                item.Stats.Add(new ItemStat { Label = stat.Label, Value = stat.Value });
-            }
+            item.Stats.Add(stat);
         }
 
         var cooldown = Series(detail.Cooldowns);
         var manaCost = Series(detail.ManaCosts);
 
+        item.Abilities.Clear();
         var abilities = ParseOfficialDescription(detail.Description);
         if (abilities.Count == 0)
         {
-            var description = CleanText(detail.Description ?? string.Empty);
+            var description = AbilityDisplay.Clean(detail.Description ?? string.Empty) ?? string.Empty;
             if (LocalizedText.ContainsChinese(description))
             {
                 description = AbilityDisplay.ResolveParameters(description, specials, null);
@@ -220,22 +221,44 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             }
 
             var isActive = detail.Cooldowns.Any(value => value > 0) || detail.ManaCosts.Any(value => value > 0);
-            abilities.Add(new ItemAbility
+            if (!string.IsNullOrWhiteSpace(description) || isActive)
             {
-                Type = isActive ? AbilityType.Active : AbilityType.Passive,
-                Name = item.Name,
-                Description = description,
-            });
+                abilities.Add(new ItemAbility
+                {
+                    Type = isActive ? AbilityType.Active : AbilityType.Passive,
+                    Name = string.Empty,
+                    Description = description,
+                });
+            }
         }
 
         foreach (var ability in abilities)
         {
+            if (!string.IsNullOrWhiteSpace(ability.Description))
+            {
+                ability.Description = AbilityDisplay.ResolveParameters(ability.Description, specials, null);
+            }
             ability.Cooldown ??= cooldown;
             ability.ManaCost ??= manaCost;
             item.Abilities.Add(ability);
         }
 
-        var lore = CleanText(detail.Lore ?? string.Empty);
+        // 注意事项（Notes）
+        item.Notes.Clear();
+        if (detail.Notes.Count > 0)
+        {
+            foreach (var rawNote in detail.Notes)
+            {
+                var cleaned = AbilityDisplay.Clean(rawNote);
+                if (!string.IsNullOrWhiteSpace(cleaned))
+                {
+                    var resolved = AbilityDisplay.ResolveParameters(cleaned, specials, null);
+                    item.Notes.Add(resolved);
+                }
+            }
+        }
+
+        var lore = AbilityDisplay.Clean(detail.Lore ?? string.Empty);
         item.Lore = LocalizedText.ChineseOrNull(lore);
 
         // 官网详情提供的价格优先于目录数据（OpenDota 降级目录价格可能缺失）。
@@ -244,7 +267,36 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             item.Price = detail.Cost;
         }
 
+        PopulateBuildsInto(item);
         item.NotifyDisplayStateChanged();
+    }
+
+    /// <summary>计算当前物品可以用于合成哪些高级装备（进阶合成）。</summary>
+    private void PopulateBuildsInto(CatalogItem item)
+    {
+        if (item.BuildsIntoCards.Count > 0) return;
+        var cleanId = item.Id.StartsWith("item_", StringComparison.OrdinalIgnoreCase) ? item.Id[5..] : item.Id;
+        var targets = _allItems
+            .Where(candidate => candidate.Components.Any(c =>
+            {
+                var targetClean = c.StartsWith("item_", StringComparison.OrdinalIgnoreCase) ? c[5..] : c;
+                return string.Equals(c, item.Id, StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(targetClean, cleanId, StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals("item_" + targetClean, item.Id, StringComparison.OrdinalIgnoreCase);
+            }))
+            .OrderBy(candidate => candidate.Price ?? int.MaxValue)
+            .ToList();
+
+        foreach (var target in targets)
+        {
+            item.BuildsIntoCards.Add(new ItemComponentCard
+            {
+                Id = target.Id,
+                Name = target.Name,
+                ImageUrl = target.IconUrl,
+                Cost = target.Price ?? 0,
+            });
+        }
     }
 
     /// <summary>
@@ -273,14 +325,24 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             item.Components.Add(componentName);
             var source = _sourceItems.FirstOrDefault(candidate =>
                 string.Equals(candidate.Name, componentName, StringComparison.OrdinalIgnoreCase));
-            if (source is null) continue;
+            var cleanName = componentName.StartsWith("item_", StringComparison.OrdinalIgnoreCase) ? componentName[5..] : componentName;
+            var fallback = _allItems.FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, componentName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(candidate.Id.Replace("item_", string.Empty), cleanName, StringComparison.OrdinalIgnoreCase));
+
+            var displayName = source?.LocalizedName ?? fallback?.Name ?? componentName;
+            var imageUrl = source is not null ? ImageCacheService.Instance.ResolveText(source.ImageUrl) : (fallback?.IconUrl ?? string.Empty);
+            var cost = source?.Cost ?? fallback?.Price ?? 0;
+
             item.ComponentCards.Add(new ItemComponentCard
             {
-                Name = source.Name,
-                ImageUrl = ImageCacheService.Instance.ResolveText(source.ImageUrl),
+                Id = componentName,
+                Name = LocalizedText.ChineseOr(displayName, componentName),
+                ImageUrl = imageUrl,
                 CountText = count > 1 ? $"x{count}" : string.Empty,
+                Cost = cost,
             });
-            recipeCost += source.Cost * count;
+            recipeCost += cost * count;
         }
 
         // 卷轴价格 = 总价（官网详情已更新）- 各小件价格之和。
@@ -332,7 +394,7 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
         }
         else
         {
-            typePart = header;
+            typePart = header.Trim();
             name = string.Empty;
         }
 
@@ -346,7 +408,128 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             _ when typePart.Contains("被动", StringComparison.OrdinalIgnoreCase) => AbilityType.Passive,
             _ => AbilityType.Active,
         };
+
+        // 如果 name 等同于 typePart（如 "主动" / "被动" / "使用" / "切换"），则将其清空，避免在 UI 上重复显示 "[ 主动 ] 主动"
+        if (string.Equals(name, typePart, StringComparison.OrdinalIgnoreCase) ||
+            name is "主动" or "被动" or "使用" or "切换")
+        {
+            name = string.Empty;
+        }
+
         return (type, name);
+    }
+
+    /// <summary>
+    /// 从官网详情数据中提取真正的装备属性加成（绿字加号属性），
+    /// 严格过滤掉技能内部参数（如持续时间、作用范围、伤害参数、小兵伤害等）。
+    /// </summary>
+    private static List<ItemStat> ExtractItemStats(OfficialItemData detail)
+    {
+        var stats = new List<ItemStat>();
+
+        // 1. 官网详情已有的 attrib 文本行（例如 "+10 力量"、"+25 攻击力"）权威优先
+        if (detail.AttribLines.Count > 0)
+        {
+            foreach (var line in detail.AttribLines)
+            {
+                var cleaned = AbilityDisplay.Clean(line);
+                if (!string.IsNullOrWhiteSpace(cleaned))
+                {
+                    stats.Add(new ItemStat { Label = cleaned });
+                }
+            }
+            if (stats.Count > 0) return stats;
+        }
+
+        // 2. 从 special_values 中精准提取常驻被动属性加成
+        var specials = detail.SpecialValues;
+        if (specials is null || specials.Count == 0) return stats;
+
+        foreach (var value in specials)
+        {
+            if (value.EffectiveValues.Count == 0) continue;
+            var rawName = value.Name?.Trim().ToLowerInvariant() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(rawName)) continue;
+
+            // 排除明确属于技能效果/机制的内部参数
+            if (IsNonStatSpecialValue(rawName)) continue;
+
+            // 识别标准装备属性加成
+            var (isStat, label, isPct) = ClassifyItemStat(rawName, value.HeadingLoc);
+            if (!isStat || string.IsNullOrWhiteSpace(label)) continue;
+
+            var isPercentage = isPct || value.IsPercentage;
+            var suffix = isPercentage ? "%" : string.Empty;
+            var formattedValue = string.Join(" / ", value.EffectiveValues.Select(v => $"{v:0.##}{suffix}"));
+
+            stats.Add(new ItemStat
+            {
+                Label = label,
+                Value = formattedValue,
+            });
+        }
+
+        return stats;
+    }
+
+    private static bool IsNonStatSpecialValue(string name)
+    {
+        if (name.StartsWith("ability", StringComparison.OrdinalIgnoreCase)) return true;
+        if (name.Contains("radius") || name.Contains("duration") || name.Contains("cooldown") || name.Contains("mana_cost")) return true;
+        if (name.Contains("chance") || name.Contains("cleave") || name.Contains("burn") || name.Contains("stun")) return true;
+        if (name.Contains("quell") || name.Contains("replenish") || name.Contains("charges") || name.Contains("fade")) return true;
+        if (name.Contains("range_tooltip") || name.Contains("active_") || name.Contains("aura_") || name.Contains("windwalk")) return true;
+        if (name.Contains("multiplier") || name.Contains("interval") || name.Contains("distance") || name.Contains("count") || name.Contains("targets")) return true;
+        if (name.Contains("visibility") || name.Contains("backstab") || name.Contains("crit_") || name.Contains("feedback") || name.Contains("bash")) return true;
+        if (name.Contains("damage_") || name.Contains("_damage") && !name.Equals("bonus_damage") && !name.Equals("attack_damage")) return true;
+        if (name.Contains("slow_") || name.Contains("_slow") && !name.Equals("bonus_slow_resistance") && !name.Equals("slow_resistance")) return true;
+        if (name.Equals("damage", StringComparison.OrdinalIgnoreCase) || name.Equals("dps", StringComparison.OrdinalIgnoreCase) || name.Equals("heal", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    private static (bool IsStat, string Label, bool IsPercentage) ClassifyItemStat(string name, string? headingLoc)
+    {
+        // 优先从 heading_loc 提取（如 +$str -> 力量）
+        if (!string.IsNullOrWhiteSpace(headingLoc))
+        {
+            var cleanedHeading = AbilityDisplay.CleanStatHeading(headingLoc);
+            if (!string.IsNullOrWhiteSpace(cleanedHeading) && !cleanedHeading.Equals("属性", StringComparison.OrdinalIgnoreCase))
+            {
+                return (true, cleanedHeading, headingLoc.Contains('%'));
+            }
+        }
+
+        var normalized = name;
+        if (normalized.StartsWith("bonus_")) normalized = normalized[6..];
+
+        return normalized switch
+        {
+            "strength" or "str" => (true, "力量", false),
+            "agility" or "agi" => (true, "敏捷", false),
+            "intellect" or "intelligence" or "int" => (true, "智力", false),
+            "all_stats" or "stats" => (true, "全属性", false),
+            "health" or "hp" => (true, "生命值", false),
+            "mana" or "mp" => (true, "魔法值", false),
+            "health_regen" or "hp_regen" => (true, "生命恢复", false),
+            "mana_regen" or "mp_regen" => (true, "魔法恢复", false),
+            "mana_regen_percentage" => (true, "魔法恢复增强", true),
+            "armor" or "physical_armor" => (true, "护甲", false),
+            "magic_resistance" or "magic_resist" or "magical_armor" => (true, "魔法抗性", true),
+            "status_resistance" or "status_resist" => (true, "状态抗性", true),
+            "damage" or "attack_damage" when name.StartsWith("bonus_") || name.Equals("attack_damage") => (true, "攻击力", false),
+            "attack_speed" => (true, "攻击速度", false),
+            "movement" or "movement_speed" or "move_speed" or "movespeed" => (true, "移动速度", false),
+            "attack_range" => (true, "攻击距离", false),
+            "cast_range" => (true, "施法距离", false),
+            "spell_amp" or "spell_amplification" => (true, "技能增强", true),
+            "evasion" => (true, "闪避", true),
+            "lifesteal" => (true, "攻击吸血", true),
+            "spell_lifesteal" => (true, "技能吸血", true),
+            "cooldown_reduction" => (true, "冷却缩减", true),
+            "vision" or "night_vision" or "day_vision" => (true, "视野", false),
+            "slow_resistance" => (true, "减速抗性", true),
+            _ => (false, string.Empty, false)
+        };
     }
 
     private CatalogItem ToCatalogItem(OfficialItemSummary summary)
@@ -385,16 +568,22 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
         var recipeCost = 0;
         foreach (var component in summary.RecipeComponents)
         {
+            if (component.Name.StartsWith("item_recipe_", StringComparison.OrdinalIgnoreCase)) continue; // 卷轴单独算价
             item.Components.Add(component.Name);
+            var source = _sourceItems.FirstOrDefault(candidate =>
+                string.Equals(candidate.Name, component.Name, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(candidate.Name.Replace("item_", string.Empty), component.Name.Replace("item_", string.Empty), StringComparison.OrdinalIgnoreCase));
+            var cost = source?.Cost ?? 0;
+            var imageUrl = source is not null ? ImageCacheService.Instance.ResolveText(source.ImageUrl) : ImageCacheService.Instance.ResolveText(OfficialItemSummary.ImageUrlFor(component.Name));
             item.ComponentCards.Add(new ItemComponentCard
             {
-                Name = component.DisplayName,
-                ImageUrl = component.ImageUrl,
+                Id = component.Name,
+                Name = source is not null ? LocalizedText.ChineseOr(source.LocalizedName, component.DisplayName) : component.DisplayName,
+                ImageUrl = imageUrl,
                 CountText = component.Count > 1 ? $"x{component.Count}" : string.Empty,
+                Cost = cost,
             });
-            var source = _sourceItems.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, component.Name, StringComparison.OrdinalIgnoreCase));
-            if (source is not null) recipeCost += source.Cost * component.Count;
+            recipeCost += cost * component.Count;
         }
 
         // 合成卷轴价格 = 总价 - 各小件价格之和（小件缺失时不计）。
@@ -534,12 +723,9 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             : null;
     }
 
-    [GeneratedRegex("<[^>]+>")]
-    private static partial Regex HtmlTagRegex();
-
     [GeneratedRegex("<h1[^>]*>(.*?)</h1>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex AbilityHeaderRegex();
 
     private static string CleanText(string value) =>
-        HtmlTagRegex().Replace(value.Replace("<br>", "\n"), string.Empty).Trim();
+        AbilityDisplay.Clean(value) ?? string.Empty;
 }

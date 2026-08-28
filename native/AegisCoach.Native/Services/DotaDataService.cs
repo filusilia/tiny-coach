@@ -52,6 +52,26 @@ public sealed partial class DotaDataService
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("AegisCoach/0.1 Windows");
     }
 
+    private static string AppAssetPath(string relativePath) =>
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+    private static async Task<T?> ReadAppAssetAsync<T>(string relativePath, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var path = AppAssetPath(relativePath);
+            if (File.Exists(path))
+            {
+                using var stream = File.OpenRead(path);
+                return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
+            }
+        }
+        catch
+        {
+        }
+        return default;
+    }
+
     public async Task<DotaCatalog> LoadCatalogAsync(bool force, CancellationToken cancellationToken)
     {
         var cachePath = CachePath("catalog");
@@ -60,78 +80,141 @@ public sealed partial class DotaDataService
             var cached = await ReadFileAsync<DotaCatalog>(cachePath, cancellationToken);
             if (cached is not null)
             {
-                // 技能/天赋定义先读本地持久化缓存（离线也能拿到天赋数值），再尝试联网刷新。
                 cached.HeroAbilities = await ReadFileAsync<Dictionary<string, HeroAbilityMap>>(
                     HeroAbilitiesCachePath, cancellationToken) ?? [];
                 cached.Abilities = await ReadFileAsync<Dictionary<string, AbilityDefinition>>(
                     AbilitiesCachePath, cancellationToken) ?? [];
-                try
-                {
-                    var cachedOfficialHeroesTask = TryGetDotaFeedAsync<HeroListData>("/herolist?language=schinese", cancellationToken);
-                    var freshHeroAbilitiesTask = RefreshAbilitiesCacheAsync(cancellationToken);
-                    await Task.WhenAll(cachedOfficialHeroesTask, freshHeroAbilitiesTask);
-                    if (freshHeroAbilitiesTask.Result)
-                    {
-                        cached.HeroAbilities = await ReadFileAsync<Dictionary<string, HeroAbilityMap>>(
-                            HeroAbilitiesCachePath, cancellationToken) ?? cached.HeroAbilities;
-                        cached.Abilities = await ReadFileAsync<Dictionary<string, AbilityDefinition>>(
-                            AbilitiesCachePath, cancellationToken) ?? cached.Abilities;
-                    }
-
-                    var cachedNames = cachedOfficialHeroesTask.Result?.Heroes
-                        .Where(hero => hero.Id > 0 && !string.IsNullOrWhiteSpace(hero.LocalizedName))
-                        .ToDictionary(hero => hero.Id, hero => hero.LocalizedName) ?? [];
-                    foreach (var hero in cached.Heroes)
-                    {
-                        if (string.IsNullOrWhiteSpace(hero.EnglishName) || LocalizedText.ContainsChinese(hero.EnglishName))
-                        {
-                            hero.EnglishName = hero.LocalizedName;
-                        }
-                        if (cachedNames.TryGetValue(hero.Id, out var localizedName)) hero.LocalizedName = localizedName;
-                    }
-                    cached.Heroes = cached.Heroes.OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture).ToList();
-                }
-                catch
-                {
-                    // Cached hero stats remain useful when optional ability data is unavailable.
-                }
-
                 ApplyOfficialHeroOverrides(cached.Heroes);
                 return cached;
             }
         }
 
-        try
-        {
-            var heroesTask = GetOpenDotaAsync<List<HeroStat>>("/heroStats", cancellationToken);
-            var heroAbilitiesTask = GetOpenDotaAsync<Dictionary<string, HeroAbilityMap>>("/constants/hero_abilities", cancellationToken);
-            var abilitiesTask = GetOpenDotaAsync<Dictionary<string, AbilityDefinition>>("/constants/abilities", cancellationToken);
-            var officialHeroesTask = TryGetDotaFeedAsync<HeroListData>("/herolist?language=schinese", cancellationToken);
+        // 优先加载内置官方离线数据集（0 毫秒离线秒开）
+        var embeddedStats = await ReadAppAssetAsync<List<HeroStat>>("Assets/Data/herostats.json", cancellationToken);
+        var embeddedList = await ReadAppAssetAsync<HeroListData>("Assets/Data/herolist.json", cancellationToken);
+        var embeddedHeroAbilities = await ReadAppAssetAsync<Dictionary<string, HeroAbilityMap>>("Assets/Data/hero_abilities.json", cancellationToken) ?? [];
+        var embeddedAbilities = await ReadAppAssetAsync<Dictionary<string, AbilityDefinition>>("Assets/Data/abilities.json", cancellationToken) ?? [];
 
-            await Task.WhenAll(heroesTask, heroAbilitiesTask, abilitiesTask, officialHeroesTask);
-            var localizedNames = officialHeroesTask.Result?.Heroes.ToDictionary(hero => hero.Id, hero => hero.LocalizedName)
-                ?? new Dictionary<int, string>();
+        if (!force && embeddedStats is { Count: > 0 })
+        {
+            var localizedNames = embeddedList?.Heroes?.ToDictionary(hero => hero.Id, hero => hero.LocalizedName) ?? [];
+            var heroList = embeddedStats
+                .Select(hero =>
+                {
+                    hero.EnglishName = hero.LocalizedName;
+                    var cn = localizedNames.GetValueOrDefault(hero.Id, string.Empty);
+                    hero.LocalizedName = DotaHeroNames.GetChineseName(hero.Id, !string.IsNullOrWhiteSpace(cn) ? cn : hero.LocalizedName);
+                    return hero;
+                })
+                .OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture)
+                .ToList();
 
             var catalog = new DotaCatalog
             {
-                Heroes = heroesTask.Result
+                Heroes = heroList,
+                HeroAbilities = embeddedHeroAbilities,
+                Abilities = embeddedAbilities,
+            };
+            ApplyOfficialHeroOverrides(catalog.Heroes);
+            CatalogSourceNote = "内置官方离线资料库 · 秒开";
+            return catalog;
+        }
+
+        try
+        {
+            // 官方中文英雄列表为第一权威与兜底数据源（国内直连稳定秒开）
+            var officialHeroesData = await TryGetDotaFeedAsync<HeroListData>("/herolist?language=schinese", cancellationToken);
+            var officialHeroes = officialHeroesData?.Heroes ?? [];
+
+            // OpenDota 统计与技能映射作为可选增强项（海外接口，超时失败时优雅降级）
+            List<HeroStat>? openDotaHeroes = null;
+            Dictionary<string, HeroAbilityMap> heroAbilities = [];
+            Dictionary<string, AbilityDefinition> abilities = [];
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(4)); // 4秒超时，防止 OpenDota 慢阻断
+
+                var heroesTask = GetOpenDotaAsync<List<HeroStat>>("/heroStats", cts.Token);
+                var heroAbilitiesTask = GetOpenDotaAsync<Dictionary<string, HeroAbilityMap>>("/constants/hero_abilities", cts.Token);
+                var abilitiesTask = GetOpenDotaAsync<Dictionary<string, AbilityDefinition>>("/constants/abilities", cts.Token);
+
+                await Task.WhenAll(heroesTask, heroAbilitiesTask, abilitiesTask);
+                openDotaHeroes = heroesTask.Result;
+                heroAbilities = heroAbilitiesTask.Result ?? [];
+                abilities = abilitiesTask.Result ?? [];
+            }
+            catch
+            {
+                // OpenDota 不可用时使用内置/缓存能力
+                heroAbilities = (await ReadFileAsync<Dictionary<string, HeroAbilityMap>>(HeroAbilitiesCachePath, cancellationToken))
+                    ?? embeddedHeroAbilities;
+                abilities = (await ReadFileAsync<Dictionary<string, AbilityDefinition>>(AbilitiesCachePath, cancellationToken))
+                    ?? embeddedAbilities;
+            }
+
+            var localizedNames = officialHeroes.ToDictionary(hero => hero.Id, hero => hero.LocalizedName);
+            List<HeroStat> heroList;
+
+            if (openDotaHeroes is { Count: > 0 })
+            {
+                heroList = openDotaHeroes
                     .Select(hero =>
                     {
                         hero.EnglishName = hero.LocalizedName;
-                        hero.LocalizedName = localizedNames.GetValueOrDefault(hero.Id, hero.LocalizedName);
+                        var cn = localizedNames.GetValueOrDefault(hero.Id, string.Empty);
+                        hero.LocalizedName = DotaHeroNames.GetChineseName(hero.Id, !string.IsNullOrWhiteSpace(cn) ? cn : hero.LocalizedName);
                         return hero;
                     })
                     .OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture)
-                    .ToList(),
-                HeroAbilities = heroAbilitiesTask.Result,
-                Abilities = abilitiesTask.Result,
+                    .ToList();
+                CatalogSourceNote = "官方中文数据 + OpenDota";
+            }
+            else if (embeddedStats is { Count: > 0 })
+            {
+                heroList = embeddedStats
+                    .Select(hero =>
+                    {
+                        hero.EnglishName = hero.LocalizedName;
+                        var cn = localizedNames.GetValueOrDefault(hero.Id, string.Empty);
+                        hero.LocalizedName = DotaHeroNames.GetChineseName(hero.Id, !string.IsNullOrWhiteSpace(cn) ? cn : hero.LocalizedName);
+                        return hero;
+                    })
+                    .OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture)
+                    .ToList();
+                CatalogSourceNote = "内置官方属性 + 官方中文目录";
+            }
+            else if (officialHeroes.Count > 0)
+            {
+                heroList = officialHeroes
+                    .Select(hero => new HeroStat
+                    {
+                        Id = hero.Id,
+                        Name = hero.Name,
+                        LocalizedName = DotaHeroNames.GetChineseName(hero.Id, hero.LocalizedName),
+                        EnglishName = hero.Name.Replace("npc_dota_hero_", string.Empty).Replace("_", " "),
+                    })
+                    .OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture)
+                    .ToList();
+                CatalogSourceNote = "官方中文数据（统计接口不可用）";
+            }
+            else
+            {
+                throw new InvalidOperationException("无法获取英雄列表数据");
+            }
+
+            var catalog = new DotaCatalog
+            {
+                Heroes = heroList,
+                HeroAbilities = heroAbilities,
+                Abilities = abilities,
             };
 
             await WriteFileAsync(cachePath, catalog, cancellationToken);
-            await WriteFileAsync(HeroAbilitiesCachePath, catalog.HeroAbilities, cancellationToken);
-            await WriteFileAsync(AbilitiesCachePath, catalog.Abilities, cancellationToken);
+            if (heroAbilities.Count > 0) await WriteFileAsync(HeroAbilitiesCachePath, catalog.HeroAbilities, cancellationToken);
+            if (abilities.Count > 0) await WriteFileAsync(AbilitiesCachePath, catalog.Abilities, cancellationToken);
             ApplyOfficialHeroOverrides(catalog.Heroes);
-            CatalogSourceNote = "官方中文数据 + OpenDota";
             return catalog;
         }
         catch (Exception exception) when (!force)
@@ -382,11 +465,22 @@ public sealed partial class DotaDataService
             if (cached is { Count: > 0 })
             {
                 ItemCatalogSource = "缓存 · 当前目录过滤";
-                var cachedItems = await EnrichRecipesAsync(FilterCurrentItems(cached), cancellationToken);
+                var cachedItems = FilterCurrentItems(cached);
                 ApplyOfficialItemOverrides(cachedItems);
                 ApplyOfficialItemDetailOverrides(cachedItems);
                 return cachedItems;
             }
+        }
+
+        var embeddedItemsData = await ReadAppAssetAsync<ItemListData>("Assets/Data/items.json", cancellationToken);
+        var embeddedItems = FilterCurrentItems(embeddedItemsData?.Items ?? []);
+        if (!force && embeddedItems.Count > 0)
+        {
+            embeddedItems = await EnrichRecipesAsync(embeddedItems, cancellationToken);
+            ApplyOfficialItemOverrides(embeddedItems);
+            ApplyOfficialItemDetailOverrides(embeddedItems);
+            ItemCatalogSource = "内置官方物品资料库 · 秒开";
+            return embeddedItems;
         }
 
         try
@@ -396,12 +490,32 @@ public sealed partial class DotaDataService
 
             if (items.Count == 0)
             {
-                items = await LoadOpenDotaItemsAsync(cancellationToken);
-                ItemCatalogSource = "OpenDota 降级目录";
+                if (embeddedItems.Count > 0)
+                {
+                    items = embeddedItems;
+                    ItemCatalogSource = "内置官方物品目录";
+                }
+                else
+                {
+                    try
+                    {
+                        items = await LoadOpenDotaItemsAsync(cancellationToken);
+                        ItemCatalogSource = "OpenDota 降级目录";
+                    }
+                    catch
+                    {
+                        // OpenDota 也不可用时抛出
+                    }
+                }
             }
             else
             {
                 ItemCatalogSource = "官方中文目录";
+            }
+
+            if (items.Count == 0)
+            {
+                throw new InvalidOperationException("官方与备用物品数据源均未能返回有效物品列表");
             }
 
             items = await EnrichRecipesAsync(items, cancellationToken);
@@ -417,7 +531,7 @@ public sealed partial class DotaDataService
             if (stale is { Count: > 0 })
             {
                 ItemCatalogSource = "缓存 · 当前目录过滤（网络暂不可用）";
-                var staleItems = await EnrichRecipesAsync(FilterCurrentItems(stale), cancellationToken);
+                var staleItems = FilterCurrentItems(stale);
                 ApplyOfficialItemDetailOverrides(staleItems);
                 return staleItems;
             }
@@ -594,6 +708,11 @@ LIMIT 24";
     private async Task<List<OfficialItemSummary>> LoadOpenDotaItemsAsync(CancellationToken cancellationToken)
     {
         var constants = await GetOpenDotaAsync<Dictionary<string, OpenDotaItem>>("/constants/items", cancellationToken);
+        return BuildSummariesFromConstants(constants);
+    }
+
+    private static List<OfficialItemSummary> BuildSummariesFromConstants(Dictionary<string, OpenDotaItem> constants)
+    {
         var allItems = constants
             .Where(pair => pair.Value is not null)
             .Select(pair =>
@@ -671,7 +790,22 @@ LIMIT 24";
     {
         try
         {
-            var openDotaItems = await LoadOpenDotaItemsAsync(cancellationToken);
+            List<OfficialItemSummary>? openDotaItems = null;
+
+            // 优先从内置官方物品常数提取合成路线
+            var embeddedConstants = await ReadAppAssetAsync<Dictionary<string, OpenDotaItem>>("Assets/Data/item_constants.json", cancellationToken);
+            if (embeddedConstants is { Count: > 0 })
+            {
+                openDotaItems = BuildSummariesFromConstants(embeddedConstants);
+            }
+
+            if (openDotaItems is null || openDotaItems.Count == 0)
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(3)); // 3秒超时，防止 OpenDota 阻塞
+                openDotaItems = await LoadOpenDotaItemsAsync(cts.Token);
+            }
+
             var byId = openDotaItems.ToDictionary(item => item.Id);
             foreach (var item in items)
             {
@@ -684,9 +818,9 @@ LIMIT 24";
                         CurrentItemCatalog.IsCurrent(component.Name)));
             }
         }
-        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or TimeoutException)
+        catch
         {
-            // Recipe data is an enhancement; the current official item directory remains usable offline.
+            // 配方增强是可选数据；无论超时、取消还是断网，绝不影响物品目录正常使用。
         }
 
         return items;
@@ -1197,8 +1331,29 @@ GROUP BY item_id";
 
     private sealed class HeroListData
     {
-        private List<OfficialHeroSummary> _heroes = [];
-        [JsonPropertyName("heroes")] public List<OfficialHeroSummary> Heroes { get => _heroes; set => _heroes = value ?? []; }
+        [JsonPropertyName("result")]
+        public HeroListResult? Result { get; set; }
+
+        [JsonPropertyName("data")]
+        public HeroListDataInner? Data { get; set; }
+
+        [JsonPropertyName("heroes")]
+        public List<OfficialHeroSummary>? DirectHeroes { get; set; }
+
+        public List<OfficialHeroSummary> Heroes =>
+            Result?.Data?.Heroes ?? Data?.Heroes ?? DirectHeroes ?? [];
+    }
+
+    private sealed class HeroListResult
+    {
+        [JsonPropertyName("data")]
+        public HeroListDataInner? Data { get; set; }
+    }
+
+    private sealed class HeroListDataInner
+    {
+        [JsonPropertyName("heroes")]
+        public List<OfficialHeroSummary> Heroes { get; set; } = [];
     }
 
     private sealed class HeroDetailData

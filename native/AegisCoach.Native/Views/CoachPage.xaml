@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AegisCoach.Native.Views.CoachPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewModels="using:AegisCoach.Native.ViewModels"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=viewModels:CoachViewModel}"
+    SizeChanged="CoachPage_SizeChanged">
+
+  <ScrollViewer x:Name="CoachScrollViewer" Padding="24,18,24,22"
+                VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Grid x:Name="CoachLayout" RowSpacing="12">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <!-- 顶部状态条（游戏辅助盒子风格） -->
+      <Border Grid.Row="0" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="16,10">
+        <Grid x:Name="CoachStatusGrid" ColumnSpacing="14" RowSpacing="8">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <StackPanel x:Name="CoachStatusLeft" Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <Grid Width="12" Height="12">
+              <Ellipse x:Name="CoachStatusDot" Width="12" Height="12"
+                       Fill="{Binding IsConnected, Converter={StaticResource ResultToBrushConverter}}" />
+              <Ellipse Width="12" Height="12" Fill="{ThemeResource CoachSuccessBrush}" Opacity="0.25"
+                       Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibilityConverter}}" />
+            </Grid>
+            <TextBlock Text="{Binding StatusText}" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel x:Name="CoachOverviewPanel" Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" HorizontalAlignment="Left">
+            <Border Width="1" Height="16" Background="{ThemeResource SubtleBorderBrush}" />
+            <FontIcon Glyph="&#xE823;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding OverviewText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="SemiBold" />
+          </StackPanel>
+
+          <StackPanel x:Name="CoachActionsPanel" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="10,3">
+              <TextBlock Text="{Binding AdviceCountText}" Foreground="{ThemeResource CoachGoldBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </Border>
+            <Button Content="设置" Command="{Binding OpenSettingsCommand}"
+                    ToolTipService.ToolTip="打开教练与 GSI 设置" AutomationProperties.Name="打开教练与 GSI 设置" />
+            <Button Content="清空" Command="{Binding ClearAdvicesCommand}"
+                    ToolTipService.ToolTip="清空当前提醒列表" AutomationProperties.Name="清空当前提醒列表" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 我的英雄 + 教练提醒 -->
+      <Grid x:Name="CoachPrimaryGrid" Grid.Row="1" ColumnSpacing="12" RowSpacing="12">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="0.95*" MinWidth="320" />
+          <ColumnDefinition Width="1.05*" MinWidth="360" />
+        </Grid.ColumnDefinitions>
+
+        <Border x:Name="CoachHeroPanel" Grid.Column="0"
+                Visibility="{Binding IsHeroPanelVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="14,12">
+          <StackPanel Spacing="10">
+            <Grid>
+              <StackPanel Orientation="Horizontal" Spacing="7">
+                <FontIcon Glyph="&#xE77B;" FontSize="15" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="我的英雄" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="GSI 实时状态" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnSpacing="12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="96" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid Grid.Column="0" Width="92" Height="92">
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="#D9A441" BorderThickness="1" CornerRadius="4">
+                  <Image Source="{Binding HeroImage}" Stretch="Uniform" />
+                </Border>
+                <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="#CC141414" BorderBrush="#D9A441" BorderThickness="1" CornerRadius="2" Padding="6,1" Margin="0,0,4,4">
+                  <TextBlock Text="{Binding HeroLevelText}" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="11" FontWeight="SemiBold" />
+                </Border>
+              </Grid>
+              <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                <TextBlock Text="{Binding HeroName}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="19" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <Grid ColumnSpacing="8">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Grid.Column="0" Text="生命" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+                  <ProgressBar Grid.Column="1" Value="{Binding HeroHp}" Maximum="{Binding HeroMaxHp}" Height="9" VerticalAlignment="Center" Foreground="{ThemeResource CoachDangerBrush}" Background="{ThemeResource SubtlePanelBrush}" />
+                  <TextBlock Grid.Column="2" Text="{Binding HeroHpText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="10" VerticalAlignment="Center" MinWidth="88" TextAlignment="Right" />
+                </Grid>
+                <Grid ColumnSpacing="8">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Grid.Column="0" Text="魔法" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+                  <ProgressBar Grid.Column="1" Value="{Binding HeroMana}" Maximum="{Binding HeroMaxMana}" Height="9" VerticalAlignment="Center" Foreground="{ThemeResource CoachInfoBlueBrush}" Background="{ThemeResource SubtlePanelBrush}" />
+                  <TextBlock Grid.Column="2" Text="{Binding HeroManaText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="10" VerticalAlignment="Center" MinWidth="88" TextAlignment="Right" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                  <TextBlock Text="{Binding HeroKdaText}" Foreground="{ThemeResource CoachGoldBrush}" FontSize="13" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding HeroStatsText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+            <StackPanel Spacing="5">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="当前装备" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" />
+                <TextBlock Text="按格子展示 · 悬停查看名称" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="9" VerticalAlignment="Center" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding HeroItems}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="6" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Width="44" Height="44" Margin="0,0,6,6" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="2">
+                      <Image Source="{Binding Image}" ToolTipService.ToolTip="{Binding Name}" Stretch="Uniform" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="CoachAdvicePanel" Grid.Column="1" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="14,12">
+          <StackPanel Spacing="8">
+            <Grid>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <FontIcon Glyph="&#xE90A;" FontSize="15" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="教练提醒" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="规则引擎实时触发 · AI 解释失败自动回退原文" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+            <ListView x:Name="AdviceList" ItemsSource="{Binding Advices}" SelectionMode="None" BorderThickness="0" Padding="0" MaxHeight="560" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListView.ItemTemplate>
+                <DataTemplate>
+                  <Grid Margin="0,0,0,8">
+                    <Border Width="3" HorizontalAlignment="Left" Background="{Binding Severity, Converter={StaticResource SeverityBrushConverter}}" CornerRadius="1,2,2,1" />
+                    <Border Margin="7,0,0,0" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" Background="{ThemeResource SubtlePanelBrush}" CornerRadius="3" Padding="12,9">
+                      <StackPanel>
+                        <Grid>
+                          <StackPanel Orientation="Horizontal" Spacing="7">
+                            <Border Background="{Binding Severity, Converter={StaticResource SeverityBrushConverter}}" Padding="7,1" CornerRadius="2">
+                              <TextBlock Text="{Binding SeverityText}" Foreground="{ThemeResource OnAccentBrush}" FontSize="9" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Text="{Binding Title}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding GameTimeText}" Foreground="{ThemeResource CoachGoldBrush}" FontSize="10" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding TimeText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+                          </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding Message}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0" />
+                        <TextBlock Text="{Binding FriendlyEvidenceText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,5,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </Grid>
+                </DataTemplate>
+              </ListView.ItemTemplate>
+            </ListView>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- 阵容与出装 -->
+      <Border Grid.Row="2" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="14,12">
+        <Grid x:Name="CoachRosterGrid" ColumnSpacing="16" RowSpacing="12">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1*" MinWidth="180" />
+            <ColumnDefinition Width="1*" MinWidth="180" />
+            <ColumnDefinition Width="1.3*" MinWidth="260" />
+          </Grid.ColumnDefinitions>
+
+          <StackPanel x:Name="CoachAlliesPanel" Grid.Column="0" Spacing="6" VerticalAlignment="Top">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE716;" FontSize="14" Foreground="{ThemeResource CoachSuccessBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="我方英雄" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+              <TextBlock Text="{Binding AllyHeroesCountText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding AllyHeroes}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <ItemsWrapGrid Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Margin="0,0,5,5" Padding="3" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <Image Source="{Binding IconUrl}" Width="24" Height="24" Stretch="Uniform" />
+                      <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <StackPanel x:Name="CoachEnemiesPanel" Grid.Column="1" Spacing="6" VerticalAlignment="Top">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE716;" FontSize="14" Foreground="{ThemeResource CoachDangerBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="敌方英雄" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+              <TextBlock Text="{Binding EnemyHeroesCountText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding EnemyHeroes}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <ItemsWrapGrid Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Margin="0,0,5,5" Padding="3" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <Image Source="{Binding IconUrl}" Width="24" Height="24" Stretch="Uniform" />
+                      <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <StackPanel x:Name="CoachRecommendationPanel" Grid.Column="2" Spacing="6" VerticalAlignment="Top">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE719;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="推荐出装（OpenDota 大数据）" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+              <TextBlock Text="{Binding HeroesStatusText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="10,8">
+              <TextBlock Text="{Binding ItemRecommendText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" LineHeight="18" />
+            </Border>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 克制与被克制分析 -->
+      <Border Grid.Row="3" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="14,12">
+        <StackPanel Spacing="8">
+          <Grid>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE7FC;" FontSize="15" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="克制与被克制 · 选人推荐" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding CounterStatusText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+          </Grid>
+          <Grid x:Name="CoachCounterGrid" ColumnSpacing="16" RowSpacing="12">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1*" MinWidth="200" />
+              <ColumnDefinition Width="1*" MinWidth="200" />
+              <ColumnDefinition Width="1*" MinWidth="200" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel x:Name="CoachCounterRiskPanel" Grid.Column="0" Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE711;" FontSize="14" Foreground="{ThemeResource CoachDangerBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="敌方克制我" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                <TextBlock Text="（我对阵胜率 ≤48%）" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding CountersMe}" Visibility="{Binding CountersMe.Count, Converter={StaticResource CollectionCountToVisibilityConverter}}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="0,0,6,6" Padding="5" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3">
+                      <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="30" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Image Grid.Column="0" Source="{Binding IconUrl}" Width="30" Height="30" Stretch="Uniform" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding HeroName}" FontSize="11" Foreground="{ThemeResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="{Binding WinRateText}" FontSize="10" Foreground="{ThemeResource CoachDangerBrush}" />
+                            <TextBlock Text="{Binding SampleText}" FontSize="9" Foreground="{ThemeResource TertiaryTextBrush}" />
+                          </StackPanel>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
+            <StackPanel x:Name="CoachCounterAdvantagePanel" Grid.Column="1" Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE8E1;" FontSize="14" Foreground="{ThemeResource CoachSuccessBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="我克制敌方" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                <TextBlock Text="（我对阵胜率 ≥52%）" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding CountersTarget}" Visibility="{Binding CountersTarget.Count, Converter={StaticResource CollectionCountToVisibilityConverter}}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="0,0,6,6" Padding="5" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3">
+                      <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="30" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Image Grid.Column="0" Source="{Binding IconUrl}" Width="30" Height="30" Stretch="Uniform" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding HeroName}" FontSize="11" Foreground="{ThemeResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="{Binding WinRateText}" FontSize="10" Foreground="{ThemeResource CoachSuccessBrush}" />
+                            <TextBlock Text="{Binding SampleText}" FontSize="9" Foreground="{ThemeResource TertiaryTextBrush}" />
+                          </StackPanel>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
+            <StackPanel x:Name="CoachCounterPickPanel" Grid.Column="2" Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <FontIcon Glyph="&#xE716;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="选人推荐（克制敌方阵容）" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding PickRecommendations}" Visibility="{Binding PickRecommendations.Count, Converter={StaticResource CollectionCountToVisibilityConverter}}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Width="176" Margin="0,0,6,6" Padding="5" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3">
+                      <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="34" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Image Grid.Column="0" Source="{Binding IconUrl}" Width="34" Height="34" Stretch="Uniform" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding HeroName}" FontSize="11" Foreground="{ThemeResource SecondaryTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding SummaryText}" FontSize="9" Foreground="{ThemeResource TertiaryTextBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Grid>
+  </ScrollViewer>
+</Page>

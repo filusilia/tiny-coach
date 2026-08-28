@@ -16,6 +16,10 @@
       <SolidColorBrush x:Key="GameAccentBrush" Color="{ThemeResource SystemAccentColorLight1}" />
       <SolidColorBrush x:Key="ScepterGlowBrush" Color="#FF5AB8FF" />
       <SolidColorBrush x:Key="ShardGlowBrush" Color="#FFD141FF" />
+      <SolidColorBrush x:Key="TalentLevelBadgeBrush" Color="#FF1E293B" />
+      <SolidColorBrush x:Key="TalentLevelTextBrush" Color="#FFF59E0B" />
+      <SolidColorBrush x:Key="TalentNodeBackgroundBrush" Color="#FF24272C" />
+      <SolidColorBrush x:Key="TalentNodeBorderBrush" Color="#33FFFFFF" />
     </ResourceDictionary>
     <ResourceDictionary x:Key="Light">
       <LinearGradientBrush x:Key="GamePageBackgroundBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#FFF7F7F8" Offset="0" /><GradientStop Color="#FFECEEF1" Offset="1" /></LinearGradientBrush>
@@ -30,6 +34,10 @@
       <SolidColorBrush x:Key="GameAccentBrush" Color="{ThemeResource SystemAccentColorDark1}" />
       <SolidColorBrush x:Key="ScepterGlowBrush" Color="#FF006EAE" />
       <SolidColorBrush x:Key="ShardGlowBrush" Color="#FF8A1CAC" />
+      <SolidColorBrush x:Key="TalentLevelBadgeBrush" Color="#FEF3C7" />
+      <SolidColorBrush x:Key="TalentLevelTextBrush" Color="#B45309" />
+      <SolidColorBrush x:Key="TalentNodeBackgroundBrush" Color="#FFFFFFFF" />
+      <SolidColorBrush x:Key="TalentNodeBorderBrush" Color="#24000000" />
     </ResourceDictionary>
     <ResourceDictionary x:Key="HighContrast">
       <SolidColorBrush x:Key="GamePageBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -44,6 +52,10 @@
       <SolidColorBrush x:Key="GameAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
       <SolidColorBrush x:Key="ScepterGlowBrush" Color="{ThemeResource SystemColorHighlightColor}" />
       <SolidColorBrush x:Key="ShardGlowBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+      <SolidColorBrush x:Key="TalentLevelBadgeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+      <SolidColorBrush x:Key="TalentLevelTextBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+      <SolidColorBrush x:Key="TalentNodeBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+      <SolidColorBrush x:Key="TalentNodeBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
   <Style x:Key="GamePanelStyle" TargetType="Border">

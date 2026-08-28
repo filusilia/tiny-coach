@@ -11,7 +11,8 @@ public sealed class BooleanToVisibilityConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, string language)
     {
         var flag = value is true;
-        if (Invert) flag = !flag;
+        var invert = Invert || (parameter is string paramStr && paramStr.Equals("invert", StringComparison.OrdinalIgnoreCase));
+        if (invert) flag = !flag;
         return flag ? Visibility.Visible : Visibility.Collapsed;
     }
 
