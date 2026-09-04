@@ -13,16 +13,80 @@
     <MicaBackdrop />
   </Window.SystemBackdrop>
 
-  <Grid x:Name="RootGrid" Background="{ThemeResource AppBackgroundBrush}" SizeChanged="RootGrid_SizeChanged">
+  <Grid x:Name="RootGrid" Background="{ThemeResource AppBackgroundBrush}" SizeChanged="RootGrid_SizeChanged" KeyDown="RootGrid_KeyDown">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- ================= 顶层自定义标题栏 (Row 0, 44px) ================= -->
+    <Grid x:Name="AppTitleBar" Grid.Row="0" Height="44"
+          Background="{ThemeResource GameSurfaceSubtleBrush}"
+          BorderBrush="{ThemeResource GameBorderBrush}"
+          BorderThickness="0,0,0,1">
+      <!-- 独立窗口拖拽背景层（不阻断上层交互控件的点击与输入） -->
+      <Border x:Name="TitleBarDragArea" Background="Transparent" />
+
+      <Grid Height="44">
+        <Grid.ColumnDefinitions>
+          <!-- 0: 最左侧 - 左侧宽度对称平衡区（192px，对齐 50px 紧凑导航栏，保证中间搜索框绝对居中） -->
+          <ColumnDefinition Width="192" />
+          <!-- 1: 中间 - 绝对居中自适应搜索框 -->
+          <ColumnDefinition Width="*" />
+          <!-- 2: 最右侧 - 右侧宽度对称平衡区（192px，包含 32px 刷新按钮与 140px 系统控制按钮避让区） -->
+          <ColumnDefinition Width="192" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 最左侧：折叠/展开左侧导航按钮 + 图标与应用名（全套 32px 高度，严格垂直对齐，汉堡按钮居中于 50px 折叠导航栏） -->
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="9,0,0,0">
+          <Button x:Name="NavPaneToggleButton" Width="32" Height="32" Padding="0"
+                  Background="Transparent" BorderThickness="0" CornerRadius="4"
+                  Click="NavPaneToggleButton_Click"
+                  ToolTipService.ToolTip="折叠/展开导航栏 (Ctrl+B)"
+                  AutomationProperties.Name="折叠/展开导航栏"
+                  HorizontalAlignment="Center" VerticalAlignment="Center">
+            <FontIcon Glyph="&#xE700;" FontSize="13" Foreground="{ThemeResource GameTextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Button>
+          <FontIcon Glyph="&#xE734;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" Margin="2,0,0,0" />
+          <TextBlock Text="神盾教练" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource GameTextPrimaryBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- 中间：绝对居中自适应搜索框（高度严格 32px，与两侧按钮水平基准线完全一致） -->
+        <AutoSuggestBox Grid.Column="1" x:Name="TitleBarSearchBox"
+                        Width="360" MaxWidth="440" Height="32"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        QueryIcon="Find" PlaceholderText="搜索英雄或物品 (Ctrl+F)"
+                        TextChanged="TitleBarSearchBox_TextChanged"
+                        QuerySubmitted="TitleBarSearchBox_QuerySubmitted"
+                        AutomationProperties.Name="顶部搜索框" />
+
+        <!-- 最右侧：统一 32px 刷新按钮 + 系统控制按钮避让区（右对齐排布，与左侧对称平衡） -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button x:Name="TitleBarRefreshButton" Width="32" Height="32" Padding="0" CornerRadius="4"
+                  Background="Transparent" BorderThickness="0"
+                  Click="TitleBarRefreshButton_Click"
+                  ToolTipService.ToolTip="刷新当前数据" AutomationProperties.Name="刷新当前数据"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Margin="0,0,12,0">
+            <FontIcon Glyph="&#xE72C;" FontSize="13" Foreground="{ThemeResource GameTextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Button>
+          <!-- 避让 Windows 原生最小化/最大化/关闭按钮 (140px) -->
+          <Border Width="140" Height="44" Background="Transparent" />
+        </StackPanel>
+      </Grid>
+    </Grid>
+
+    <!-- ================= 一级导航与主视图容器 (Row 1) ================= -->
     <NavigationView
+        Grid.Row="1"
         x:Name="AppNavigation"
         IsBackButtonVisible="Collapsed"
         IsSettingsVisible="True"
-        IsPaneToggleButtonVisible="True"
+        IsPaneToggleButtonVisible="False"
         PaneDisplayMode="Auto"
-        CompactPaneLength="64"
+        CompactPaneLength="50"
         OpenPaneLength="216"
-        PaneTitle="神盾教练"
+        PaneTitle=""
         SelectionChanged="AppNavigation_SelectionChanged">
       <NavigationView.MenuItems>
         <NavigationViewItem Content="英雄资料" Tag="heroes" IsSelected="True">

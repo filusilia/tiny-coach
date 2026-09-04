@@ -5,9 +5,13 @@ using AegisCoach.Core.Models;
 using AegisCoach.Core.Services;
 using AegisCoach.Native.Models;
 using AegisCoach.Native.Services;
+using AegisCoach.Native.ViewModels;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
@@ -78,10 +82,29 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SetupTitleBar();
         RootGrid.DataContext = this;
         RootGrid.Loaded += MainWindow_Loaded;
         Closed += MainWindow_Closed;
         CoachPage.ViewModel.OpenSettingsRequested += async () => await OpenCoachSettingsAsync();
+    }
+
+    private void SetupTitleBar()
+    {
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(TitleBarDragArea);
+
+        if (AppWindowTitleBar.IsCustomizationSupported())
+        {
+            var titleBar = AppWindow.TitleBar;
+            titleBar.ButtonBackgroundColor = Colors.Transparent;
+            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        }
+    }
+
+    private void NavPaneToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        AppNavigation.IsPaneOpen = !AppNavigation.IsPaneOpen;
     }
 
     private void MainWindow_Closed(object _, WindowEventArgs __)
@@ -93,6 +116,24 @@ public sealed partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object _, RoutedEventArgs __)
     {
+        HeroesPage.ViewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(HeroesViewModel.SearchText) && _lastNavigationItem?.Tag?.ToString() is "heroes" or null or "")
+            {
+                if (TitleBarSearchBox.Text != HeroesPage.ViewModel.SearchText)
+                    TitleBarSearchBox.Text = HeroesPage.ViewModel.SearchText;
+            }
+        };
+        ItemCatalogPage.ViewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(ItemCatalogViewModel.SearchText) && _lastNavigationItem?.Tag?.ToString() == "items")
+            {
+                if (TitleBarSearchBox.Text != ItemCatalogPage.ViewModel.SearchText)
+                    TitleBarSearchBox.Text = ItemCatalogPage.ViewModel.SearchText;
+            }
+        };
+        UpdateTitleBarForPage("heroes");
+
         _settings = AppSettings.Load();
         PopulateSettings();
         ApplyResponsiveLayout();
@@ -269,6 +310,8 @@ public sealed partial class MainWindow : Window
         ItemCatalogPage.Visibility = showItems ? Visibility.Visible : Visibility.Collapsed;
         CoachPage.Visibility = showCoach ? Visibility.Visible : Visibility.Collapsed;
         AnalysisPage.Visibility = showAnalysis ? Visibility.Visible : Visibility.Collapsed;
+        UpdateTitleBarForPage(tag);
+
         if (showHeroes)
         {
             await HeroesPage.LoadAsync(false);
@@ -278,6 +321,87 @@ public sealed partial class MainWindow : Window
             // 物品资料页自带加载保护；这里同时为教练页预热 _allItems（推荐反查用）。
             await ItemCatalogPage.LoadAsync(false);
             if (!_itemsLoaded && !_itemsLoading) await LoadItemsAsync(false);
+        }
+    }
+
+    private void UpdateTitleBarForPage(string? tag)
+    {
+        if (tag == "heroes" || string.IsNullOrEmpty(tag))
+        {
+            TitleBarSearchBox.PlaceholderText = "搜索英雄 / 拼音 (Ctrl+F)";
+            TitleBarSearchBox.Text = HeroesPage.ViewModel.SearchText;
+        }
+        else if (tag == "items")
+        {
+            TitleBarSearchBox.PlaceholderText = "搜索物品 / 属性 (Ctrl+F)";
+            TitleBarSearchBox.Text = ItemCatalogPage.ViewModel.SearchText;
+        }
+        else if (tag == "coach")
+        {
+            TitleBarSearchBox.PlaceholderText = "检索英雄或物品 (Ctrl+F)";
+            TitleBarSearchBox.Text = string.Empty;
+        }
+        else if (tag == "analysis")
+        {
+            TitleBarSearchBox.PlaceholderText = "搜索比赛 ID 或英雄 (Ctrl+F)";
+            TitleBarSearchBox.Text = string.Empty;
+        }
+    }
+
+    private void TitleBarSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput &&
+            args.Reason != AutoSuggestionBoxTextChangeReason.ProgrammaticChange) return;
+
+        var tag = (_lastNavigationItem ?? AppNavigation.SelectedItem as NavigationViewItem)?.Tag?.ToString();
+        if (tag == "heroes" || string.IsNullOrEmpty(tag))
+        {
+            HeroesPage.ViewModel.SearchText = sender.Text;
+        }
+        else if (tag == "items")
+        {
+            ItemCatalogPage.ViewModel.SearchText = sender.Text;
+        }
+    }
+
+    private void TitleBarSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        var tag = (_lastNavigationItem ?? AppNavigation.SelectedItem as NavigationViewItem)?.Tag?.ToString();
+        if (tag == "heroes" || string.IsNullOrEmpty(tag))
+        {
+            HeroesPage.ViewModel.ApplyFilterNow();
+        }
+        else if (tag == "items")
+        {
+            ItemCatalogPage.ViewModel.ApplyFilterNow();
+        }
+    }
+
+    private async void TitleBarRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = (_lastNavigationItem ?? AppNavigation.SelectedItem as NavigationViewItem)?.Tag?.ToString();
+        if (tag == "heroes" || string.IsNullOrEmpty(tag))
+        {
+            await HeroesPage.LoadAsync(true);
+        }
+        else if (tag == "items")
+        {
+            await ItemCatalogPage.LoadAsync(true);
+        }
+    }
+
+    private void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var isCtrlDown = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.F)
+        {
+            TitleBarSearchBox.Focus(FocusState.Programmatic);
+            e.Handled = true;
+        }
+        else if (isCtrlDown && e.Key == Windows.System.VirtualKey.B)
+        {
+            AppNavigation.IsPaneOpen = !AppNavigation.IsPaneOpen;
+            e.Handled = true;
         }
     }
 

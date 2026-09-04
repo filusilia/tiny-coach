@@ -31,110 +31,100 @@
       </VisualStateGroup>
     </VisualStateManager.VisualStateGroups>
 
-    <!-- ================= 1. 列表视图（紧凑顶栏 + 分类 Tab + 英雄卡片网格） ================= -->
+    <!-- ================= 1. 列表视图（单行高密度控制栏 + 英雄卡片网格） ================= -->
     <Grid x:Name="HeroListHost" RowSpacing="6"
           Visibility="{Binding IsDetailOpen, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
           SizeChanged="HeroListHost_SizeChanged">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
-        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <!-- Row 0：紧凑功能顶栏（标题 + 搜索 + 分段(带图标) + 排序 + 刷新） -->
-      <Grid Grid.Row="0" ColumnSpacing="8" MinHeight="36">
+      <!-- Row 0：英雄分类与筛选控制栏（全部/力量/敏捷/智力/全才 完整展示，分段与胜率选择器字迹清晰） -->
+      <!-- Row 0：英雄分类与筛选控制栏（全部/力量/敏捷/智力/全才 完整展示无裁切，分段与胜率选择器字迹清晰） -->
+      <Grid Grid.Row="0" ColumnSpacing="12" MinHeight="42" Margin="0,0,0,6">
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto" />
+          <!-- 左侧：属性分类 Tabs（全部/力量/敏捷/智力/全才） -->
           <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="Auto" />
+          <!-- 右侧：英雄计数 + 分段筛选 + 胜率排序 -->
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <!-- 标题与英雄计数 -->
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="英雄资料" FontSize="16" FontWeight="SemiBold"
-                     Foreground="{ThemeResource GameTextPrimaryBrush}" />
-          <TextBlock Text="{Binding ResultCountText}" FontSize="11"
-                     Foreground="{ThemeResource GameTextMutedBrush}" VerticalAlignment="Center" />
-        </StackPanel>
-
-        <!-- 搜索框 -->
-        <AutoSuggestBox x:Name="SearchBox" Grid.Column="1" Height="34" MinWidth="160"
-                        QueryIcon="Find" PlaceholderText="搜索英雄名称 / 英文 / 拼音"
-                        Text="{Binding SearchText, Mode=TwoWay}"
-                        QuerySubmitted="SearchBox_QuerySubmitted"
-                        AutomationProperties.Name="搜索英雄" VerticalAlignment="Center" />
-
-        <!-- 分段选择（带段位官方图标） -->
-        <ComboBox Grid.Column="2" MinWidth="120" Height="34"
-                  ItemsSource="{Binding RankOptions}"
-                  SelectedItem="{Binding SelectedRank, Mode=TwoWay}"
-                  AutomationProperties.Name="选择分段" VerticalAlignment="Center">
-          <ComboBox.ItemTemplate>
+        <!-- 紧凑属性分类 Tabs（全部/力量/敏捷/智力/全才 完整图标与中英文标注，42px 高度预留边框空间，彻底杜绝底部截断） -->
+        <ListView Grid.Column="0" x:Name="AttributeTabs" Height="42"
+                  ItemsSource="{Binding HeroSections}"
+                  SelectionMode="Single"
+                  SelectionChanged="AttributeTabs_SelectionChanged"
+                  BorderThickness="0" Padding="0,2,0,2" Margin="0"
+                  VerticalAlignment="Center"
+                  ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                  ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                  ScrollViewer.HorizontalScrollMode="Enabled"
+                  ScrollViewer.VerticalScrollMode="Disabled">
+          <ListView.ItemsPanel>
+            <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+          </ListView.ItemsPanel>
+          <ListView.ItemContainerStyle>
+            <Style TargetType="ListViewItem">
+              <Setter Property="MinHeight" Value="36" />
+              <Setter Property="Height" Value="36" />
+              <Setter Property="Padding" Value="0" />
+              <Setter Property="Margin" Value="0,0,8,0" />
+              <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+              <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+          </ListView.ItemContainerStyle>
+          <ListView.ItemTemplate>
             <DataTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <Image Source="{Binding IconUrl}" Width="18" Height="18" Stretch="Uniform" />
-                <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
-              </StackPanel>
+              <Border Height="36" Padding="12,0"
+                      Background="{ThemeResource GameSurfaceSubtleBrush}"
+                      BorderBrush="{ThemeResource GameBorderBrush}"
+                      BorderThickness="1" CornerRadius="6"
+                      VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                  <Image Source="{Binding IconUrl}" Width="18" Height="18" Stretch="Uniform" />
+                  <TextBlock Text="{Binding Title}" Foreground="{ThemeResource GameTextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Subtitle}" Foreground="{ThemeResource GameTextMutedBrush}" FontSize="10" VerticalAlignment="Center" />
+                </StackPanel>
+              </Border>
             </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
+          </ListView.ItemTemplate>
+        </ListView>
 
-        <!-- 排序选择 -->
-        <ComboBox Grid.Column="3" Width="96" Height="34"
-                  ItemsSource="{Binding SortOptions}"
-                  SelectedItem="{Binding SelectedSort, Mode=TwoWay}"
-                  DisplayMemberPath="Label"
-                  AutomationProperties.Name="选择排序方式" VerticalAlignment="Center" />
+        <!-- 右侧：英雄计数 + 冠绝等分段选择 + 胜率/出场率排序（刷新功能统一由顶部标题栏承担） -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="{Binding ResultCountText}" FontSize="12"
+                     Foreground="{ThemeResource GameTextMutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
 
-        <!-- 刷新按钮 -->
-        <Button Grid.Column="4" Width="34" Height="34" Padding="0" CornerRadius="6"
-                Command="{Binding RefreshCommand}"
-                ToolTipService.ToolTip="刷新英雄资料" AutomationProperties.Name="刷新英雄资料"
-                VerticalAlignment="Center">
-          <FontIcon Glyph="&#xE72C;" FontSize="14" />
-        </Button>
+          <!-- 分段选择（冠绝一世 / 超凡先锋等完整展示，官方段位勋章 + 文字） -->
+          <ComboBox MinWidth="130" Height="34"
+                    ItemsSource="{Binding RankOptions}"
+                    SelectedItem="{Binding SelectedRank, Mode=TwoWay}"
+                    AutomationProperties.Name="选择分段" VerticalAlignment="Center">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Image Source="{Binding IconUrl}" Width="18" Height="18" Stretch="Uniform" />
+                  <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{ThemeResource GameTextPrimaryBrush}" VerticalAlignment="Center" />
+                </StackPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <!-- 排序选择（按名字 / 按胜率 / 按登场率 完整展示） -->
+          <ComboBox MinWidth="110" Height="34"
+                    ItemsSource="{Binding SortOptions}"
+                    SelectedItem="{Binding SelectedSort, Mode=TwoWay}"
+                    DisplayMemberPath="Label"
+                    AutomationProperties.Name="选择排序方式" VerticalAlignment="Center" />
+
+          <!-- 隐藏占位搜索框（代码后向兼容） -->
+          <AutoSuggestBox x:Name="SearchBox" Visibility="Collapsed" />
+        </StackPanel>
       </Grid>
 
-      <!-- Row 1：紧凑属性分类 Tabs（带力量/敏捷/智力/全才官方属性图标） -->
-      <ListView Grid.Row="1" x:Name="AttributeTabs" Height="36"
-                ItemsSource="{Binding HeroSections}"
-                SelectionMode="Single"
-                SelectionChanged="AttributeTabs_SelectionChanged"
-                BorderThickness="0" Padding="0" Margin="0,2,0,2"
-                ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                ScrollViewer.VerticalScrollBarVisibility="Hidden"
-                ScrollViewer.HorizontalScrollMode="Enabled"
-                ScrollViewer.VerticalScrollMode="Disabled">
-        <ListView.ItemsPanel>
-          <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-        </ListView.ItemsPanel>
-        <ListView.ItemContainerStyle>
-          <Style TargetType="ListViewItem">
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-          </Style>
-        </ListView.ItemContainerStyle>
-        <ListView.ItemTemplate>
-          <DataTemplate>
-            <Border Height="32" Padding="10,2"
-                    Background="{ThemeResource GameSurfaceSubtleBrush}"
-                    BorderBrush="{ThemeResource GameBorderBrush}"
-                    BorderThickness="1" CornerRadius="6">
-              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <Image Source="{Binding IconUrl}" Width="16" Height="16" Stretch="Uniform" />
-                <TextBlock Text="{Binding Title}" Foreground="{ThemeResource GameTextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding Subtitle}" Foreground="{ThemeResource GameTextMutedBrush}" FontSize="9" />
-              </StackPanel>
-            </Border>
-          </DataTemplate>
-        </ListView.ItemTemplate>
-      </ListView>
-
-      <!-- Row 2：英雄卡片网格 / 加载 / 错误 / 空结果 -->
-      <Grid Grid.Row="2">
+      <!-- Row 1：英雄卡片网格 / 加载 / 错误 / 空结果 -->
+      <Grid Grid.Row="1">
         <!-- 加载态 -->
         <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center"
                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">

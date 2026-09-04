@@ -122,6 +122,11 @@ public sealed partial class ItemCatalogPage : Page
         return timer;
     }
 
+    public void FocusSearchBox()
+    {
+        SearchBox?.Focus(FocusState.Programmatic);
+    }
+
     private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
         ViewModel.ApplyFilterNow();

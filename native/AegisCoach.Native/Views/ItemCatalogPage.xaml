@@ -12,7 +12,7 @@
 
   <Grid x:Name="RootGrid"
         Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
-        Padding="24,18,24,22" RowSpacing="10">
+        Padding="16,10,16,12" RowSpacing="8">
     <VisualStateManager.VisualStateGroups>
       <VisualStateGroup x:Name="ResponsiveStates">
         <VisualState x:Name="Wide">
@@ -25,7 +25,7 @@
             <AdaptiveTrigger MinWindowWidth="0" />
           </VisualState.StateTriggers>
           <VisualState.Setters>
-            <Setter Target="RootGrid.Padding" Value="12,12,12,16" />
+            <Setter Target="RootGrid.Padding" Value="10,8,10,10" />
           </VisualState.Setters>
         </VisualState>
       </VisualStateGroup>
@@ -33,64 +33,55 @@
 
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- ===== Row 0：紧凑功能顶栏（标题 + 商店/中立切换 + 搜索 + 统计 + 刷新） ===== -->
-    <Grid Grid.Row="0" ColumnSpacing="8" MinHeight="34">
+    <!-- ===== Row 0：单行高密度分类顶栏（商店/中立切换 + 子类多选筛选 Chips + 统计 + 刷新） ===== -->
+    <Grid Grid.Row="0" ColumnSpacing="12" MinHeight="36" Margin="0,0,0,6">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
 
-      <TextBlock Grid.Column="0" Text="物品资料" FontSize="16" FontWeight="SemiBold"
-                 Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-
-      <RadioButtons Grid.Column="1" MaxColumns="2" VerticalAlignment="Center"
+      <!-- 商店物品 / 中立物品切换 -->
+      <RadioButtons Grid.Column="0" MaxColumns="2" VerticalAlignment="Center"
                     SelectedIndex="{Binding ModeIndex, Mode=TwoWay}"
                     AutomationProperties.Name="物品分类切换">
         <x:String>商店物品</x:String>
         <x:String>中立物品</x:String>
       </RadioButtons>
 
-      <AutoSuggestBox Grid.Column="2" x:Name="SearchBox" Height="34" MinWidth="160" VerticalAlignment="Center"
-                      QueryIcon="Find" PlaceholderText="搜索物品名称 / 英文 / 拼音"
-                      Text="{Binding SearchText, Mode=TwoWay}"
-                      QuerySubmitted="SearchBox_QuerySubmitted"
-                      AutomationProperties.Name="搜索物品" />
+      <!-- 子类多选筛选 Chips（水平单行流动，隐藏滚动条） -->
+      <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled"
+                    VerticalAlignment="Center">
+        <ItemsControl ItemsSource="{Binding SubCategoryFilters}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <ToggleButton Content="{Binding Name}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                            Style="{StaticResource FilterChipStyle}" Margin="0,2,6,2"
+                            AutomationProperties.Name="{Binding Name}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
 
-      <TextBlock Grid.Column="3" Text="{Binding CountText}" Margin="4,0" FontSize="11"
-                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+      <!-- 顶部工具栏右侧：统计数量（刷新功能统一由顶部标题栏承担） -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="{Binding CountText}" Margin="2,0" FontSize="11"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
 
-      <Button Grid.Column="4" Command="{Binding RefreshCommand}" Width="34" Height="34" Padding="0" CornerRadius="6"
-              ToolTipService.ToolTip="刷新物品资料" AutomationProperties.Name="刷新物品资料" VerticalAlignment="Center">
-        <FontIcon Glyph="&#xE72C;" FontSize="14" />
-      </Button>
+        <!-- 隐藏占位搜索框（代码后向兼容） -->
+        <AutoSuggestBox x:Name="SearchBox" Visibility="Collapsed" />
+      </StackPanel>
     </Grid>
 
-    <!-- ===== Row 1：子类多选筛选 Chips ===== -->
-    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
-                  VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled" Margin="0,2,0,2">
-      <ItemsControl ItemsSource="{Binding SubCategoryFilters}">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <ToggleButton Content="{Binding Name}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                          Style="{StaticResource FilterChipStyle}" Margin="0,2,6,2"
-                          AutomationProperties.Name="{Binding Name}" />
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </ScrollViewer>
-
-    <!-- ===== Row 4：内容区（loading / error / empty / 分组网格） ===== -->
-    <Grid Grid.Row="4">
+    <!-- ===== Row 1：内容区（loading / error / empty / 分组网格） ===== -->
+    <Grid Grid.Row="1">
 
       <!-- 加载态 -->
       <StackPanel x:Name="LoadingPanel" Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center"
