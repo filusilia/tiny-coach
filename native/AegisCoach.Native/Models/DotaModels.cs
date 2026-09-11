@@ -718,7 +718,7 @@ public sealed class ItemCardItem
     }
 
     public OfficialItemSummary Item { get; }
-    public ItemMetric Metric { get; }
+    public ItemMetric Metric { get; set; }
     public BitmapImage Image { get; }
     public string Name => LocalizedText.ChineseOr(Item.LocalizedName, "中文名称待同步");
     public string EnglishName => Item.EnglishName;
@@ -1408,6 +1408,7 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
         ["Passive"] = "被动技能", ["Toggle"] = "切换技能", ["Channelled"] = "持续施法",
         ["Instant Cast"] = "即时施法", ["Hidden"] = "隐藏技能", ["AOE"] = "范围技能",
         ["Auto Cast"] = "自动施法", ["Attack Target"] = "攻击目标",
+        ["Aura"] = "光环", ["Directional"] = "指向性", ["Vector Targeting"] = "矢量施法",
         ["DOTA_ABILITY_BEHAVIOR_UNIT_TARGET"] = "单位目标",
         ["DOTA_ABILITY_BEHAVIOR_POINT"] = "点目标",
         ["DOTA_ABILITY_BEHAVIOR_NO_TARGET"] = "无目标",
@@ -1419,6 +1420,9 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
         ["DOTA_ABILITY_BEHAVIOR_AUTOCAST"] = "自动施法",
         ["DOTA_ABILITY_BEHAVIOR_ATTACK"] = "攻击目标",
         ["DOTA_ABILITY_BEHAVIOR_HIDDEN"] = "隐藏技能",
+        ["DOTA_ABILITY_BEHAVIOR_AURA"] = "光环",
+        ["DOTA_ABILITY_BEHAVIOR_DIRECTIONAL"] = "指向性",
+        ["DOTA_ABILITY_BEHAVIOR_VECTOR_TARGETING"] = "矢量施法",
         // 伤害类型
         ["Physical"] = "物理伤害", ["Magical"] = "魔法伤害", ["Pure"] = "纯粹伤害",
         ["DAMAGE_TYPE_PHYSICAL"] = "物理伤害",
@@ -1428,9 +1432,12 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
         // 驱散与魔免
         ["SPELL_IMMUNITY_ENEMIES_YES"] = "无视技能免疫",
         ["SPELL_IMMUNITY_ENEMIES_NO"] = "不无视技能免疫",
+        ["PIERCES_IMMUNITY_YES"] = "无视技能免疫",
+        ["PIERCES_IMMUNITY_NO"] = "不无视技能免疫",
         ["SPELL_DISPELLABLE_YES"] = "可驱散",
         ["SPELL_DISPELLABLE_NO"] = "不可驱散",
         ["SPELL_DISPELLABLE_YES_STRONG"] = "强驱散可解",
+        ["Root"] = "缠绕", ["Silence"] = "沉默", ["Disarm"] = "缴械", ["Stun"] = "眩晕", ["Break"] = "破坏",
     };
 
     private static string LocalizeTags(string? behavior, string? damageType)
@@ -1937,7 +1944,7 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
         var cleaned = Regex.Replace(heading.Replace("<br>", " "), "<[^>]+>", string.Empty).Trim();
         cleaned = cleaned.TrimEnd(':', '：', ' ', '、', '-').Trim();
 
-        // 替换 Valve 属性宏（如 +$str, +$agi, +$attack 等）
+        // 1. 替换 Valve 属性宏（如 +$str, +$agi, +$attack 等）
         var macro = cleaned.TrimStart('+', '-', '−', ' ', '%').ToLowerInvariant();
         var resolved = macro switch
         {
@@ -1970,8 +1977,45 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
         };
 
         if (!string.IsNullOrEmpty(resolved)) return resolved;
+
+        // 2. 若标题本身是英文（如 CAST RANGE: 等），通过机制词典进行汉化
+        var humanized = HumanizeStatName(cleaned);
+        if (!string.IsNullOrWhiteSpace(humanized) && LocalizedText.ContainsChinese(humanized))
+        {
+            return humanized;
+        }
+
         return string.IsNullOrWhiteSpace(cleaned) ? "属性" : cleaned.TrimStart('$', '+').Trim();
     }
+
+    private static readonly Dictionary<string, string> SubTokenMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["split"] = "分裂", ["shot"] = "射击", ["arrow"] = "箭矢", ["count"] = "数量",
+        ["damage"] = "伤害", ["creep"] = "小兵", ["hero"] = "英雄", ["building"] = "建筑",
+        ["tower"] = "防御塔", ["illusion"] = "幻象", ["invis"] = "隐身", ["fade"] = "渐变",
+        ["time"] = "时间", ["duration"] = "持续时间", ["delay"] = "延迟", ["radius"] = "半径",
+        ["range"] = "距离", ["cast"] = "施法", ["attack"] = "攻击", ["speed"] = "速度",
+        ["slow"] = "减速", ["stun"] = "眩晕", ["silence"] = "沉默", ["root"] = "缠绕",
+        ["disarm"] = "缴械", ["fear"] = "恐惧", ["taunt"] = "嘲讽", ["hex"] = "妖术",
+        ["break"] = "破坏", ["burn"] = "燃烧", ["drain"] = "汲取", ["mana"] = "魔法",
+        ["health"] = "生命", ["hp"] = "生命", ["armor"] = "护甲", ["magic"] = "魔法",
+        ["pure"] = "纯粹", ["physical"] = "物理", ["bonus"] = "额外", ["penalty"] = "降低",
+        ["reduction"] = "减免", ["absorb"] = "吸收", ["barrier"] = "护盾", ["shield"] = "护盾",
+        ["block"] = "格挡", ["crit"] = "暴击", ["chance"] = "概率", ["mult"] = "倍率",
+        ["multiplier"] = "倍数", ["interval"] = "间隔", ["tick"] = "生效", ["rate"] = "速率",
+        ["regen"] = "恢复", ["lifesteal"] = "吸血", ["steal"] = "窃取", ["cooldown"] = "冷却",
+        ["charges"] = "充能", ["stack"] = "层数", ["stacks"] = "叠加", ["search"] = "搜索",
+        ["spread"] = "扩散", ["angle"] = "角度", ["width"] = "宽度", ["length"] = "长度",
+        ["distance"] = "距离", ["push"] = "击退", ["pull"] = "拉扯", ["knockback"] = "击退",
+        ["bounce"] = "弹跳", ["bounces"] = "弹跳", ["chain"] = "连锁", ["jump"] = "跳跃",
+        ["targets"] = "目标", ["target"] = "目标", ["extra"] = "额外", ["aura"] = "光环",
+        ["heal"] = "治疗", ["cost"] = "消耗", ["all"] = "全", ["stats"] = "属性",
+        ["str"] = "力量", ["agi"] = "敏捷", ["int"] = "智力", ["gold"] = "金币",
+        ["xp"] = "经验", ["vision"] = "视野", ["evasion"] = "闪避", ["blind"] = "致盲",
+        ["miss"] = "落空", ["pct"] = "百分比", ["percentage"] = "百分比", ["amount"] = "数值",
+        ["total"] = "总计", ["max"] = "最大", ["min"] = "最小", ["base"] = "基础",
+        ["cleave"] = "分裂", ["splash"] = "溅射", ["threshold"] = "阈值",
+    };
 
     public static string HumanizeStatName(string name)
     {
@@ -1986,19 +2030,30 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
             "bonus_damage" => "额外伤害",
             "damage_per_second" or "dps" => "每秒伤害",
             "creep_damage" or "creep_damage_penalty" => "对小兵伤害",
+            "hero_damage" => "对英雄伤害",
+            "building_damage" or "tower_damage" => "对建筑伤害",
             "duration" or "buff_duration" => "持续时间",
+            "debuff_duration" => "负面状态时间",
             "stun_duration" or "stun" => "眩晕时间",
             "slow_duration" => "减速时间",
-            "silence_duration" => "沉默时间",
-            "disarm_duration" => "缴械时间",
+            "silence_duration" or "silence" => "沉默时间",
+            "disarm_duration" or "disarm" => "缴械时间",
+            "root_duration" or "root" => "缠绕时间",
+            "taunt_duration" or "taunt" => "嘲讽时间",
+            "fear_duration" or "fear" => "恐惧时间",
+            "hex_duration" or "hex" => "妖术时间",
+            "break_duration" or "break" => "破坏时间",
             "channel_time" or "channel_duration" => "持续施法时间",
             "radius" or "aoe_radius" or "area_of_effect" => "作用范围",
+            "aura_radius" => "光环范围",
+            "search_radius" => "搜索半径",
             "range" or "cast_range" => "施法距离",
+            "bonus_cast_range" => "额外施法距离",
             "attack_range" or "bonus_attack_range" => "攻击距离",
             "speed" or "projectile_speed" => "弹道速度",
             "movement_speed" or "move_speed" or "movespeed" => "移动速度",
             "attack_speed" => "攻击速度",
-            "slow" or "movement_slow" or "ms_slow" => "移动减速",
+            "slow" or "movement_slow" or "ms_slow" or "slow_pct" => "移动减速",
             "attack_speed_slow" or "as_slow" => "攻击减速",
             "heal" or "heal_amount" or "health_restored" => "治疗量",
             "health" or "hp" or "bonus_health" => "生命加成",
@@ -2007,35 +2062,74 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
             "mana_regen" => "魔法恢复",
             "armor" or "bonus_armor" => "护甲加成",
             "magic_resistance" or "magic_resist" => "魔法抗性",
-            "status_resistance" => "状态抗性",
-            "evasion" => "闪避",
+            "status_resistance" or "status_resist" => "状态抗性",
+            "evasion" => "闪避几率",
+            "blind" or "blind_pct" or "miss_chance" => "致盲/落空几率",
             "lifesteal" or "vampirism" => "吸血",
             "spell_lifesteal" or "spell_vampirism" => "技能吸血",
             "spell_amp" or "spell_amplification" => "技能增强",
             "cooldown_reduction" or "cdr" => "冷却缩减",
             "crit_chance" or "critical_chance" or "chance" or "proc_chance" => "触发几率",
-            "crit_mult" or "crit_multiplier" => "致命一击伤害",
+            "crit_mult" or "crit_multiplier" or "crit_damage" => "致命一击伤害",
+            "bash_chance" => "重击几率",
+            "bash_duration" => "重击眩晕时间",
             "charges" or "max_charges" => "充能次数",
             "charge_restore_time" or "charge_time" => "充能时间",
             "all_stats" or "stats" => "全属性",
-            "strength" or "str" => "力量",
-            "agility" or "agi" => "敏捷",
-            "intellect" or "intelligence" or "int" => "智力",
+            "strength" or "str" or "bonus_strength" => "力量",
+            "agility" or "agi" or "bonus_agility" => "敏捷",
+            "intellect" or "intelligence" or "int" or "bonus_intellect" => "智力",
             "gold" or "bonus_gold" => "金币奖励",
             "xp" or "bonus_xp" => "经验奖励",
-            "cleave_damage" => "分裂伤害",
+            "cleave_damage" or "cleave_pct" => "分裂伤害",
             "cleave_distance" => "分裂距离",
-            "bounce_count" or "bounces" => "弹跳次数",
+            "splash_damage" => "溅射伤害",
+            "splash_radius" => "溅射范围",
+            "bounce_count" or "bounces" or "jump_count" => "弹跳次数",
+            "chain_delay" => "弹跳延迟",
+            "chain_radius" => "弹跳半径",
             "targets" or "max_targets" or "target_count" => "目标数量",
-            "knockback_distance" => "击退距离",
+            "extra_targets" or "arrows" or "arrow_count" => "额外目标数",
+            "split_shot_count" => "分裂箭目标数",
+            "knockback_distance" or "push_distance" or "push_length" => "击退距离",
             "knockback_duration" => "击退时间",
-            "tick_rate" or "tick_interval" or "interval" => "作用间隔",
+            "pull_distance" => "拉扯距离",
+            "pull_duration" => "拉扯时间",
+            "tick_rate" or "tick_interval" or "interval" => "生效间隔",
             "mana_cost" or "mc" => "魔法消耗",
             "cooldown" or "cd" => "冷却时间",
+            "delay" or "cast_delay" or "start_delay" or "activation_delay" => "生效延迟",
+            "width" => "弹道宽度",
+            "length" => "弹道长度",
+            "distance" => "行进距离",
+            "angle" or "spread" => "扩散范围",
+            "barrier" or "shield_health" or "damage_absorb" => "伤害吸收护盾",
+            "damage_reduction" => "伤害减免",
+            "illusion_damage" or "illusion_damage_out" => "幻象造成伤害",
+            "illusion_damage_in" => "幻象受到伤害",
+            "illusion_duration" => "幻象持续时间",
+            "fade_time" or "invis_fade_time" => "隐身渐变时间",
+            "invis_duration" => "隐身持续时间",
+            "mana_burn" => "法力燃烧",
+            "mana_drain" => "法力汲取",
+            "burn_damage" => "灼烧伤害",
+            "burn_amount" => "灼烧量",
+            "stacks" or "max_stacks" => "最大叠加层数",
+            "stack_duration" => "叠加持续时间",
+            "decay_rate" => "衰减速率",
+            "threshold" or "hp_threshold" => "生命值阈值",
+            "gold_steal" => "金币窃取",
+            "mana_steal" => "法力窃取",
+            "steal_duration" => "窃取持续时间",
+            "summon_duration" => "召唤持续时间",
             _ => string.Empty,
         };
         if (!string.IsNullOrEmpty(known)) return known;
 
+        // 词缀包含匹配
+        if (normalized.Contains("mana_burn")) return "法力燃烧";
+        if (normalized.Contains("creep_damage")) return "小兵伤害";
+        if (normalized.Contains("illusion")) return "幻象效果";
         if (normalized.Contains("heal")) return "治疗效果";
         if (normalized.Contains("mana")) return "魔法效果";
         if (normalized.Contains("armor")) return "护甲效果";
@@ -2056,10 +2150,17 @@ public sealed partial class AbilityDisplay : INotifyPropertyChanged
         if (normalized.Contains("cooldown")) return "冷却时间";
         if (normalized.Contains("cost")) return "消耗";
 
-        // 将英文标识符拆分为美观易读的词组（如 split_shot_count -> Split Shot Count）
-        var words = normalized.Split('_', StringSplitOptions.RemoveEmptyEntries)
-            .Select(w => char.ToUpperInvariant(w[0]) + (w.Length > 1 ? w[1..] : string.Empty));
-        return string.Join(' ', words);
+        // 尝试子词素拆解翻译（如 split_shot_count => 分裂 + 射击 + 数量 => 分裂箭数量）
+        var rawTokens = normalized.Split('_', StringSplitOptions.RemoveEmptyEntries);
+        if (rawTokens.Length > 0 && rawTokens.All(tok => SubTokenMap.ContainsKey(tok)))
+        {
+            var translated = string.Concat(rawTokens.Select(tok => SubTokenMap[tok]));
+            if (!string.IsNullOrWhiteSpace(translated)) return translated;
+        }
+
+        // 终极保底：组合已识别词素与大写词
+        var words = rawTokens.Select(w => SubTokenMap.TryGetValue(w, out var trans) ? trans : char.ToUpperInvariant(w[0]) + (w.Length > 1 ? w[1..] : string.Empty));
+        return string.Join(" ", words);
     }
 }
 

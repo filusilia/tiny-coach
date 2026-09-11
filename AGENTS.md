@@ -19,7 +19,7 @@
 
 ## 2. 当前真实架构
 
-- 唯一产品入口是 `native/AegisCoach.Native`，技术栈为 WinUI 3、C#、.NET 8、Windows App SDK。
+- 唯一产品入口是 `native/AegisCoach.Native`，技术栈为 WinUI 3、C#、.NET 10 LTS、Windows App SDK。
 - `native/AegisCoach.Native/Core` 是同一项目内的纯逻辑源码目录，不是独立项目，也不生成 `AegisCoach.Core.dll`。
 - `tools/GsiSmoke` 和 `tools/GsiReplay` 通过链接源码复用 `Core`。调整 Core 文件路径或依赖时，必须同时检查这两个工具项目。
 - `MainWindow` 目前仍承担组合根、导航、页面状态和服务生命周期。新增功能不得继续把可独立测试的规则、解析、缓存或数据转换堆入窗口代码。
@@ -114,6 +114,5 @@ pwsh -NoProfile -File .\tools\package-release.ps1
 
 发布产物包含：
 - `release/publish/神盾教练.exe`（直接双击即可运行）
-- `release/AegisCoach-发布版.zip`（分发压缩包）
 
 最终答复必须区分：已修改、自动验证、已生成发布包（文件路径与大小）、未验证风险。不得把编译成功写成 UI、联网、NPU 或真实 Dota 2 对局验收成功。

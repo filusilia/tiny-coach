@@ -43,13 +43,18 @@ public sealed partial class DotaDataService
         get => _cacheDirectory;
         set
         {
-            if (!string.IsNullOrWhiteSpace(value)) _cacheDirectory = value;
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _cacheDirectory = value;
+                Task.Run(MigrateLegacyFlatCaches);
+            }
         }
     }
 
     public DotaDataService()
     {
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("AegisCoach/0.1 Windows");
+        Task.Run(MigrateLegacyFlatCaches);
     }
 
     private static string AppAssetPath(string relativePath) =>
@@ -437,12 +442,17 @@ public sealed partial class DotaDataService
     {
         if (!Directory.Exists(_cacheDirectory)) return 0;
         var removed = 0;
-        foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "hero-*-zh-v*.json"))
+        var searchDirs = new[] { _cacheDirectory, Path.Combine(_cacheDirectory, "heroes") };
+        foreach (var dir in searchDirs)
         {
-            var name = Path.GetFileName(file);
-            if (!TryParseHeroCacheId(name, out var heroId) || !currentHeroIds.Contains(heroId))
+            if (!Directory.Exists(dir)) continue;
+            foreach (var file in Directory.EnumerateFiles(dir, "hero-*-zh-v*.json"))
             {
-                try { File.Delete(file); removed++; } catch { /* 尽力清理 */ }
+                var name = Path.GetFileName(file);
+                if (!TryParseHeroCacheId(name, out var heroId) || !currentHeroIds.Contains(heroId))
+                {
+                    try { File.Delete(file); removed++; } catch { /* 尽力清理 */ }
+                }
             }
         }
 
@@ -946,7 +956,11 @@ GROUP BY item_id";
 
         try
         {
-            var rows = await GetExplorerAsync<ItemMetricRow>(sql, cancellationToken);
+            // 物品胜率统计属于增强数据，设定 4 秒快速熔断，绝不挂起阻塞后台任务队列
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(4));
+
+            var rows = await GetExplorerAsync<ItemMetricRow>(sql, timeoutCts.Token);
             var metrics = rows
                 .Where(row => row.ItemId > 0)
                 .ToDictionary(row => row.ItemId, row => new ItemMetric { Picks = row.Picks, Wins = row.Wins });
@@ -965,7 +979,7 @@ GROUP BY item_id";
     public void ClearCache()
     {
         if (!Directory.Exists(_cacheDirectory)) return;
-        foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "*.json"))
+        foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "*.json", SearchOption.AllDirectories))
         {
             try { File.Delete(file); } catch { /* Cache cleanup is best effort. */ }
         }
@@ -1073,7 +1087,86 @@ GROUP BY item_id";
         }
     }
 
-    private string CachePath(string name) => Path.Combine(_cacheDirectory, $"{name}-v{TargetPatch}.json");
+    private static string GetSubdirectoryForCacheKey(string name)
+    {
+        if (name.StartsWith("hero-build-", StringComparison.OrdinalIgnoreCase))
+        {
+            return "builds";
+        }
+        if (name.StartsWith("hero-matchups-", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("hero-popularity-", StringComparison.OrdinalIgnoreCase))
+        {
+            return "matchups";
+        }
+        if (name.StartsWith("item-", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "items", StringComparison.OrdinalIgnoreCase))
+        {
+            return "items";
+        }
+        if (name.StartsWith("hero-", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "catalog", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "abilities", StringComparison.OrdinalIgnoreCase))
+        {
+            return "heroes";
+        }
+        return "common";
+    }
+
+    private void MigrateLegacyFlatCaches()
+    {
+        try
+        {
+            if (!Directory.Exists(_cacheDirectory)) return;
+            foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "*-v*.json", SearchOption.TopDirectoryOnly))
+            {
+                var fileName = Path.GetFileName(file);
+                var versionIndex = fileName.LastIndexOf("-v", StringComparison.OrdinalIgnoreCase);
+                if (versionIndex <= 0) continue;
+                var key = fileName[..versionIndex];
+                var subDir = GetSubdirectoryForCacheKey(key);
+                var targetDir = Path.Combine(_cacheDirectory, subDir);
+                Directory.CreateDirectory(targetDir);
+                var targetPath = Path.Combine(targetDir, fileName);
+                if (!File.Exists(targetPath))
+                {
+                    File.Move(file, targetPath);
+                }
+                else
+                {
+                    File.Delete(file);
+                }
+            }
+        }
+        catch
+        {
+            // 尽力迁移，避免异常阻断正常工作
+        }
+    }
+
+    private string CachePath(string name)
+    {
+        var subDir = GetSubdirectoryForCacheKey(name);
+        var dirPath = Path.Combine(_cacheDirectory, subDir);
+        var fileName = $"{name}-v{TargetPatch}.json";
+        var newPath = Path.Combine(dirPath, fileName);
+        var oldPath = Path.Combine(_cacheDirectory, fileName);
+
+        if (!File.Exists(newPath) && File.Exists(oldPath))
+        {
+            try
+            {
+                Directory.CreateDirectory(dirPath);
+                File.Move(oldPath, newPath, overwrite: true);
+                return newPath;
+            }
+            catch
+            {
+                return oldPath;
+            }
+        }
+
+        return newPath;
+    }
 
     private async Task<T> GetOpenDotaAsync<T>(string path, CancellationToken cancellationToken)
     {
@@ -1287,7 +1380,11 @@ GROUP BY item_id";
 
     private async Task WriteFileAsync<T>(string path, T value, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_cacheDirectory);
+        var targetDir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(targetDir))
+        {
+            Directory.CreateDirectory(targetDir);
+        }
         var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {

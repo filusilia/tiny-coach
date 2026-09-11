@@ -1,4 +1,5 @@
 using AegisCoach.Native.Models;
+using AegisCoach.Native.Services;
 using AegisCoach.Native.ViewModels;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -32,6 +33,10 @@ public sealed partial class HeroesPage : Page
 
     /// <summary>由 MainWindow 在设置保存成功后调用（force=true 重新联网拉取）。</summary>
     public Task LoadAsync(bool force) => ViewModel.LoadCommand.ExecuteAsync(force);
+
+    public void UseDataService(DotaDataService service) => ViewModel.UseDataService(service);
+
+    public void Cancel() => ViewModel.Cancel();
 
     private void Page_Unloaded(object sender, RoutedEventArgs e)
     {

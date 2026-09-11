@@ -30,8 +30,26 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
     public const string ShopMode = "商店物品";
     public const string NeutralMode = "中立物品";
 
-    private readonly DotaDataService _dataService = new();
-    private readonly CancellationTokenSource _lifetimeCts = new();
+    // 页面由 XAML 创建，数据服务由 MainWindow 组合根显式注入；禁止在 ViewModel 内创建备用实例。
+    private DotaDataService? _dataService;
+    private readonly object _ctsLock = new();
+    private CancellationTokenSource _lifetimeCts = new();
+
+    private CancellationToken ActiveToken
+    {
+        get
+        {
+            lock (_ctsLock)
+            {
+                if (_lifetimeCts.IsCancellationRequested)
+                {
+                    _lifetimeCts.Dispose();
+                    _lifetimeCts = new CancellationTokenSource();
+                }
+                return _lifetimeCts.Token;
+            }
+        }
+    }
     private readonly List<OfficialItemSummary> _sourceItems = [];
     private readonly List<CatalogItem> _allItems = [];
     private readonly Dictionary<int, Task<OfficialItemData>> _detailTasks = new();
@@ -67,7 +85,12 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
     public bool IsEmpty => !IsLoading && !HasError && Groups.Count == 0;
 
     /// <summary>使用设置页自定义的缓存目录（默认即文档目录，可在设置页修改）。</summary>
-    public void UseCacheDirectory(string path) => _dataService.CacheDirectory = path;
+    private DotaDataService DataService => _dataService
+        ?? throw new InvalidOperationException("ItemCatalogViewModel 尚未注入 DotaDataService");
+
+    public void UseDataService(DotaDataService service) => _dataService = service ?? throw new ArgumentNullException(nameof(service));
+
+    public void UseCacheDirectory(string path) => DataService.CacheDirectory = path;
 
     partial void OnModeIndexChanged(int value)
     {
@@ -87,7 +110,7 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
         StatusText = "正在同步物品数据…";
         try
         {
-            var items = await _dataService.LoadItemsAsync(force, _lifetimeCts.Token);
+            var items = await DataService.LoadItemsAsync(force, ActiveToken);
             if (requestId != _loadRequestId) return;
             _sourceItems.Clear();
             _sourceItems.AddRange(items);
@@ -95,8 +118,8 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             _allItems.AddRange(items.Select(ToCatalogItem));
             _detailTasks.Clear();
             _loadedOnce = true;
-            StatusText = $"{_dataService.ItemCatalogSource} · 目标版本 v{DotaDataService.TargetPatch}";
-            _ = ImageCacheService.Instance.PrefetchAsync(items.Select(item => item.ImageUrl), _lifetimeCts.Token);
+            StatusText = $"{DataService.ItemCatalogSource} · 目标版本 v{DotaDataService.TargetPatch}";
+            _ = ImageCacheService.Instance.PrefetchAsync(items.Select(item => item.ImageUrl), ActiveToken);
             ApplyFilters();
         }
         catch (OperationCanceledException)
@@ -160,14 +183,17 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
 
     public void Cancel()
     {
-        _lifetimeCts.Cancel();
+        lock (_ctsLock)
+        {
+            _lifetimeCts.Cancel();
+        }
         _searchDebounce?.Stop();
     }
 
     private async Task<OfficialItemData> GetDetailAsync(int itemId)
     {
         if (_detailTasks.TryGetValue(itemId, out var cached)) return await cached;
-        var task = _dataService.LoadItemDetailsAsync(itemId, false, _lifetimeCts.Token);
+        var task = DataService.LoadItemDetailsAsync(itemId, false, ActiveToken);
         _detailTasks[itemId] = task;
         try
         {

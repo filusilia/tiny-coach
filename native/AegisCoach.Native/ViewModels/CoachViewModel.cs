@@ -108,70 +108,132 @@ public sealed partial class CoachViewModel : ObservableObject
         OpenSettingsRequested?.Invoke();
     }
 
+    private int _lastHeroId;
+    private int _lastGameTimeSec = -1;
+    private double _lastHp = -1;
+    private double _lastMaxHp = -1;
+    private double _lastMana = -1;
+    private double _lastMaxMana = -1;
+    private int _lastLevel = -1;
+    private int _lastKills = -1;
+    private int _lastDeaths = -1;
+    private int _lastAssists = -1;
+    private int _lastGold = -1;
+    private int _lastLastHits = -1;
+    private string _lastPhaseText = string.Empty;
+    private string _lastScoreText = string.Empty;
+    private bool? _lastDaytime;
+    private string _lastBuildingSummary = string.Empty;
+
     public void UpdateStatus(bool running, bool isConnected, string? lastError)
     {
-        IsRunning = running;
-        IsConnected = isConnected;
-        if (running)
-        {
-            StatusText = lastError is null
-                ? (isConnected ? "已连接" : "未连接")
-                : "GSI 启动失败";
-        }
-        else
-        {
-            StatusText = "已停止";
-        }
+        if (IsRunning != running) IsRunning = running;
+        if (IsConnected != isConnected) IsConnected = isConnected;
+
+        var newStatus = running
+            ? (lastError is null ? (isConnected ? "已连接" : "未连接") : "GSI 启动失败")
+            : "已停止";
+
+        if (StatusText != newStatus) StatusText = newStatus;
     }
 
     public void UpdateSnapshot(MatchSnapshot snapshot, Func<int, string> getHeroName, Func<int, string> getHeroIcon)
     {
-        var matchParts = new List<string> { snapshot.PhaseText, snapshot.GameTimeText };
-        if (snapshot.InMatch) matchParts.Add($"比分 {snapshot.ScoreText}");
-        matchParts.Add(snapshot.Daytime ? "白天" : "夜晚");
-        if (!string.IsNullOrWhiteSpace(snapshot.BuildingSummary)) matchParts.Add("建筑 " + snapshot.BuildingSummary);
-        OverviewText = string.Join(" · ", matchParts);
+        var currentGameSec = (int)Math.Floor(snapshot.GameTime);
+        var overviewDirty = currentGameSec != _lastGameTimeSec
+            || snapshot.PhaseText != _lastPhaseText
+            || (snapshot.InMatch && snapshot.ScoreText != _lastScoreText)
+            || snapshot.Daytime != _lastDaytime
+            || (snapshot.BuildingSummary ?? string.Empty) != _lastBuildingSummary;
+
+        if (overviewDirty)
+        {
+            _lastGameTimeSec = currentGameSec;
+            _lastPhaseText = snapshot.PhaseText;
+            _lastScoreText = snapshot.ScoreText;
+            _lastDaytime = snapshot.Daytime;
+            _lastBuildingSummary = snapshot.BuildingSummary ?? string.Empty;
+
+            var matchParts = new List<string>(5) { snapshot.PhaseText, snapshot.GameTimeText };
+            if (snapshot.InMatch) matchParts.Add($"比分 {snapshot.ScoreText}");
+            matchParts.Add(snapshot.Daytime ? "白天" : "夜晚");
+            if (!string.IsNullOrWhiteSpace(snapshot.BuildingSummary)) matchParts.Add("建筑 " + snapshot.BuildingSummary);
+            OverviewText = string.Join(" · ", matchParts);
+        }
 
         if (snapshot.Hero.Id > 0)
         {
-            IsHeroPanelVisible = true;
-            HeroName = getHeroName(snapshot.Hero.Id);
-            HeroLevelText = $"Lv{snapshot.Hero.Level}";
+            if (!IsHeroPanelVisible) IsHeroPanelVisible = true;
 
-            var iconUrl = getHeroIcon(snapshot.Hero.Id);
-            if (!string.IsNullOrWhiteSpace(iconUrl) && !_heroImageCache.TryGetValue(snapshot.Hero.Id, out _))
+            // 英雄更换时才更新英雄名称和图标
+            if (snapshot.Hero.Id != _lastHeroId)
             {
-                try
+                _lastHeroId = snapshot.Hero.Id;
+                HeroName = getHeroName(snapshot.Hero.Id);
+
+                var iconUrl = getHeroIcon(snapshot.Hero.Id);
+                if (!string.IsNullOrWhiteSpace(iconUrl) && !_heroImageCache.TryGetValue(snapshot.Hero.Id, out _))
                 {
-                    _heroImageCache[snapshot.Hero.Id] = new BitmapImage(ImageCacheService.Instance.Resolve(iconUrl));
+                    try
+                    {
+                        _heroImageCache[snapshot.Hero.Id] = new BitmapImage(ImageCacheService.Instance.Resolve(iconUrl));
+                    }
+                    catch
+                    {
+                        /* 图标加载失败不影响状态卡 */
+                    }
                 }
-                catch
+
+                if (_heroImageCache.TryGetValue(snapshot.Hero.Id, out var heroImage))
                 {
-                    /* 图标加载失败不影响状态卡 */
+                    HeroImage = heroImage;
+                }
+                else
+                {
+                    HeroImage = null;
                 }
             }
 
-            if (_heroImageCache.TryGetValue(snapshot.Hero.Id, out var heroImage))
+            if (snapshot.Hero.Level != _lastLevel)
             {
-                HeroImage = heroImage;
+                _lastLevel = snapshot.Hero.Level;
+                HeroLevelText = $"Lv{snapshot.Hero.Level}";
             }
 
-            if (snapshot.Hero.MaxHealth > 0)
+            if (snapshot.Hero.MaxHealth > 0 &&
+                (Math.Abs(snapshot.Hero.Health - _lastHp) > 0.01 || Math.Abs(snapshot.Hero.MaxHealth - _lastMaxHp) > 0.01))
             {
+                _lastHp = snapshot.Hero.Health;
+                _lastMaxHp = snapshot.Hero.MaxHealth;
                 HeroMaxHp = snapshot.Hero.MaxHealth;
                 HeroHp = snapshot.Hero.Health;
-                HeroHpText = $"{snapshot.Hero.Health}/{snapshot.Hero.MaxHealth}（{snapshot.Hero.HealthPercent:0}%）";
+                HeroHpText = $"{snapshot.Hero.Health:0}/{snapshot.Hero.MaxHealth:0}（{snapshot.Hero.HealthPercent:0}%）";
             }
 
-            if (snapshot.Hero.MaxMana > 0)
+            if (snapshot.Hero.MaxMana > 0 &&
+                (Math.Abs(snapshot.Hero.Mana - _lastMana) > 0.01 || Math.Abs(snapshot.Hero.MaxMana - _lastMaxMana) > 0.01))
             {
+                _lastMana = snapshot.Hero.Mana;
+                _lastMaxMana = snapshot.Hero.MaxMana;
                 HeroMaxMana = snapshot.Hero.MaxMana;
                 HeroMana = snapshot.Hero.Mana;
-                HeroManaText = $"{snapshot.Hero.Mana}/{snapshot.Hero.MaxMana}（{snapshot.Hero.ManaPercent:0}%）";
+                HeroManaText = $"{snapshot.Hero.Mana:0}/{snapshot.Hero.MaxMana:0}（{snapshot.Hero.ManaPercent:0}%）";
             }
 
-            HeroKdaText = $"KDA {snapshot.Player.Kills}/{snapshot.Player.Deaths}/{snapshot.Player.Assists}";
-            HeroStatsText = $"金钱 {snapshot.Player.Gold:N0} · GPM {snapshot.Player.Gpm} · XPM {snapshot.Player.Xpm} · 补刀 {snapshot.Player.LastHits}";
+            if (snapshot.Player.Kills != _lastKills || snapshot.Player.Deaths != _lastDeaths || snapshot.Player.Assists != _lastAssists)
+            {
+                _lastKills = snapshot.Player.Kills;
+                _lastDeaths = snapshot.Player.Deaths;
+                _lastAssists = snapshot.Player.Assists;
+                HeroKdaText = $"KDA {snapshot.Player.Kills}/{snapshot.Player.Deaths}/{snapshot.Player.Assists}";
+            }
+
+            if (snapshot.Player.Gold != _lastGold || snapshot.Player.LastHits != _lastLastHits)
+            {
+                _lastGold = snapshot.Player.Gold;
+                _lastLastHits = snapshot.Player.LastHits;
+                HeroStatsText = $"金钱 {snapshot.Player.Gold:N0} · GPM {snapshot.Player.Gpm} · XPM {snapshot.Player.Xpm} · 补刀 {snapshot.Player.LastHits}";
+            }
 
             var mainItems = snapshot.Items
                 .Where(item => item.SlotKind == ItemSlotKind.Main && !string.IsNullOrWhiteSpace(item.Name))
@@ -195,7 +257,7 @@ public sealed partial class CoachViewModel : ObservableObject
         }
         else
         {
-            IsHeroPanelVisible = false;
+            if (IsHeroPanelVisible) IsHeroPanelVisible = false;
         }
     }
 

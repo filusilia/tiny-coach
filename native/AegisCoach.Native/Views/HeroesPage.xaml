@@ -176,7 +176,13 @@
                         BorderBrush="{ThemeResource GameBorderBrush}"
                         BorderThickness="1" CornerRadius="6">
                   <Grid>
-                    <Image Source="{Binding DisplayImage}" Stretch="UniformToFill" />
+                    <!-- 头像层：通过带 CornerRadius 的 Border.Background (ImageBrush) 实现 4 角完整平滑裁剪，彻底解决顶部直角溢出覆盖边框问题 -->
+                    <Border CornerRadius="5">
+                      <Border.Background>
+                        <ImageBrush ImageSource="{Binding DisplayImage}" Stretch="UniformToFill" />
+                      </Border.Background>
+                    </Border>
+
                     <!-- 顶部官方主属性图标 + 攻击类型（近战/远程）官方图标 -->
                     <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4"
                             Background="#CC000000" CornerRadius="4" Padding="3,2">
@@ -187,8 +193,9 @@
                                ToolTipService.ToolTip="{Binding AttackLabel}" />
                       </StackPanel>
                     </Border>
-                    <!-- 底部渐变名称与胜率条 -->
-                    <Border VerticalAlignment="Bottom" Padding="6,4">
+
+                    <!-- 底部渐变名称与胜率条，同步设置底部圆角 0,0,5,5 -->
+                    <Border VerticalAlignment="Bottom" Padding="6,4" CornerRadius="0,0,5,5">
                       <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                           <GradientStop Color="#00000000" Offset="0" />

@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace AegisCoach.Core.Models;
@@ -128,6 +130,105 @@ public sealed class MatchReport
     public string GeneratedText => GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 }
 
+/// <summary>
+/// 历史报告列表使用的轻量摘要。它只包含列表所需的事实，不携带 AI 文本、操作记录或 OpenDota 整场数据。
+/// 完整 <see cref="MatchReport"/> 在用户选中条目后按需读取。
+/// </summary>
+public sealed class MatchReportSummary : INotifyPropertyChanged
+{
+    private string _backend = string.Empty;
+    private MatchSessionRecord _match = new();
+    private bool _isLoadError;
+    private string _errorText = string.Empty;
+
+    public string Id { get; internal set; } = string.Empty;
+    public DateTimeOffset GeneratedAt { get; internal set; }
+
+    public string Backend
+    {
+        get => _backend;
+        internal set => SetField(ref _backend, value);
+    }
+
+    public MatchSessionRecord Match
+    {
+        get => _match;
+        internal set => SetField(ref _match, value);
+    }
+
+    [JsonIgnore]
+    public bool IsLoadError
+    {
+        get => _isLoadError;
+        private set => SetField(ref _isLoadError, value);
+    }
+
+    [JsonIgnore]
+    public string ErrorText
+    {
+        get => _errorText;
+        private set => SetField(ref _errorText, value);
+    }
+
+    [JsonIgnore]
+    public string GeneratedText => GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    [JsonIgnore]
+    internal string FilePath { get; set; } = string.Empty;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public static MatchReportSummary FromReport(MatchReport report, string? filePath = null) => new()
+    {
+        Id = report.Id,
+        GeneratedAt = report.GeneratedAt,
+        Backend = report.Backend,
+        Match = report.Match,
+        FilePath = filePath ?? string.Empty,
+    };
+
+    public static MatchReportSummary FromLoadError(string filePath, Exception exception) => new()
+    {
+        Id = Path.GetFileNameWithoutExtension(filePath),
+        GeneratedAt = File.GetLastWriteTimeUtc(filePath),
+        Backend = "读取失败",
+        Match = new MatchSessionRecord
+        {
+            HeroName = "报告读取失败",
+        },
+        IsLoadError = true,
+        ErrorText = exception.Message,
+        FilePath = filePath,
+    };
+
+    public void UpdateFrom(MatchReport report)
+    {
+        GeneratedAt = report.GeneratedAt;
+        Backend = report.Backend;
+        Match = report.Match;
+        IsLoadError = false;
+        ErrorText = string.Empty;
+        OnPropertyChanged(nameof(GeneratedText));
+    }
+
+    public void MarkLoadError(Exception exception)
+    {
+        IsLoadError = true;
+        Backend = "读取失败";
+        ErrorText = exception.Message;
+    }
+
+
+    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void OnPropertyChanged(string propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
 /// <summary>
 /// 从一局 NDJSON 回放中提取的“操作记录”：
 /// 技能/主动道具的施放与使用、购买、阵亡上下文、买活决策、击杀与地图事件。

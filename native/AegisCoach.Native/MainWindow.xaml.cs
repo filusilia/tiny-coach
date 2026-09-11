@@ -21,7 +21,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly DotaDataService _dataService = new();
     private readonly List<ItemCardItem> _allItems = [];
-    private MatchReport? _selectedReport;
+    private readonly ReportRepository _reportRepository = new(() => MatchSessionTracker.AnalysisDirectory);
     private bool _itemsLoaded;
     private bool _itemsLoading;
     private CoachRuleEngine _coachRules = new();
@@ -30,21 +30,37 @@ public sealed partial class MainWindow : Window
     private readonly NpuExecutionProviderService _npuRuntime = new();
     private readonly LiveMatchHeroService _liveMatchService = new();
     private readonly ApiMatchAnalyzer _apiMatchAnalyzer = new();
-    private readonly MatchSessionTracker _sessionTracker = new();
-    private readonly Dictionary<int, DotaDataService.HeroItemPopularity> _popularityCache = new();
-    private readonly Dictionary<int, List<DotaDataService.HeroMatchupStat>> _matchupCache = new();
+    private MatchSessionTracker _sessionTracker = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, DotaDataService.HeroItemPopularity> _popularityCache = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, List<DotaDataService.HeroMatchupStat>> _matchupCache = new();
     private Dictionary<string, int> _cooldownDraft = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedCooldownKey;
     private readonly SemaphoreSlim _recommendationGate = new(1, 1);
     private readonly SemaphoreSlim _counterGate = new(1, 1);
+    private readonly object _recommendationSync = new();
+    private CancellationTokenSource? _recommendationCts;
+    private Task? _recommendationTask;
+    private string? _lastRecommendationFingerprint;
+    private DateTimeOffset _lastRecommendationAt = DateTimeOffset.MinValue;
+    private readonly object _counterSync = new();
+    private CancellationTokenSource? _counterCts;
+    private Task? _counterTask;
+    private string? _lastCounterFingerprint;
+    private readonly object _aiExplanationSync = new();
+    private CancellationTokenSource? _aiExplanationCts;
+    private Task? _aiExplanationTask;
     private readonly CancellationTokenSource _appLifetimeCts = new();
+    private readonly object _backgroundTaskSync = new();
+    private readonly List<Task> _backgroundTasks = [];
     private GsiReceiver? _receiver;
-    private MatchSnapshot? _previousSnapshot;
+    private GsiProcessingPipeline? _pipeline;
     private MatchSnapshot? _latestSnapshot;
     private string? _trackedMatchId;
     private CancellationTokenSource? _heroTrackingCts;
     private LiveMatchInfo? _liveMatch;
     private AppSettings _settings = new();
+    private AppWindowTitleBar? _appWindowTitleBar;
+    private bool _isClosing;
     private bool _coachRunning;
     private bool _applicationStarted;
     private bool _settingsSaved;
@@ -76,46 +92,78 @@ public sealed partial class MainWindow : Window
         new("map_awareness", "关键时间"),
     ];
 
-    public ObservableCollection<MatchReport> AnalysisReports { get; } = [];
-    private PlayerHabits _habits = new();
+
+    private readonly Stopwatch _startupStopwatch = Stopwatch.StartNew();
 
     public MainWindow()
     {
         InitializeComponent();
+        HeroesPage.UseDataService(_dataService);
+        ItemCatalogPage.UseDataService(_dataService);
         SetupTitleBar();
         RootGrid.DataContext = this;
         RootGrid.Loaded += MainWindow_Loaded;
         Closed += MainWindow_Closed;
         CoachPage.ViewModel.OpenSettingsRequested += async () => await OpenCoachSettingsAsync();
+        PerformanceMetrics.Instance.RecordWindowConstructed(_startupStopwatch.ElapsedMilliseconds);
     }
 
     private void SetupTitleBar()
     {
         ExtendsContentIntoTitleBar = true;
-        SetTitleBar(TitleBarDragArea);
+        SetTitleBar(AppTitleBar);
+
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        if (File.Exists(iconPath))
+        {
+            AppWindow.SetIcon(iconPath);
+        }
 
         if (AppWindowTitleBar.IsCustomizationSupported())
         {
-            var titleBar = AppWindow.TitleBar;
-            titleBar.ButtonBackgroundColor = Colors.Transparent;
-            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            _appWindowTitleBar = AppWindow.TitleBar;
+            _appWindowTitleBar.PreferredHeightOption = Microsoft.UI.Windowing.TitleBarHeightOption.Tall;
+            _appWindowTitleBar.ButtonBackgroundColor = Colors.Transparent;
+            _appWindowTitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
         }
     }
 
-    private void NavPaneToggleButton_Click(object sender, RoutedEventArgs e)
+    private void TitleBarPaneToggleButton_Click(object sender, RoutedEventArgs e)
     {
         AppNavigation.IsPaneOpen = !AppNavigation.IsPaneOpen;
     }
 
-    private void MainWindow_Closed(object _, WindowEventArgs __)
+    private void TitleBar_PaneToggleRequested(TitleBar sender, object args)
     {
+        AppNavigation.IsPaneOpen = !AppNavigation.IsPaneOpen;
+    }
+
+    private async void MainWindow_Closed(object _, WindowEventArgs __)
+    {
+        if (_isClosing) return;
+        _isClosing = true;
         _appLifetimeCts.Cancel();
         CancelHeroTracking();
+        CancelRecommendation();
+        CancelCounterAnalysis();
+        CancelSmartExplanation();
+        AnalysisPage.Cancel();
         _receiver?.Stop();
+        var pipeline = _pipeline;
+        _pipeline = null;
+        if (pipeline is not null)
+        {
+            await pipeline.StopAsync();
+        }
+
+        HeroesPage.Cancel();
+        ItemCatalogPage.Cancel();
+        await StopBackgroundTasksAsync();
     }
 
     private async void MainWindow_Loaded(object _, RoutedEventArgs __)
     {
+        PerformanceMetrics.Instance.RecordWindowLoaded(_startupStopwatch.ElapsedMilliseconds);
         HeroesPage.ViewModel.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(HeroesViewModel.SearchText) && _lastNavigationItem?.Tag?.ToString() is "heroes" or null or "")
@@ -135,6 +183,9 @@ public sealed partial class MainWindow : Window
         UpdateTitleBarForPage("heroes");
 
         _settings = AppSettings.Load();
+        PerformanceMetrics.Instance.RecordSettingsLoaded(_startupStopwatch.ElapsedMilliseconds);
+        var isWarm = File.Exists(Path.Combine(_settings.CacheDirectory, "catalog.json"));
+        PerformanceMetrics.Instance.SetScenario(isWarm ? PerformanceScenario.WarmStart : PerformanceScenario.ColdStart);
         PopulateSettings();
         ApplyResponsiveLayout();
         if (!_settings.SetupCompleted)
@@ -168,16 +219,96 @@ public sealed partial class MainWindow : Window
         try { Directory.CreateDirectory(DotaDataService.OfficialDataDirectory); } catch { /* 官网数据文件目录可选 */ }
         NpuStatusText.Text = NpuCapabilityDetector.Detect().Summary;
         UpdateNpuModelStatus();
-        _ = RefreshNpuRuntimeAsync();
+        RegisterBackgroundTask(RefreshNpuRuntimeAsync());
+
+        AnalysisPage.ViewModel.ConfigureServices(
+            _reportRepository,
+            _dataService,
+            () => SnapshotDirectory,
+            () => _settings,
+            () => Catalog,
+            () => _allItems,
+            _npuCoach,
+            _cloudCoach,
+            _apiMatchAnalyzer,
+            RegisterBackgroundTask,
+            AppendCoachLog,
+            DispatcherQueue);
+
         AppendCoachLog("应用已按当前设置启动");
-        if (_settings.AutoStartGsi) ToggleCoach(true);
+        if (_settings.AutoStartGsi) await ToggleCoachAsync(true);
         else UpdateCoachStatusUi();
-        LoadAnalysisData();
-        _ = HeroesPage.LoadAsync(false);
-        _ = LoadItemsInBackgroundAsync();
+
+        // 首屏顺序：英雄目录先可搜索、可点击、可滚动；其余数据作为可取消的后台增强。
+        await TrackHeroesLoadingAsync();
+        RegisterBackgroundTask(LoadAnalysisDataAsync());
+        RegisterBackgroundTask(LoadItemsInBackgroundAsync());
         // 预热物品资料页（遵守首次启动门控：仅在设置保存成功后触发）。
-        _ = ItemCatalogPage.LoadAsync(false);
-        _ = RefreshAllHeroDetailsInBackgroundAsync();
+        RegisterBackgroundTask(ItemCatalogPage.LoadAsync(false));
+        RegisterBackgroundTask(RefreshAllHeroDetailsInBackgroundAsync());
+    }
+
+    private void RegisterBackgroundTask(Task task)
+    {
+        lock (_backgroundTaskSync)
+        {
+            _backgroundTasks.Add(task);
+        }
+
+        _ = task.ContinueWith(
+            completed =>
+            {
+                lock (_backgroundTaskSync)
+                {
+                    _backgroundTasks.Remove(task);
+                }
+
+                if (completed.IsFaulted && completed.Exception is not null)
+                {
+                    WriteErrorLog(completed.Exception.GetBaseException());
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private async Task StopBackgroundTasksAsync()
+    {
+        Task[] tasks;
+        lock (_backgroundTaskSync)
+        {
+            tasks = _backgroundTasks.ToArray();
+        }
+
+        if (tasks.Length == 0) return;
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            WriteErrorLog(exception);
+        }
+    }
+
+    private async Task TrackHeroesLoadingAsync()
+    {
+        try
+        {
+            await HeroesPage.LoadAsync(false);
+            var elapsed = _startupStopwatch.ElapsedMilliseconds;
+            PerformanceMetrics.Instance.RecordHeroesAvailable(elapsed);
+            PerformanceMetrics.Instance.RecordFirstScreenInteractive(elapsed);
+            PerformanceMetrics.Instance.LogToFile(title: "首屏就绪性能基线");
+        }
+        catch (Exception exception)
+        {
+            WriteErrorLog(exception);
+        }
     }
 
     /// <summary>后台批量刷新全部英雄的中文详情（官网接口优先），并清理不再属于当前版本的旧详情缓存。</summary>
@@ -222,21 +353,19 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void LoadAnalysisData()
+    private async Task LoadAnalysisDataAsync()
     {
-        _habits = MatchSessionTracker.LoadHabits();
-        AnalysisReports.Clear();
-        foreach (var report in MatchSessionTracker.LoadReports()) AnalysisReports.Add(report);
-        UpdateHabitsSummary();
-        AnalysisCountText.Text = $"{AnalysisReports.Count} 份报告";
-    }
-
-    private void UpdateHabitsSummary()
-    {
-        if (AnalysisSummaryText is null) return;
-        AnalysisSummaryText.Text = _habits.TotalMatches == 0
-            ? "暂无历史对局：通过 GSI 打完一局后，这里会自动记录你的游戏习惯并生成赛后分析。"
-            : $"共 {_habits.TotalMatches} 场 · 胜率 {_habits.WinRateText} · 常用英雄 {_habits.MostPlayedHero} · 平均 KDA {_habits.AverageKda} · 常见装备 {_habits.MostBoughtItem} · 场均时长 {_habits.AverageDuration}";
+        try
+        {
+            await AnalysisPage.ViewModel.InitializeAsync(AppToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            WriteErrorLog(exception);
+        }
     }
 
     private async Task LoadItemsAsync(bool force)
@@ -246,22 +375,45 @@ public sealed partial class MainWindow : Window
         try
         {
             var items = await _dataService.LoadItemsAsync(force, AppToken);
-            Dictionary<int, ItemMetric> metrics;
-            try
-            {
-                metrics = await _dataService.LoadItemMetricsAsync(force, AppToken);
-            }
-            catch (Exception exception)
-            {
-                WriteErrorLog(exception);
-                metrics = [];
-            }
 
+            // 1. 基础物品列表就绪即刻开放可用，彻底杜绝等待慢速聚合统计网络查询（秒开基线）
             _allItems.Clear();
-            _allItems.AddRange(items.Select(item => new ItemCardItem(item, metrics.GetValueOrDefault(item.Id))));
+            _allItems.AddRange(items.Select(item => new ItemCardItem(item, null)));
             _itemsLoaded = true;
-            // 后台预下载物品图片到本地缓存。
-            _ = ImageCacheService.Instance.PrefetchAsync(items.Select(item => item.ImageUrl), AppToken);
+            PerformanceMetrics.Instance.RecordItemsAvailable(_startupStopwatch.ElapsedMilliseconds);
+            PerformanceMetrics.Instance.LogToFile(title: "物品目录就绪性能基线");
+
+            // 2. 后台异步数据增强：非阻塞方式拉取物品热度与胜率指标，完成后平滑增量更新
+            RegisterBackgroundTask(Task.Run(async () =>
+            {
+                try
+                {
+                    var metrics = await _dataService.LoadItemMetricsAsync(force, AppToken);
+                    if (metrics.Count > 0)
+                    {
+                        foreach (var card in _allItems)
+                        {
+                            if (metrics.TryGetValue(card.Item.Id, out var metric))
+                            {
+                                card.Metric = metric;
+                            }
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    WriteErrorLog(exception);
+                }
+            }, AppToken));
+
+            // 3. 后台预下载物品图片到本地缓存。
+            var prefetchSw = Stopwatch.StartNew();
+            var imageUrls = items.Select(item => item.ImageUrl).ToList();
+            RegisterBackgroundTask(ImageCacheService.Instance.PrefetchAsync(imageUrls, AppToken).ContinueWith(_ =>
+            {
+                prefetchSw.Stop();
+                PerformanceMetrics.Instance.RecordImagePrefetch(imageUrls.Count, prefetchSw.ElapsedMilliseconds);
+            }, TaskScheduler.Default));
         }
         catch (Exception exception)
         {
@@ -348,23 +500,37 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void TitleBarSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    private void TitleBarSearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput &&
-            args.Reason != AutoSuggestionBoxTextChangeReason.ProgrammaticChange) return;
-
+        if (sender is not TextBox textBox) return;
         var tag = (_lastNavigationItem ?? AppNavigation.SelectedItem as NavigationViewItem)?.Tag?.ToString();
         if (tag == "heroes" || string.IsNullOrEmpty(tag))
         {
-            HeroesPage.ViewModel.SearchText = sender.Text;
+            if (HeroesPage.ViewModel.SearchText != textBox.Text)
+                HeroesPage.ViewModel.SearchText = textBox.Text;
         }
         else if (tag == "items")
         {
-            ItemCatalogPage.ViewModel.SearchText = sender.Text;
+            if (ItemCatalogPage.ViewModel.SearchText != textBox.Text)
+                ItemCatalogPage.ViewModel.SearchText = textBox.Text;
         }
     }
 
-    private void TitleBarSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    private void TitleBarSearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            SubmitTitleBarSearch();
+            e.Handled = true;
+        }
+    }
+
+    private void TitleBarSearchSubmitButton_Click(object sender, RoutedEventArgs e)
+    {
+        SubmitTitleBarSearch();
+    }
+
+    private void SubmitTitleBarSearch()
     {
         var tag = (_lastNavigationItem ?? AppNavigation.SelectedItem as NavigationViewItem)?.Tag?.ToString();
         if (tag == "heroes" || string.IsNullOrEmpty(tag))
@@ -396,6 +562,7 @@ public sealed partial class MainWindow : Window
         if (isCtrlDown && e.Key == Windows.System.VirtualKey.F)
         {
             TitleBarSearchBox.Focus(FocusState.Programmatic);
+            TitleBarSearchBox.SelectAll();
             e.Handled = true;
         }
         else if (isCtrlDown && e.Key == Windows.System.VirtualKey.B)
@@ -405,308 +572,16 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void AnalysisList_SelectionChanged(object _, SelectionChangedEventArgs __)
+    private void RootGrid_SizeChanged(object _, SizeChangedEventArgs __)
     {
-        if (AnalysisList.SelectedItem is MatchReport report)
-        {
-            _selectedReport = report;
-            ShowAnalysisReport(report);
-        }
-    }
-
-    private void ShowAnalysisReport(MatchReport report)
-    {
-        var record = report.Match;
-        AnalysisDetailTitleText.Text = $"{record.HeroName} · {record.ResultText} · {record.DurationText}";
-        AnalysisDetailMetaText.Text = $"{record.DateText}  KDA {record.KdaText}  补刀 {record.LastHits}  GPM {record.Gpm}  XPM {record.Xpm}  最高等级 {record.MaxLevel}";
-        AnalysisDetailBackendText.Text = $"报告生成于 {report.GeneratedText} · 由 {report.Backend} 生成";
-        AnalysisDetailReviewText.Text = string.IsNullOrWhiteSpace(report.AiReview)
-            ? "（暂无复盘内容，AI 后端不可用时请稍后查看规则摘要）"
-            : report.AiReview;
-        AnalysisDetailItemsText.Text = record.FinalItems.Count > 0
-            ? string.Join("、", record.FinalItems)
-            : "无";
-        AnalysisDetailMomentsText.Text = record.KeyMoments.Count > 0
-            ? string.Join("\n", record.KeyMoments)
-            : "本局没有采集到关键节点";
-        AnalysisDetailEconomyText.Text = record.Economy.Count > 0
-            ? string.Join("  ", record.Economy.Select(sample => $"{sample.TimeText} GPM{sample.Gpm}/XPM{sample.Xpm}"))
-            : "暂无经济采样";
-        AnalysisOperationsHost.Text = FormatOperationsForUi(report.Operations);
-        AnalysisOperationsEmptyText.Visibility = report.Operations is null ? Visibility.Visible : Visibility.Collapsed;
-        AnalysisOperationsHost.Visibility = report.Operations is null ? Visibility.Collapsed : Visibility.Visible;
-        if (report.Api is { HeroId: > 0 })
-        {
-            AnalysisApiHost.Text = string.Join("\n", CoachAiPrompts.BuildApiContextText(report.Api));
-            AnalysisApiEmptyText.Visibility = Visibility.Collapsed;
-            AnalysisApiHost.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            AnalysisApiEmptyText.Visibility = Visibility.Visible;
-            AnalysisApiHost.Visibility = Visibility.Collapsed;
-        }
-        AnalysisEmptyState.Visibility = Visibility.Collapsed;
-        AnalysisDetailRoot.Visibility = Visibility.Visible;
-        AnalysisDetailPanel.Visibility = Visibility.Visible;
         ApplyResponsiveLayout();
     }
-
-    private static MatchOperationSummary EmptyOperationsFrom(MatchSessionRecord record, string heroName, ApiMatchSummary? api)
-    {
-        var operations = new MatchOperationSummary
-        {
-            MatchId = record.MatchId,
-            HeroId = record.HeroId,
-            HeroName = heroName,
-            Won = record.Won,
-            DurationSeconds = record.DurationSeconds,
-            ScoreText = api?.ScoreText ?? string.Empty,
-            Kills = record.Kills,
-            Deaths = record.Deaths,
-            Assists = record.Assists,
-            LastHits = record.LastHits,
-            Denies = record.Denies,
-            Gpm = record.Gpm,
-            Xpm = record.Xpm,
-            MaxLevel = record.MaxLevel,
-        };
-        if (api is not null)
-        {
-            operations.Phases = BuildApiPhaseStats(api);
-            operations.Economy = api.Economy.Select(point => new EconomySample
-            {
-                GameTime = point.Minute * 60d,
-                Gpm = (int)point.Gold,
-                Xpm = (int)point.Xp,
-            }).ToList();
-        }
-        return operations;
-    }
-
-    private static List<PhaseStat> BuildApiPhaseStats(ApiMatchSummary api)
-    {
-        var buckets = new List<PhaseStat>();
-        var durationMinutes = Math.Max(1, (int)Math.Ceiling(api.DurationSeconds / 60d));
-        var labels = new[] { "对线期", "中期", "中后期", "后期" };
-        for (var bucket = 0; bucket < 4; bucket++)
-        {
-            var start = bucket * 10;
-            var end = Math.Min((bucket + 1) * 10, durationMinutes);
-            if (start >= durationMinutes) break;
-            var points = api.Economy.Where(point => point.Minute >= start && point.Minute < end).ToList();
-            if (points.Count == 0) continue;
-            var first = points[0];
-            var last = points[^1];
-            buckets.Add(new PhaseStat
-            {
-                StartSeconds = start * 60d,
-                EndSeconds = end * 60d,
-                Label = bucket < labels.Length ? labels[bucket] : $"第{bucket + 1}阶段",
-                AvgGpm = points.Average(point => point.Gold),
-                AvgXpm = points.Average(point => point.Xp),
-                LastHitsDelta = Math.Max(0, last.LastHits - (bucket == 0 ? 0 : first.LastHits)),
-                LastHitsPerMinute = Math.Max(0, last.LastHits - (bucket == 0 ? 0 : first.LastHits)) / Math.Max(1, end - start),
-            });
-        }
-        return buckets;
-    }
-
-    private string ResolveApiHeroInternalName(int heroId) =>
-        Catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.Name ?? string.Empty;
-
-    private static string ResolveApiItemName(string keyOrFullName) =>
-        CoachRuleEngine.FriendlyItemName(keyOrFullName);
-
-    private string ResolveApiItemById(int itemId)
-    {
-        var item = _allItems.FirstOrDefault(card => card.Item.Id == itemId);
-        return item is not null ? item.Name : $"道具{itemId}";
-    }
-
-    private void EnrichApiNames(ApiMatchSummary api)
-    {
-        if (Catalog is null) return;
-        foreach (var player in api.AllPlayers)
-        {
-            var hero = Catalog.Heroes.FirstOrDefault(item => item.Id == player.HeroId);
-            if (hero is not null && !string.IsNullOrWhiteSpace(hero.LocalizedName))
-            {
-                player.HeroName = hero.LocalizedName;
-            }
-        }
-    }
-
-    private async void AnalysisFetchMatchButton_Click(object _, RoutedEventArgs __)
-    {
-        var text = AnalysisMatchIdBox.Text.Trim();
-        if (!long.TryParse(text, out var matchId) || matchId <= 0)
-        {
-            AppendCoachLog("比赛 ID 无效");
-            return;
-        }
-
-        AnalysisFetchMatchButton.IsEnabled = false;
-        try
-        {
-            var api = await _apiMatchAnalyzer.FetchAsync(
-                matchId,
-                _habits.SteamId,
-                0,
-                ResolveApiHeroInternalName,
-                ResolveApiItemName,
-                ResolveApiItemById,
-                AppToken);
-            if (api is null || api.HeroId <= 0)
-            {
-                AppendCoachLog($"API 拉取失败：{api?.Error ?? "无返回"}");
-                return;
-            }
-
-            EnrichApiNames(api);
-            var record = new MatchSessionRecord
-            {
-                MatchId = matchId,
-                HeroId = api.HeroId,
-                HeroName = LocalizedHeroNameById(api.HeroId),
-                SteamId = _habits.SteamId ?? string.Empty,
-                StartedAt = DateTimeOffset.UtcNow,
-                EndedAt = DateTimeOffset.UtcNow,
-                DurationSeconds = api.DurationSeconds,
-                Won = api.RadiantWin is null ? null : api.RadiantWin == api.IsRadiant,
-                Kills = api.Kills,
-                Deaths = api.Deaths,
-                Assists = api.Assists,
-                LastHits = api.LastHits,
-                Denies = api.Denies,
-                Gpm = api.Gpm,
-                Xpm = api.Xpm,
-                MaxLevel = api.Level,
-                FinalItems = api.FinalItems,
-            };
-            var report = new MatchReport
-            {
-                Id = $"report-{DateTime.Now:yyyyMMdd-HHmmss}-{matchId}",
-                GeneratedAt = DateTimeOffset.UtcNow,
-                Match = record,
-                Api = api,
-                AiReview = BuildFallbackReview(record, null),
-                Backend = "OpenDota",
-            };
-            AnalysisReports.Insert(0, report);
-            if (AnalysisReports.Count > 200) AnalysisReports.RemoveAt(AnalysisReports.Count - 1);
-            AnalysisCountText.Text = $"{AnalysisReports.Count} 份报告";
-            AnalysisList.SelectedItem = report;
-            ShowAnalysisReport(report);
-            AppendCoachLog($"已从 OpenDota 拉取比赛 {matchId}，正在生成复盘…");
-            _ = GenerateMatchReviewAsync(report);
-        }
-        finally
-        {
-            AnalysisFetchMatchButton.IsEnabled = true;
-        }
-    }
-
-    private static string FormatOperationsForUi(MatchOperationSummary? ops)
-    {
-        if (ops is null) return string.Empty;
-        var lines = new List<string>();
-        foreach (var death in ops.DeathsDetailed)
-        {
-            var parts = new List<string>
-            {
-                $"{death.TimeText} 第{death.DeathNumber}次阵亡 · 阵亡前血量 {death.HealthPercentAtDeath:0}%（窗口内最低{death.MinHealthPercentInWindow:0}%）",
-                $"等级{death.Level} · 金钱{death.Gold}",
-            };
-            if (death.UltReadyAtDeath) parts.Add("大招就绪未使用");
-            if (death.ReadyActivesUnused.Count > 0) parts.Add($"{string.Join("、", death.ReadyActivesUnused)}就绪未使用");
-            if (death.TpAvailable) parts.Add("TP可用");
-            if (death.RecentCasts.Count > 0) parts.Add("20秒内操作：" + string.Join("、", death.RecentCasts));
-            parts.Add(death.BuybackAvailable
-                ? $"可买活（{death.BuybackCost}）{(death.BuybackUsed ? "已买活" : "未买活")}"
-                : "不可买活");
-            lines.Add(string.Join(" · ", parts));
-        }
-
-        var shown = 0;
-        foreach (var op in ops.Operations.OrderBy(item => item.GameTime))
-        {
-            if (op.Kind == "death") continue;
-            lines.Add(CoachAiPrompts.FormatOperation(op));
-            shown++;
-            if (shown >= 60) break;
-        }
-        return lines.Count > 0 ? string.Join("\n", lines) : "本局没有采集到操作事件";
-    }
-
-    private void AnalysisRegenerateButton_Click(object _, RoutedEventArgs __)
-    {
-        if (AnalysisList.SelectedItem is not MatchReport report) return;
-        AnalysisRegenerateButton.IsEnabled = false;
-        _ = RegenerateReviewAsync(report);
-    }
-
-    private async Task RegenerateReviewAsync(MatchReport report)
-    {
-        try
-        {
-            await GenerateMatchReviewAsync(report);
-        }
-        finally
-        {
-            DispatcherQueue.TryEnqueue(() => AnalysisRegenerateButton.IsEnabled = true);
-        }
-    }
-
-    private void AnalysisCloseButton_Click(object _, RoutedEventArgs __)
-    {
-        _selectedReport = null;
-        AnalysisList.SelectedItem = null;
-        AnalysisDetailRoot.Visibility = Visibility.Collapsed;
-        AnalysisDetailPanel.Visibility = Visibility.Collapsed;
-        ApplyResponsiveLayout();
-    }
-
-    private void RootGrid_SizeChanged(object _, SizeChangedEventArgs __) => ApplyResponsiveLayout();
 
     private void ApplyResponsiveLayout()
     {
         if (RootGrid is null) return;
         var compact = RootGrid.ActualWidth > 0 && RootGrid.ActualWidth < 1100;
-        var pagePadding = compact ? new Thickness(12, 12, 12, 16) : new Thickness(24, 18, 24, 22);
-        AnalysisPage.Padding = pagePadding;
-
-        var hasAnalysisDetail = _selectedReport is not null;
-        AnalysisDetailPanel.Visibility = hasAnalysisDetail ? Visibility.Visible : Visibility.Collapsed;
-        if (!hasAnalysisDetail)
-        {
-            AnalysisList.Visibility = Visibility.Visible;
-            AnalysisListColumn.Width = new GridLength(1, GridUnitType.Star);
-            AnalysisListColumn.MinWidth = 0;
-            AnalysisDetailColumn.Width = new GridLength(0);
-            AnalysisDetailColumn.MinWidth = 0;
-        }
-        else if (compact)
-        {
-            AnalysisList.Visibility = Visibility.Collapsed;
-            AnalysisListColumn.Width = new GridLength(0);
-            AnalysisListColumn.MinWidth = 0;
-            AnalysisDetailColumn.Width = new GridLength(1, GridUnitType.Star);
-            AnalysisDetailColumn.MinWidth = 0;
-        }
-        else
-        {
-            AnalysisList.Visibility = Visibility.Visible;
-            AnalysisListColumn.Width = new GridLength(330);
-            AnalysisListColumn.MinWidth = 280;
-            AnalysisDetailColumn.Width = new GridLength(1, GridUnitType.Star);
-            AnalysisDetailColumn.MinWidth = 360;
-        }
-
-        Grid.SetRow(AnalysisImportPanel, compact ? 1 : 0);
-        Grid.SetColumn(AnalysisImportPanel, 0);
-        AnalysisImportPanel.HorizontalAlignment = compact ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-
+        AnalysisPage.ApplyResponsiveLayout(compact);
         CoachPage.ApplyResponsiveLayout(compact);
     }
 
@@ -799,12 +674,25 @@ public sealed partial class MainWindow : Window
         UpdateCoachStatusUi();
     }
 
-    private void ToggleCoach(bool start)
+    private async Task ToggleCoachAsync(bool start)
     {
+        if (_isClosing) return;
+
         if (start)
         {
             ApplyCoachSettings();
-            _receiver = new GsiReceiver(AppSettings.GsiPort, snapshotDirectory: SnapshotDirectory);
+            _sessionTracker = new MatchSessionTracker();
+            _pipeline = new GsiProcessingPipeline(
+                _coachRules,
+                _sessionTracker,
+                uiDispatcher: action => DispatcherQueue.TryEnqueue(new Microsoft.UI.Dispatching.DispatcherQueueHandler(action)),
+                onAdvicePublished: HandleAdvicePublished,
+                onMatchFinished: HandleFinishedMatch,
+                onStatePublished: HandleStatePublished);
+            _pipeline.Start();
+
+            var authToken = EnsureGsiAuthToken();
+            _receiver = new GsiReceiver(AppSettings.GsiPort, token: authToken, snapshotDirectory: SnapshotDirectory);
             _receiver.SnapshotReceived += OnSnapshotReceived;
             _receiver.ConnectionChanged += OnConnectionChanged;
             _receiver.Log += OnCoachLog;
@@ -818,12 +706,21 @@ public sealed partial class MainWindow : Window
         }
         else
         {
-            _receiver?.Stop();
+            var receiver = _receiver;
             _receiver = null;
+            receiver?.Stop();
+
+            var pipeline = _pipeline;
+            _pipeline = null;
+            if (pipeline is not null)
+            {
+                await pipeline.StopAsync();
+            }
+
             _coachRunning = false;
-            _previousSnapshot = null;
             _latestSnapshot = null;
             CancelHeroTracking();
+            CancelRecommendation();
             AppendCoachLog("GSI 监听已停止");
         }
 
@@ -878,6 +775,7 @@ public sealed partial class MainWindow : Window
         rules.CooldownSeconds = new Dictionary<string, int>(_cooldownDraft, StringComparer.OrdinalIgnoreCase);
         rules.Normalize();
         _coachRules = new CoachRuleEngine(options: rules);
+        _pipeline?.UpdateRuleEngine(_coachRules);
         if (completeSetup) _settings.SetupCompleted = true;
         if (!_settings.Save())
         {
@@ -936,209 +834,40 @@ public sealed partial class MainWindow : Window
 
     private void OnSnapshotReceived(object? _, MatchSnapshot snapshot)
     {
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            var finishedMatch = _sessionTracker.OnSnapshot(snapshot);
-            var advice = _coachRules.Evaluate(_previousSnapshot, snapshot);
-            _previousSnapshot = snapshot;
-            _latestSnapshot = snapshot;
-            HandleHeroTracking(snapshot);
-            if (finishedMatch is not null) HandleFinishedMatch(finishedMatch);
-            foreach (var item in advice)
-            {
-                CoachPage.ViewModel.AddAdvice(item);
-                if (_settings.SmartCoachEnabled && TryReserveSmartExplanation()) _ = ExplainAdviceAsync(item, snapshot);
-            }
+        PerformanceMetrics.Instance.RecordSnapshotReceived();
+        _pipeline?.Enqueue(snapshot);
+    }
 
-            CoachPage.ViewModel.UpdateSnapshot(snapshot, LocalizedHeroNameById, LocalizedHeroIconById);
-            _ = RefreshItemRecommendationAsync(snapshot);
-            UpdateCoachStatusUi();
-        });
+    private void HandleAdvicePublished(CoachAdvice item)
+    {
+        CoachPage.ViewModel.AddAdvice(item);
+        var targetSnapshot = item.Snapshot ?? _latestSnapshot;
+        if (targetSnapshot is not null)
+        {
+            QueueSmartExplanation(item, targetSnapshot);
+        }
+    }
+
+    private void HandleStatePublished(MatchSnapshot snapshot)
+    {
+        _latestSnapshot = snapshot;
+        HandleHeroTracking(snapshot);
+        CoachPage.ViewModel.UpdateSnapshot(snapshot, LocalizedHeroNameById, LocalizedHeroIconById);
+        QueueItemRecommendationRefresh(snapshot);
+        UpdateCoachStatusUi();
     }
 
     private void HandleFinishedMatch(MatchSessionRecord record)
     {
-        _habits = MatchSessionTracker.AppendHabit(record);
-        UpdateHabitsSummary();
-
+        MatchSessionTracker.AppendHabit(record);
         var report = new MatchReport
         {
             Id = $"report-{DateTime.Now:yyyyMMdd-HHmmss}-{record.MatchId}",
             GeneratedAt = DateTimeOffset.UtcNow,
             Match = record,
-            AiReview = BuildFallbackReview(record, null),
             Backend = "规则摘要",
         };
-        AnalysisReports.Insert(0, report);
-        if (AnalysisReports.Count > 200) AnalysisReports.RemoveAt(AnalysisReports.Count - 1);
-        AnalysisCountText.Text = $"{AnalysisReports.Count} 份报告";
-        AppendCoachLog($"赛后分析：本局（{record.HeroName}，{record.ResultText}）已记录，正在生成复盘…");
-        if (_settings.SmartCoachEnabled) _ = GenerateMatchReviewAsync(report);
-        else MatchSessionTracker.SaveReport(report);
-    }
-
-    private async Task GenerateMatchReviewAsync(MatchReport report)
-    {
-        var record = report.Match;
-        var heroName = string.IsNullOrWhiteSpace(record.HeroName)
-            ? LocalizedHeroNameById(record.HeroId)
-            : record.HeroName;
-        var operations = report.Operations ?? await Task.Run(() =>
-            new MatchOperationExtractor().Extract(
-                SnapshotDirectory, record.MatchId, record.StartedAt, record.EndedAt));
-        if (operations is not null)
-        {
-            operations.HeroName = heroName;
-            operations.Won = record.Won;
-            report.Operations = operations;
-        }
-
-        ApiMatchSummary? api = report.Api;
-        if (api is null && record.MatchId > 0)
-        {
-            var steamId = string.IsNullOrWhiteSpace(record.SteamId) ? _habits.SteamId : record.SteamId;
-            using var fetchTimeout = CancellationTokenSource.CreateLinkedTokenSource(AppToken);
-            fetchTimeout.CancelAfter(TimeSpan.FromSeconds(12));
-            api = await _apiMatchAnalyzer.FetchAsync(
-                record.MatchId,
-                steamId,
-                record.HeroId,
-                ResolveApiHeroInternalName,
-                ResolveApiItemName,
-                ResolveApiItemById,
-                fetchTimeout.Token);
-            if (api is { HeroId: > 0 })
-            {
-                EnrichApiNames(api);
-                report.Api = api;
-            }
-        }
-
-        var prompt = operations is not null || api is { HeroId: > 0 }
-            ? CoachAiPrompts.BuildMatchReviewPrompt(
-                heroName,
-                record.Won == true,
-                record.DurationSeconds,
-                operations ?? EmptyOperationsFrom(record, heroName, api),
-                record.FinalItems,
-                api)
-            : BuildStatsOnlyPrompt(heroName, record);
-        string? review = null;
-        try
-        {
-            switch (_settings.BackendKind)
-            {
-                case AiBackendKind.Npu:
-                    review = await _npuCoach.ExplainAsync(prompt, AppToken, maxTokens: 420);
-                    if (!string.IsNullOrWhiteSpace(review)) report.Backend = "NPU 本地推理";
-                    break;
-                case AiBackendKind.Cloud:
-                    review = await _cloudCoach.GenerateAsync(
-                        prompt,
-                        "你是Dota 2赛后复盘教练，只依据给定操作记录分析，不编造数据；区分事实与推断；建议必须带游戏时间。",
-                        _settings.CloudEndpoint,
-                        _settings.CloudModel,
-                        _settings.CloudApiKey,
-                        maxTokens: 700,
-                        AppToken);
-                    if (!string.IsNullOrWhiteSpace(review)) report.Backend = "云端 API";
-                    break;
-            }
-        }
-        catch
-        {
-            // 后端不可用时保留规则摘要。
-        }
-
-        if (!string.IsNullOrWhiteSpace(review)) report.AiReview = review;
-        MatchSessionTracker.SaveReport(report);
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (AnalysisList.SelectedItem is MatchReport selected && selected == report)
-            {
-                ShowAnalysisReport(report);
-            }
-        });
-    }
-
-    private static string BuildStatsOnlyPrompt(string heroName, MatchSessionRecord record) =>
-        "你是Dota 2赛后复盘教练。请基于下面的统计写一份中文复盘报告，控制在250字以内：\n" +
-        "1) 总体评价；2) 指出1-2个最值得改进的点并给出可执行建议；3) 提到做得好的地方。只使用下面的事实，不要编造数据。\n\n" +
-        $"英雄：{heroName}，结果：{(record.Won == true ? "胜利" : record.Won == false ? "失败" : "未知")}，" +
-        $"时长 {record.DurationText}\nKDA {record.KdaText}，补刀 {record.LastHits}，GPM {record.Gpm}，XPM {record.Xpm}，" +
-        $"最高等级 {record.MaxLevel}，最终装备：{(record.FinalItems.Count > 0 ? string.Join("、", record.FinalItems) : "无")}";
-
-    private static string BuildFallbackReview(MatchSessionRecord record, MatchOperationSummary? ops)
-    {
-        var lines = new List<string>
-        {
-            record.Won switch
-            {
-                true => "总体评价：本局获胜，团队执行整体到位。",
-                false => "总体评价：本局失利，可以从中复盘关键转折。",
-                null => "总体评价：本局结束，结果未知。",
-            },
-            $"关键数据：KDA {record.KdaText}，GPM {record.Gpm}，XPM {record.Xpm}，补刀 {record.LastHits}，反补 {record.Denies}，最高等级 {record.MaxLevel}，时长 {record.DurationText}。",
-        };
-        if (ops is not null)
-        {
-            var laning = ops.Phases.FirstOrDefault(phase => phase.Label == "对线期");
-            if (laning is not null)
-            {
-                lines.Add($"对线期（{laning.TimeText}）补刀 {laning.LastHitsDelta}（{laning.LastHitsPerMinute:0.#}/分），" +
-                    $"死亡 {laning.DeathsDelta} 次，击杀 {laning.KillsDelta}。对线期死亡过多会直接拖慢经济与等级；" +
-                    (laning.LastHitsPerMinute < 5
-                        ? "补刀效率偏低，建议在训练模式练正反补节奏，并用补刀练习地图。"
-                        : "补刀节奏正常，继续保持并注意边补边看小地图。"));
-            }
-
-            foreach (var death in ops.DeathsDetailed)
-            {
-                var causes = new List<string>();
-                if (death.HealthPercentAtDeath <= 30 && death.LastHitsInWindow > 2)
-                    causes.Add($"阵亡前血量已低至 {death.HealthPercentAtDeath:0}% 仍在补刀");
-                if (death.UltReadyAtDeath)
-                    causes.Add("大招就绪未使用");
-                if (death.ReadyActivesUnused.Count > 0)
-                    causes.Add($"{string.Join("、", death.ReadyActivesUnused)}就绪未使用");
-                if (death.TpAvailable)
-                    causes.Add("TP 可用未撤退");
-                if (causes.Count > 0)
-                {
-                    lines.Add($"{death.TimeText} 第{death.DeathNumber}次阵亡：{string.Join("；", causes)}。建议：低血量或资源不足时立即后撤/回城，不要贪刀。");
-                }
-                else
-                {
-                    lines.Add($"{death.TimeText} 第{death.DeathNumber}次阵亡（阵亡前血量 {death.HealthPercentAtDeath:0}%）。可回看该时间点核对敌方动向。");
-                }
-            }
-
-            var buybacksMissed = ops.DeathsDetailed.Count(death => death.BuybackAvailable && !death.BuybackUsed);
-            if (buybacksMissed > 0)
-                lines.Add($"本局有 {buybacksMissed} 次可买活未使用。买活只在高地防守、肉山团或即将结束比赛时使用，平时留着买活更好。");
-        }
-        if (record.Deaths >= 8)
-        {
-            lines.Add("改进点：阵亡偏多。优先保证视野与抱团，避免单人带线过河；每次阵亡后记录敌方位置与技能状态。");
-        }
-
-        if (record.Won != true && record.Gpm < 420)
-        {
-            lines.Add("改进点：经济偏低。提升补刀与参战效率，规划更早的推塔与野区资源，而不是被动等待。");
-        }
-
-        if (record.FinalItems.Count > 0)
-        {
-            lines.Add($"最终装备：{string.Join("、", record.FinalItems)}。对照版本强势出装，确认关键道具购买时机是否合理。");
-        }
-
-        if (record.KeyMoments.Count > 0)
-        {
-            lines.Add("关键节点：" + string.Join("；", record.KeyMoments.Take(8)) + "。");
-        }
-
-        lines.Add("建议：结合回放回看 1-2 个关键团战，核对每次开团前的视野、技能冷却与敌方位置。");
-        return string.Join("\n", lines);
+        AnalysisPage.ViewModel.AddCompletedReport(report);
     }
 
     private bool TryReserveSmartExplanation()
@@ -1150,7 +879,7 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
-    private async Task ExplainAdviceAsync(CoachAdvice advice, MatchSnapshot snapshot)
+    private async Task ExplainAdviceAsync(CoachAdvice advice, MatchSnapshot snapshot, CancellationToken cancellationToken)
     {
         try
         {
@@ -1159,17 +888,21 @@ public sealed partial class MainWindow : Window
             {
                 case AiBackendKind.Npu:
                     explanation = await _npuCoach.ExplainAsync(
-                        CoachAiPrompts.BuildPrompt(advice, snapshot), AppToken);
+                        CoachAiPrompts.BuildPrompt(advice, snapshot), cancellationToken);
                     break;
                 case AiBackendKind.Cloud:
                     explanation = await _cloudCoach.ExplainAsync(
                         advice, snapshot, _settings.CloudEndpoint, _settings.CloudModel, _settings.CloudApiKey,
-                        AppToken);
+                        cancellationToken);
                     break;
             }
 
             if (string.IsNullOrWhiteSpace(explanation)) return;
-            DispatcherQueue.TryEnqueue(() => advice.Message += $" 智能解释：{explanation}");
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_isClosing && !cancellationToken.IsCancellationRequested)
+                    advice.Message += $" 智能解释：{explanation}";
+            });
         }
         catch
         {
@@ -1253,7 +986,7 @@ public sealed partial class MainWindow : Window
         if (long.TryParse(snapshot.Player.SteamId, out var steamId) && steamId > 0)
         {
             _heroTrackingCts = CancellationTokenSource.CreateLinkedTokenSource(AppToken);
-            _ = TrackLiveMatchAsync(matchId, steamId, snapshot.Player.TeamName ?? string.Empty, _heroTrackingCts.Token);
+            RegisterBackgroundTask(TrackLiveMatchAsync(matchId, steamId, snapshot.Player.TeamName ?? string.Empty, _heroTrackingCts.Token));
             CoachPage.ViewModel.HeroesStatusText = "正在检索公开对局（人机/私人局不可用）…";
         }
     }
@@ -1333,17 +1066,65 @@ public sealed partial class MainWindow : Window
 
     private void UpdateLiveHeroUi(LiveMatchInfo info)
     {
+        if (_isClosing) return;
         CoachPage.ViewModel.UpdateLiveHeroes(info, LocalizedHeroNameById, LocalizedHeroIconById);
-        if (_latestSnapshot is not null) _ = RefreshItemRecommendationAsync(_latestSnapshot);
-        if (_latestSnapshot is not null) _ = RefreshCounterAnalysisAsync(_latestSnapshot);
+        if (_latestSnapshot is not null) QueueItemRecommendationRefresh(_latestSnapshot);
+        if (_latestSnapshot is not null) QueueCounterAnalysisRefresh(_latestSnapshot);
     }
 
-    private async Task RefreshCounterAnalysisAsync(MatchSnapshot snapshot)
+    private void QueueCounterAnalysisRefresh(MatchSnapshot snapshot)
     {
-        if (!await _counterGate.WaitAsync(0)) return;
+        var liveMatch = _liveMatch;
+        if (_isClosing || liveMatch is null) return;
+
+        var fingerprint = BuildCounterFingerprint(snapshot, liveMatch);
+        lock (_counterSync)
+        {
+            // 克制分析只由敌方阵容（或玩家英雄）变化触发，不随每个 GSI 快照重跑。
+            if (string.Equals(fingerprint, _lastCounterFingerprint, StringComparison.Ordinal)) return;
+
+            _lastCounterFingerprint = fingerprint;
+            _counterCts?.Cancel();
+            _counterCts = CancellationTokenSource.CreateLinkedTokenSource(AppToken);
+            _counterTask = RefreshCounterAnalysisAsync(snapshot, liveMatch, fingerprint, _counterCts.Token);
+            RegisterBackgroundTask(_counterTask);
+        }
+    }
+
+    private string BuildCounterFingerprint(MatchSnapshot snapshot, LiveMatchInfo liveMatch)
+    {
+        var enemies = string.Join(',', liveMatch.Heroes
+            .Where(hero => hero.HeroId > 0 && hero.Team != liveMatch.MyTeam)
+            .Select(hero => hero.HeroId)
+            .Distinct()
+            .OrderBy(id => id));
+        return $"{snapshot.MatchId}|{snapshot.Hero.Id}|{liveMatch.MyTeam}|{enemies}";
+    }
+
+    private bool IsCurrentCounterRequest(string fingerprint)
+    {
+        lock (_counterSync)
+        {
+            return !_isClosing && string.Equals(fingerprint, _lastCounterFingerprint, StringComparison.Ordinal);
+        }
+    }
+
+    private async Task RefreshCounterAnalysisAsync(
+        MatchSnapshot snapshot,
+        LiveMatchInfo liveMatch,
+        string fingerprint,
+        CancellationToken cancellationToken)
+    {
+        var entered = false;
+        var sw = Stopwatch.StartNew();
         try
         {
-            if (_liveMatch is null)
+            await _counterGate.WaitAsync(cancellationToken);
+            entered = true;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentCounterRequest(fingerprint)) return;
+
+            if (liveMatch is null)
             {
                 CoachPage.ViewModel.CounterStatusText = "等待全场英雄数据（仅公开比赛）…";
                 return;
@@ -1356,8 +1137,8 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var enemies = _liveMatch.Heroes
-                .Where(hero => hero.HeroId > 0 && hero.Team != _liveMatch.MyTeam)
+            var enemies = liveMatch.Heroes
+                .Where(hero => hero.HeroId > 0 && hero.Team != liveMatch.MyTeam)
                 .ToList();
             var enemyIds = enemies.Select(hero => hero.HeroId).Distinct().ToList();
             if (enemyIds.Count == 0)
@@ -1367,7 +1148,7 @@ public sealed partial class MainWindow : Window
             }
 
             // 敌方克制我 / 我克制敌方：以我方英雄的公开对阵胜率为准。
-            var myMatchups = await GetMatchupsAsync(myHeroId);
+            var myMatchups = await GetMatchupsAsync(myHeroId, cancellationToken);
             var countersMe = new List<CounterMatchupItem>();
             var countersTarget = new List<CounterMatchupItem>();
             var enemyStats = new List<DotaDataService.HeroMatchupStat>();
@@ -1429,14 +1210,14 @@ public sealed partial class MainWindow : Window
             // 选人推荐：统计候选英雄对敌方阵容的克制面。用敌方英雄自身的对阵数据反向推导：
             // 敌方英雄对候选者的胜率越低，说明该候选者越克制它。
             var pickRecommendations = new List<CounterPickRecommendation>();
-            var taken = _liveMatch.Heroes.Where(hero => hero.HeroId > 0).Select(hero => hero.HeroId).ToHashSet();
+            var taken = liveMatch.Heroes.Where(hero => hero.HeroId > 0).Select(hero => hero.HeroId).ToHashSet();
             var scores = new Dictionary<int, (int Count, double WinRateSum)>();
             foreach (var enemyId in enemyIds)
             {
                 List<DotaDataService.HeroMatchupStat> enemyMatchups;
                 try
                 {
-                    enemyMatchups = await GetMatchupsAsync(enemyId);
+                    enemyMatchups = await GetMatchupsAsync(enemyId, cancellationToken);
                 }
                 catch
                 {
@@ -1475,15 +1256,27 @@ public sealed partial class MainWindow : Window
                 ? "基于 OpenDota 对阵胜率（样本 ≥30）"
                 : "暂无足够对阵样本";
 
-            CoachPage.ViewModel.UpdateCounters(countersMe, countersTarget, pickRecommendations, statusText);
+            if (IsCurrentCounterRequest(fingerprint))
+            {
+                CoachPage.ViewModel.UpdateCounters(countersMe, countersTarget, pickRecommendations, statusText);
+            }
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception exception)
         {
-            CoachPage.ViewModel.CounterStatusText = "克制分析暂不可用：" + exception.Message;
+            if (IsCurrentCounterRequest(fingerprint))
+            {
+                // 保留上一次有效结果，只更新降级原因。
+                CoachPage.ViewModel.CounterStatusText = "克制分析暂不可用，保留上次结果：" + exception.Message;
+            }
         }
         finally
         {
-            _counterGate.Release();
+            if (entered) _counterGate.Release();
+            sw.Stop();
+            PerformanceMetrics.Instance.RecordCounterAnalysis(sw.ElapsedMilliseconds);
         }
     }
 
@@ -1493,18 +1286,102 @@ public sealed partial class MainWindow : Window
     private string LocalizedHeroIconById(int heroId) =>
         Catalog?.Heroes.FirstOrDefault(hero => hero.Id == heroId)?.IconUrl ?? string.Empty;
 
-    private async Task RefreshItemRecommendationAsync(MatchSnapshot snapshot)
+    private void QueueItemRecommendationRefresh(MatchSnapshot snapshot)
     {
-        if (!await _recommendationGate.WaitAsync(0)) return;
-        if (_liveMatch is null)
-        {
-            CoachPage.ViewModel.ItemRecommendText = "等待全场英雄数据（仅公开比赛）…";
-            _recommendationGate.Release();
-            return;
-        }
+        if (_isClosing) return;
 
+        var fingerprint = BuildRecommendationFingerprint(snapshot);
+        var now = DateTimeOffset.UtcNow;
+        lock (_recommendationSync)
+        {
+            var minInterval = TimeSpan.FromSeconds(Math.Clamp(_settings.SmartCoachMinIntervalSeconds, 3, 60));
+            if (string.Equals(fingerprint, _lastRecommendationFingerprint, StringComparison.Ordinal)
+                && now - _lastRecommendationAt < minInterval)
+            {
+                return;
+            }
+
+            _lastRecommendationFingerprint = fingerprint;
+            _lastRecommendationAt = now;
+            _recommendationCts?.Cancel();
+            _recommendationCts = CancellationTokenSource.CreateLinkedTokenSource(AppToken);
+            _recommendationTask = RefreshItemRecommendationAsync(snapshot, _recommendationCts.Token);
+            RegisterBackgroundTask(_recommendationTask);
+        }
+    }
+
+    private string BuildRecommendationFingerprint(MatchSnapshot snapshot)
+    {
+        var itemIds = string.Join(',', snapshot.Items
+            .Where(item => item.SlotKind == ItemSlotKind.Main)
+            .Select(item => item.Name)
+            .OrderBy(item => item, StringComparer.Ordinal));
+        var heroes = _liveMatch is null
+            ? string.Empty
+            : string.Join(',', _liveMatch.Heroes
+                .Where(hero => hero.HeroId > 0)
+                .Select(hero => $"{hero.Team}:{hero.HeroId}")
+                .OrderBy(item => item, StringComparer.Ordinal));
+        var goldBucket = Math.Max(0, snapshot.Player.Gold) / 500;
+        return $"{snapshot.Hero.Id}|{itemIds}|{snapshot.Phase}|{heroes}|{goldBucket}";
+    }
+
+    private void CancelRecommendation()
+    {
+        lock (_recommendationSync)
+        {
+            _recommendationCts?.Cancel();
+            _recommendationCts = null;
+            _lastRecommendationFingerprint = null;
+            _lastRecommendationAt = DateTimeOffset.MinValue;
+        }
+    }
+
+    private void CancelCounterAnalysis()
+    {
+        lock (_counterSync)
+        {
+            _counterCts?.Cancel();
+            _counterCts = null;
+            _lastCounterFingerprint = null;
+        }
+    }
+
+    private void QueueSmartExplanation(CoachAdvice advice, MatchSnapshot snapshot)
+    {
+        if (!_settings.SmartCoachEnabled || _isClosing || !TryReserveSmartExplanation()) return;
+
+        lock (_aiExplanationSync)
+        {
+            _aiExplanationCts?.Cancel();
+            _aiExplanationCts = CancellationTokenSource.CreateLinkedTokenSource(AppToken);
+            _aiExplanationTask = ExplainAdviceAsync(advice, snapshot, _aiExplanationCts.Token);
+            RegisterBackgroundTask(_aiExplanationTask);
+        }
+    }
+
+    private void CancelSmartExplanation()
+    {
+        lock (_aiExplanationSync)
+        {
+            _aiExplanationCts?.Cancel();
+            _aiExplanationCts = null;
+        }
+    }
+
+    private async Task RefreshItemRecommendationAsync(MatchSnapshot snapshot, CancellationToken cancellationToken)
+    {
+        if (!await _recommendationGate.WaitAsync(0, cancellationToken)) return;
+        var sw = Stopwatch.StartNew();
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_liveMatch is null)
+            {
+                CoachPage.ViewModel.ItemRecommendText = "等待全场英雄数据（仅公开比赛）…";
+                return;
+            }
+
             var myHeroId = snapshot.Hero.Id;
             if (myHeroId <= 0)
             {
@@ -1512,7 +1389,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var popularity = await GetPopularityAsync(myHeroId);
+            var popularity = await GetPopularityAsync(myHeroId, cancellationToken);
             var stage = snapshot.GameTime switch
             {
                 < 600 => popularity.EarlyGameItems,
@@ -1544,6 +1421,9 @@ public sealed partial class MainWindow : Window
                 ? string.Join("\n", lines)
                 : "暂无推荐数据（数据源未返回该英雄物品热度）";
         }
+        catch (OperationCanceledException)
+        {
+        }
         catch (Exception exception)
         {
             CoachPage.ViewModel.ItemRecommendText = "推荐数据获取失败：" + exception.Message;
@@ -1551,21 +1431,23 @@ public sealed partial class MainWindow : Window
         finally
         {
             _recommendationGate.Release();
+            sw.Stop();
+            PerformanceMetrics.Instance.RecordItemRecommendation(sw.ElapsedMilliseconds);
         }
     }
 
-    private async Task<DotaDataService.HeroItemPopularity> GetPopularityAsync(int heroId)
+    private async Task<DotaDataService.HeroItemPopularity> GetPopularityAsync(int heroId, CancellationToken cancellationToken)
     {
         if (_popularityCache.TryGetValue(heroId, out var cached)) return cached;
-        var value = await _dataService.GetHeroItemPopularityAsync(heroId, AppToken);
+        var value = await _dataService.GetHeroItemPopularityAsync(heroId, cancellationToken);
         _popularityCache[heroId] = value;
         return value;
     }
 
-    private async Task<List<DotaDataService.HeroMatchupStat>> GetMatchupsAsync(int heroId)
+    private async Task<List<DotaDataService.HeroMatchupStat>> GetMatchupsAsync(int heroId, CancellationToken cancellationToken = default)
     {
         if (_matchupCache.TryGetValue(heroId, out var cached)) return cached;
-        var value = await _dataService.GetHeroMatchupsAsync(heroId, AppToken);
+        var value = await _dataService.GetHeroMatchupsAsync(heroId, cancellationToken);
         _matchupCache[heroId] = value;
         return value;
     }
@@ -1614,6 +1496,7 @@ public sealed partial class MainWindow : Window
 
     private void CancelHeroTracking()
     {
+        CancelCounterAnalysis();
         _heroTrackingCts?.Cancel();
         _heroTrackingCts?.Dispose();
         _heroTrackingCts = null;
@@ -1674,9 +1557,9 @@ public sealed partial class MainWindow : Window
         AppendCoachLog($"{title}：{message}");
     }
 
-    private void CoachToggleButton_Click(object _, RoutedEventArgs __)
+    private async void CoachToggleButton_Click(object _, RoutedEventArgs __)
     {
-        if (_applicationStarted) ToggleCoach(!_coachRunning);
+        if (_applicationStarted) await ToggleCoachAsync(!_coachRunning);
     }
 
     private void CoachInstallButton_Click(object _, RoutedEventArgs __)
@@ -1687,7 +1570,8 @@ public sealed partial class MainWindow : Window
     private void InstallCoachConfig()
     {
         var manualPath = string.IsNullOrWhiteSpace(CoachPathBox.Text) ? null : CoachPathBox.Text.Trim();
-        var result = GsiConfigInstaller.Install(manualPath, AppSettings.GsiPort, string.Empty);
+        var authToken = EnsureGsiAuthToken();
+        var result = GsiConfigInstaller.Install(manualPath, AppSettings.GsiPort, authToken);
         ShowCoachInfo(result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Warning,
             result.Success ? "GSI 配置已安装" : "GSI 配置未安装",
             result.Success ? $"{result.Message} 请完全退出并重新启动 Dota 2 后生效。" : result.Message);
@@ -1771,6 +1655,20 @@ public sealed partial class MainWindow : Window
         {
             ShowCoachInfo(InfoBarSeverity.Error, "无法打开数据目录", exception.Message);
         }
+    }
+
+    private static string EnsureGsiAuthToken()
+    {
+        const string TokenCredentialKey = "GsiAuthToken";
+        var token = AppCredentialStore.Load(TokenCredentialKey);
+        if (string.IsNullOrWhiteSpace(token) || token.Length < 16)
+        {
+            Span<byte> randomBytes = stackalloc byte[16];
+            System.Security.Cryptography.RandomNumberGenerator.Fill(randomBytes);
+            token = Convert.ToHexString(randomBytes).ToLowerInvariant();
+            AppCredentialStore.Save(TokenCredentialKey, token, out _);
+        }
+        return token;
     }
 
     private sealed record RuleCooldownChoice(string Key, string Label)

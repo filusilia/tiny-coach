@@ -270,17 +270,21 @@ public sealed class GsiReceiver : IAsyncDisposable
         if (!header.StartsWith("POST", StringComparison.OrdinalIgnoreCase)) return (false, []);
 
         var contentLength = ParseContentLength(header);
-        var body = new MemoryStream();
+        if (contentLength <= 0 || contentLength > 1024 * 1024) return (false, []);
+
+        var body = new MemoryStream(contentLength);
         var all = received.GetBuffer();
         var bodyStart = headerEnd + 4;
         var available = (int)received.Length - bodyStart;
-        if (available > 0) body.Write(all, bodyStart, available);
+        var initialWrite = Math.Min(Math.Max(0, available), contentLength);
+        if (initialWrite > 0) body.Write(all, bodyStart, initialWrite);
 
         while (contentLength > body.Length)
         {
             var read = await stream.ReadAsync(buffer, cancellationToken);
             if (read == 0) break;
-            body.Write(buffer, 0, read);
+            var toWrite = Math.Min(read, contentLength - (int)body.Length);
+            body.Write(buffer, 0, toWrite);
         }
 
         return (true, body.ToArray());

@@ -1,7 +1,7 @@
 # 神盾教练项目完整文档
 
-文档版本：2026-08-25
-产品范围：Windows PC 原生桌面应用（WinUI 3 / C# / .NET 8 / Windows App SDK）
+文档版本：2026-09-07
+产品范围：Windows PC 原生桌面应用（WinUI 3 / C# / .NET 10 LTS / Windows App SDK）
 当前阶段：资料库与机制查询 + GSI 实时教练闭环 + 本地/API 赛后复盘分析
 
 > **说明**：完成度是工程估计，不是测试覆盖率。已编译通过不等于真实验收完成；涉及 Steam、Dota 2、在线 API、NPU 推理和桌面 UI 交互的功能仍需以真实环境验收为准。
@@ -252,10 +252,25 @@ native/AegisCoach.Native/
 ### 8.1 编译与构建
 
 ```powershell
+# 项目固定使用仓库声明的 .NET 10 SDK 与集中管理的 NuGet 版本
+dotnet --version
+
 # 还原并编译整个解决方案
 dotnet restore native\AegisCoach.Native.sln -p:Platform=x64
 dotnet build native\AegisCoach.Native.sln --configuration Debug --no-restore -p:Platform=x64
 ```
+
+当前顶级依赖版本集中定义在根目录 `Directory.Packages.props`：
+
+| 依赖 | 版本 | 用途 |
+|---|---:|---|
+| `CommunityToolkit.Mvvm` | `8.4.2` | WinUI ViewModel、ObservableProperty 与命令 |
+| `Microsoft.WindowsAppSDK` | `2.4.0` | WinUI 3 与 Windows App SDK 运行时 |
+| `Microsoft.Windows.SDK.BuildTools` | `10.0.28000.2705` | Windows SDK 构建工具 |
+| `JYPPX.OpenVINO.CSharp.API` | `3.3.1` | OpenVINO C# API |
+| `JYPPX.OpenVINO.GenAI.runtime.win` | `2026.3.1` | Windows OpenVINO GenAI 运行时 |
+
+`global.json` 固定 .NET SDK `10.0.400`；升级 SDK 或顶级依赖时，必须完成 Native 构建、GSI 冒烟测试和发布打包后再提交。
 
 ### 8.2 功能冒烟与离线回放测试
 
@@ -283,6 +298,7 @@ pwsh -NoProfile -File .\tools\package-release.ps1
 ## 9. 关联文档索引
 
 - **架构评审与渐进演进路线**：[docs/ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md)
+- **启动、浏览与实时链路 AI 性能优化实施规范**：[docs/AI_PERFORMANCE_OPTIMIZATION_PLAN.md](AI_PERFORMANCE_OPTIMIZATION_PLAN.md)
 - **AI 运行时与推理设计**：[docs/AI_RUNTIME_DESIGN.md](AI_RUNTIME_DESIGN.md)
 - **AI Agent Prompt 模板与输入契约**：[docs/AI_AGENT_PROMPT_TEMPLATES.md](AI_AGENT_PROMPT_TEMPLATES.md)
 - **Steam Dota 2 GSI 接入手册与故障排查**：[docs/STEAM_DOTA2_GSI_GUIDE.md](STEAM_DOTA2_GSI_GUIDE.md)

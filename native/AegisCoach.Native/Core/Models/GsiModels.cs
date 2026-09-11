@@ -532,6 +532,10 @@ public sealed class CoachAdvice : INotifyPropertyChanged
     public long MatchId { get; set; }
     public double GameTime { get; set; }
 
+    /// <summary>触发该提醒时的瞬时快照上下文，供 AI 解释精确对齐，不落盘。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public MatchSnapshot? Snapshot { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public string GameTimeText => MatchSnapshot.FormatGameTime(GameTime);
 

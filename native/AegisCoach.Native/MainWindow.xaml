@@ -15,66 +15,69 @@
 
   <Grid x:Name="RootGrid" Background="{ThemeResource AppBackgroundBrush}" SizeChanged="RootGrid_SizeChanged" KeyDown="RootGrid_KeyDown">
     <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
+      <RowDefinition Height="48" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- ================= 顶层自定义标题栏 (Row 0, 44px) ================= -->
-    <Grid x:Name="AppTitleBar" Grid.Row="0" Height="44"
-          Background="{ThemeResource GameSurfaceSubtleBrush}"
-          BorderBrush="{ThemeResource GameBorderBrush}"
-          BorderThickness="0,0,0,1">
-      <!-- 独立窗口拖拽背景层（不阻断上层交互控件的点击与输入） -->
-      <Border x:Name="TitleBarDragArea" Background="Transparent" />
+    <!-- ================= 顶层自定义标题栏 (参考图吧工具箱 WinUI 3 标准规范) ================= -->
+    <TitleBar
+        x:Name="AppTitleBar"
+        Grid.Row="0"
+        Height="48"
+        Title="神盾教练"
+        FontWeight="Bold"
+        IsBackButtonVisible="False"
+        IsPaneToggleButtonVisible="True"
+        PaneToggleRequested="TitleBar_PaneToggleRequested">
+      <TitleBar.IconSource>
+        <ImageIconSource ImageSource="ms-appx:///Assets/Icons/app_256.png" />
+      </TitleBar.IconSource>
+      <TitleBar.Content>
+        <Grid VerticalAlignment="Center">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
 
-      <Grid Height="44">
-        <Grid.ColumnDefinitions>
-          <!-- 0: 最左侧 - 左侧宽度对称平衡区（192px，对齐 50px 紧凑导航栏，保证中间搜索框绝对居中） -->
-          <ColumnDefinition Width="192" />
-          <!-- 1: 中间 - 绝对居中自适应搜索框 -->
-          <ColumnDefinition Width="*" />
-          <!-- 2: 最右侧 - 右侧宽度对称平衡区（192px，包含 32px 刷新按钮与 140px 系统控制按钮避让区） -->
-          <ColumnDefinition Width="192" />
-        </Grid.ColumnDefinitions>
+          <!-- 稳定 320px 搜索框（采用原生 TextBox，文本垂直绝对居中，右侧预留按钮边距） -->
+          <Grid Grid.Column="0" Width="320" VerticalAlignment="Center">
+            <TextBox x:Name="TitleBarSearchBox"
+                     Height="32"
+                     Padding="10,5,32,5"
+                     VerticalAlignment="Center"
+                     VerticalContentAlignment="Center"
+                     PlaceholderText="搜索英雄或物品 (Ctrl+F)"
+                     TextChanged="TitleBarSearchBox_TextChanged"
+                     KeyDown="TitleBarSearchBox_KeyDown"
+                     AutomationProperties.Name="顶部搜索框" />
+            <Button x:Name="TitleBarSearchSubmitButton"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Right"
+                    Width="30" Height="30"
+                    Padding="0"
+                    BorderThickness="0"
+                    Background="Transparent"
+                    Click="TitleBarSearchSubmitButton_Click"
+                    ToolTipService.ToolTip="搜索"
+                    AutomationProperties.Name="执行搜索">
+              <FontIcon FontSize="13" Glyph="&#xE721;" Foreground="{ThemeResource GameTextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Button>
+          </Grid>
 
-        <!-- 最左侧：折叠/展开左侧导航按钮 + 图标与应用名（全套 32px 高度，严格垂直对齐，汉堡按钮居中于 50px 折叠导航栏） -->
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="9,0,0,0">
-          <Button x:Name="NavPaneToggleButton" Width="32" Height="32" Padding="0"
-                  Background="Transparent" BorderThickness="0" CornerRadius="4"
-                  Click="NavPaneToggleButton_Click"
-                  ToolTipService.ToolTip="折叠/展开导航栏 (Ctrl+B)"
-                  AutomationProperties.Name="折叠/展开导航栏"
-                  HorizontalAlignment="Center" VerticalAlignment="Center">
-            <FontIcon Glyph="&#xE700;" FontSize="13" Foreground="{ThemeResource GameTextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Button>
-          <FontIcon Glyph="&#xE734;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" Margin="2,0,0,0" />
-          <TextBlock Text="神盾教练" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource GameTextPrimaryBrush}" VerticalAlignment="Center" />
-        </StackPanel>
-
-        <!-- 中间：绝对居中自适应搜索框（高度严格 32px，与两侧按钮水平基准线完全一致） -->
-        <AutoSuggestBox Grid.Column="1" x:Name="TitleBarSearchBox"
-                        Width="360" MaxWidth="440" Height="32"
-                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                        QueryIcon="Find" PlaceholderText="搜索英雄或物品 (Ctrl+F)"
-                        TextChanged="TitleBarSearchBox_TextChanged"
-                        QuerySubmitted="TitleBarSearchBox_QuerySubmitted"
-                        AutomationProperties.Name="顶部搜索框" />
-
-        <!-- 最右侧：统一 32px 刷新按钮 + 系统控制按钮避让区（右对齐排布，与左侧对称平衡） -->
-        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-          <Button x:Name="TitleBarRefreshButton" Width="32" Height="32" Padding="0" CornerRadius="4"
-                  Background="Transparent" BorderThickness="0"
-                  Click="TitleBarRefreshButton_Click"
-                  ToolTipService.ToolTip="刷新当前数据" AutomationProperties.Name="刷新当前数据"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                  Margin="0,0,12,0">
-            <FontIcon Glyph="&#xE72C;" FontSize="13" Foreground="{ThemeResource GameTextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Button>
-          <!-- 避让 Windows 原生最小化/最大化/关闭按钮 (140px) -->
-          <Border Width="140" Height="44" Background="Transparent" />
-        </StackPanel>
-      </Grid>
-    </Grid>
+          <!-- 右侧操作区 -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6" Margin="0,0,8,0">
+            <Button x:Name="TitleBarRefreshButton" Width="34" Height="30" Padding="0" CornerRadius="4"
+                    Background="Transparent" BorderThickness="0"
+                    Click="TitleBarRefreshButton_Click"
+                    ToolTipService.ToolTip="刷新当前数据" AutomationProperties.Name="刷新当前数据"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+              <FontIcon Glyph="&#xE72C;" FontSize="14" Foreground="{ThemeResource GameTextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Button>
+          </StackPanel>
+        </Grid>
+      </TitleBar.Content>
+    </TitleBar>
 
     <!-- ================= 一级导航与主视图容器 (Row 1) ================= -->
     <NavigationView
@@ -114,141 +117,8 @@
         <!-- ============ 实时教练（独立页面：GSI 状态/装备/提醒流/阵容与出装/克制选人） ============ -->
         <views:CoachPage x:Name="CoachPage" Visibility="Collapsed" />
 
-        <!-- ============ 赛后分析 ============ -->
-        <Grid x:Name="AnalysisPage" Visibility="Collapsed" Padding="24,18,24,22" RowSpacing="12">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-          </Grid.RowDefinitions>
-
-          <Grid Grid.Row="0" RowSpacing="8">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <StackPanel Grid.Row="0" Spacing="2">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="赛后分析" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="20" FontWeight="SemiBold" />
-                <TextBlock x:Name="AnalysisCountText" Text="0 份报告" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" VerticalAlignment="Bottom" Margin="0,0,0,2" />
-              </StackPanel>
-              <TextBlock Text="游戏习惯记录 + AI 复盘 · 数据来自本地 GSI 快照，不依赖网络也可出规则摘要" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" />
-            </StackPanel>
-            <StackPanel x:Name="AnalysisImportPanel" Grid.Row="0" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
-              <TextBox x:Name="AnalysisMatchIdBox" Width="170" Height="32" PlaceholderText="输入比赛 ID" />
-              <Button x:Name="AnalysisFetchMatchButton" Content="从 API 拉取复盘" Click="AnalysisFetchMatchButton_Click" Height="32" />
-            </StackPanel>
-          </Grid>
-          <Border Grid.Row="1" Height="1" Background="{ThemeResource BorderBrush}" Margin="0,2,0,2" />
-
-          <Border Grid.Row="2" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12,8">
-            <TextBlock x:Name="AnalysisSummaryText" Text="暂无历史对局…" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
-          </Border>
-
-          <Grid Grid.Row="3" ColumnSpacing="14">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition x:Name="AnalysisListColumn" Width="330" MinWidth="280" />
-              <ColumnDefinition x:Name="AnalysisDetailColumn" Width="*" MinWidth="360" />
-            </Grid.ColumnDefinitions>
-            <ListView x:Name="AnalysisList" Grid.Column="0" ItemsSource="{Binding AnalysisReports}" SelectionMode="Single" SelectionChanged="AnalysisList_SelectionChanged" Background="Transparent">
-              <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                  <Setter Property="Padding" Value="0" />
-                  <Setter Property="Margin" Value="0,0,0,8" />
-                  <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                </Style>
-              </ListView.ItemContainerStyle>
-              <ListView.ItemTemplate>
-                <DataTemplate>
-                  <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="10,8">
-                    <StackPanel Spacing="2">
-                      <Grid>
-                        <TextBlock Text="{Binding Match.HeroName}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <Border HorizontalAlignment="Right" Padding="6,1" CornerRadius="2" Background="{Binding Match.Won, Converter={StaticResource ResultToBrushConverter}}">
-                          <TextBlock Text="{Binding Match.ResultText}" Foreground="{ThemeResource OnAccentBrush}" FontSize="9" FontWeight="SemiBold" />
-                        </Border>
-                      </Grid>
-                      <TextBlock Text="{Binding Match.SummaryLine}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                      <TextBlock Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10">
-                        <Run Text="{Binding GeneratedText}" /><Run Text=" · " /><Run Text="{Binding Backend}" />
-                      </TextBlock>
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ListView.ItemTemplate>
-            </ListView>
-
-            <Border x:Name="AnalysisDetailPanel" Grid.Column="1" Visibility="Collapsed" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="3">
-              <Grid>
-                <StackPanel x:Name="AnalysisEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
-                  <FontIcon Glyph="&#xE8A5;" FontSize="28" Foreground="{ThemeResource TertiaryTextBrush}" HorizontalAlignment="Center" />
-                  <TextBlock Text="选择左侧报告查看复盘详情" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" />
-                </StackPanel>
-                <Grid x:Name="AnalysisDetailRoot" Visibility="Collapsed">
-                  <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                  </Grid.RowDefinitions>
-                  <Grid Grid.Row="0" Margin="0,0,0,8">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                      <Button Style="{StaticResource GameIconButtonStyle}" Click="AnalysisCloseButton_Click" ToolTipService.ToolTip="关闭复盘详情" AutomationProperties.Name="关闭复盘详情">
-                        <FontIcon Glyph="&#xE72B;" FontSize="16" />
-                      </Button>
-                      <TextBlock x:Name="AnalysisDetailHeaderText" Text="复盘详情" Foreground="{ThemeResource GameTextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" />
-                    </StackPanel>
-                  </Grid>
-                  <ScrollViewer Grid.Row="1" x:Name="AnalysisDetailHost" VerticalScrollBarVisibility="Auto" BringIntoViewOnFocusChange="False">
-                  <StackPanel Padding="18,16" Spacing="8">
-                    <TextBlock x:Name="AnalysisDetailTitleText" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    <TextBlock x:Name="AnalysisDetailMetaText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                    <TextBlock x:Name="AnalysisDetailBackendText" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" />
-                    <Border BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,2" />
-
-                    <Grid>
-                      <StackPanel Orientation="Horizontal" Spacing="7">
-                        <FontIcon Glyph="&#xE90A;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="AI 复盘" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
-                      </StackPanel>
-                      <Button x:Name="AnalysisRegenerateButton" Content="重新生成复盘" Click="AnalysisRegenerateButton_Click" HorizontalAlignment="Right" Padding="10,4" FontSize="11" />
-                    </Grid>
-                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                      <TextBlock x:Name="AnalysisDetailReviewText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
-                    </Border>
-
-                    <TextBlock Text="最终装备" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <TextBlock x:Name="AnalysisDetailItemsText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
-
-                    <TextBlock Text="关键节点" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                      <TextBlock x:Name="AnalysisDetailMomentsText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="17" TextWrapping="Wrap" />
-                    </Border>
-
-                    <TextBlock Text="经济曲线（每 5 分钟采样）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <TextBlock x:Name="AnalysisDetailEconomyText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-
-                    <TextBlock Text="回放操作记录（GSI 提取）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                      <StackPanel>
-                        <TextBlock x:Name="AnalysisOperationsEmptyText" Text="本局没有回放记录，无法提取操作。请确认 GSI 快照记录已开启后，点击“重新生成复盘”。" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                        <TextBlock x:Name="AnalysisOperationsHost" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="17" TextWrapping="Wrap" />
-                      </StackPanel>
-                    </Border>
-
-                    <TextBlock Text="整场数据（OpenDota）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                      <StackPanel>
-                        <TextBlock x:Name="AnalysisApiEmptyText" Text="未拉取 OpenDota 整场数据。可在页面右上角输入比赛 ID 拉取，或点击“重新生成复盘”重试。" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                        <TextBlock x:Name="AnalysisApiHost" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="17" TextWrapping="Wrap" />
-                      </StackPanel>
-                    </Border>
-                  </StackPanel>
-                  </ScrollViewer>
-                </Grid>
-              </Grid>
-            </Border>
-          </Grid>
-        </Grid>
+        <!-- ============ 赛后分析（独立页面：历史对局/习惯统计/AI 复盘/操作回放） ============ -->
+        <views:AnalysisPage x:Name="AnalysisPage" Visibility="Collapsed" />
         </Grid>
       </NavigationView.Content>
     </NavigationView>
@@ -403,6 +273,7 @@
                     <Button Grid.Column="1" Content="选择目录" Click="CoachBrowseModelButton_Click" Height="34" />
                   </Grid>
                   <TextBlock x:Name="NpuStatusText" Text="保存后检查本机能力" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                  <TextBlock Text="推荐模型：ModelScope 搜索下载 OpenVINO/Qwen3.5-0.8B-int8-ov 或 Qwen3.5 系列端侧量化模型" Foreground="{ThemeResource GameAccentBrush}" FontSize="11" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
 
@@ -416,7 +287,7 @@
                       <Grid.ColumnDefinitions><ColumnDefinition Width="100" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                       <TextBlock Text="接口地址" VerticalAlignment="Center" /><TextBox Grid.Column="1" x:Name="CloudEndpointBox" Height="32" PlaceholderText="如 https://api.deepseek.com/v1 或 http://localhost:11434/v1" />
-                      <TextBlock Grid.Row="1" Text="模型名称" VerticalAlignment="Center" /><TextBox Grid.Row="1" Grid.Column="1" x:Name="CloudModelBox" Height="32" PlaceholderText="如 deepseek-chat 或 qwen2.5:7b" />
+                      <TextBlock Grid.Row="1" Text="模型名称" VerticalAlignment="Center" /><TextBox Grid.Row="1" Grid.Column="1" x:Name="CloudModelBox" Height="32" PlaceholderText="如 deepseek-chat、qwen3.8-plus 或 qwen3:8b" />
                     </Grid>
                   </Expander>
                   <Button Content="测试接口连接" Click="SmartCoachCloudProbeButton_Click" HorizontalAlignment="Left" Height="34" />

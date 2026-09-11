@@ -20,8 +20,26 @@ namespace AegisCoach.Native.ViewModels;
 /// </summary>
 public sealed partial class HeroesViewModel : ObservableObject
 {
-    private readonly DotaDataService _dataService = new();
-    private readonly CancellationTokenSource _lifetimeCts = new();
+    // 页面由 XAML 创建，数据服务由 MainWindow 组合根显式注入；禁止在 ViewModel 内创建备用实例。
+    private DotaDataService? _dataService;
+    private readonly object _ctsLock = new();
+    private CancellationTokenSource _lifetimeCts = new();
+
+    private CancellationToken ActiveToken
+    {
+        get
+        {
+            lock (_ctsLock)
+            {
+                if (_lifetimeCts.IsCancellationRequested)
+                {
+                    _lifetimeCts.Dispose();
+                    _lifetimeCts = new CancellationTokenSource();
+                }
+                return _lifetimeCts.Token;
+            }
+        }
+    }
     private readonly List<HeroCardItem> _allHeroes = [];
     private readonly Dictionary<int, DotaDataService.HeroItemPopularity> _popularityCache = new();
     private readonly Dictionary<int, List<DotaDataService.HeroMatchupStat>> _matchupCache = new();
@@ -341,7 +359,12 @@ public sealed partial class HeroesViewModel : ObservableObject
     public Action<string>? OnRankChanged { get; set; }
 
     /// <summary>使用自定义缓存目录。</summary>
-    public void UseCacheDirectory(string path) => _dataService.CacheDirectory = path;
+    private DotaDataService DataService => _dataService
+        ?? throw new InvalidOperationException("HeroesViewModel 尚未注入 DotaDataService");
+
+    public void UseDataService(DotaDataService service) => _dataService = service ?? throw new ArgumentNullException(nameof(service));
+
+    public void UseCacheDirectory(string path) => DataService.CacheDirectory = path;
 
     /// <summary>设置默认分段。</summary>
     public void SetDefaultRank(string? rankId)
@@ -385,7 +408,7 @@ public sealed partial class HeroesViewModel : ObservableObject
         StatusText = "正在同步数据…";
         try
         {
-            _catalog = await _dataService.LoadCatalogAsync(force, _lifetimeCts.Token);
+            _catalog = await DataService.LoadCatalogAsync(force, ActiveToken);
             if (requestId != _loadRequestId) return;
             _allHeroes.Clear();
             _totalProActions = _catalog.Heroes.Sum(hero => hero.StatInt("pro_pick") + hero.StatInt("pro_ban"));
@@ -398,8 +421,8 @@ public sealed partial class HeroesViewModel : ObservableObject
             // 后台预下载英雄图片与技能图标到本地缓存，保证秒开与离线可用
             var prefetchUrls = _catalog.Heroes.SelectMany(hero => new[] { hero.ImageUrl, hero.IconUrl })
                 .Concat(_catalog.Abilities.Values.Select(a => a.ImageUrl).Where(u => !string.IsNullOrWhiteSpace(u)));
-            _ = ImageCacheService.Instance.PrefetchAsync(prefetchUrls, _lifetimeCts.Token);
-            StatusText = $"{_dataService.CatalogSourceNote} · 目标版本 v{DotaDataService.TargetPatch}";
+            _ = ImageCacheService.Instance.PrefetchAsync(prefetchUrls, ActiveToken);
+            StatusText = $"{DataService.CatalogSourceNote} · 目标版本 v{DotaDataService.TargetPatch}";
         }
         catch (OperationCanceledException)
         {
@@ -426,7 +449,7 @@ public sealed partial class HeroesViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        _dataService.ClearCache();
+        DataService.ClearCache();
         await LoadAsync(true);
         if (SelectedHero is not null)
         {
@@ -496,7 +519,10 @@ public sealed partial class HeroesViewModel : ObservableObject
 
     public void Cancel()
     {
-        _lifetimeCts.Cancel();
+        lock (_ctsLock)
+        {
+            _lifetimeCts.Cancel();
+        }
         _searchDebounce?.Stop();
     }
 
@@ -613,7 +639,7 @@ public sealed partial class HeroesViewModel : ObservableObject
         LocalizedHeroData localized = new() { Id = item.Hero.Id };
         try
         {
-            localized = await _dataService.LoadLocalizedHeroAsync(item.Hero.Id, false, _lifetimeCts.Token);
+            localized = await DataService.LoadLocalizedHeroAsync(item.Hero.Id, false, ActiveToken);
         }
         catch (OperationCanceledException)
         {
@@ -884,9 +910,9 @@ public sealed partial class HeroesViewModel : ObservableObject
         var currentRank = SelectedRank ?? RankOptions[0];
         try
         {
-            var metrics = await _dataService.LoadHeroBuildsAsync(hero.Hero.Id, currentRank.Id, false, _lifetimeCts.Token);
+            var metrics = await DataService.LoadHeroBuildsAsync(hero.Hero.Id, currentRank.Id, false, ActiveToken);
             if (requestId != _detailsRequestId) return;
-            var itemCatalog = await _dataService.LoadItemsAsync(false, _lifetimeCts.Token);
+            var itemCatalog = await DataService.LoadItemsAsync(false, ActiveToken);
             var byId = itemCatalog.ToDictionary(item => item.Id);
             var builds = new List<BuildRecommendation>();
             var order = 0;
@@ -972,7 +998,7 @@ public sealed partial class HeroesViewModel : ObservableObject
     private async Task<DotaDataService.HeroItemPopularity> GetPopularityAsync(int heroId)
     {
         if (_popularityCache.TryGetValue(heroId, out var cached)) return cached;
-        var popularity = await _dataService.GetHeroItemPopularityAsync(heroId, _lifetimeCts.Token);
+        var popularity = await DataService.GetHeroItemPopularityAsync(heroId, ActiveToken);
         _popularityCache[heroId] = popularity;
         return popularity;
     }
@@ -1042,7 +1068,7 @@ public sealed partial class HeroesViewModel : ObservableObject
     private async Task<List<DotaDataService.HeroMatchupStat>> GetMatchupsAsync(int heroId)
     {
         if (_matchupCache.TryGetValue(heroId, out var cached)) return cached;
-        var matchups = await _dataService.GetHeroMatchupsAsync(heroId, _lifetimeCts.Token);
+        var matchups = await DataService.GetHeroMatchupsAsync(heroId, ActiveToken);
         _matchupCache[heroId] = matchups;
         return matchups;
     }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -35,6 +36,8 @@ internal static class Program
         TestApiMatchAnalyzerRealFile();
         TestItemRecommendation();
         TestMatchSessionTracker();
+        await TestReportRepositoryAsync();
+        await TestPerformanceBaselinesAsync();
 
         Console.WriteLine();
         Console.WriteLine($"通过 {_passed}，失败 {_failed}");
@@ -999,6 +1002,175 @@ internal static class Program
         Check(finished.Economy.Count >= 2, "经济曲线有多个采样点");
         Check(finished.DurationText == "30:00", "时长格式化为分:秒");
     }
+
+    private static async Task TestReportRepositoryAsync()
+    {
+        Console.WriteLine("[11a] 历史报告摘要优先与按需完整加载");
+        var directory = Path.Combine(Path.GetTempPath(), "AegisCoachReportSmoke", Guid.NewGuid().ToString("N"));
+        var previousDirectory = MatchSessionTracker.AnalysisDirectory;
+        try
+        {
+            MatchSessionTracker.AnalysisDirectory = directory;
+            var report = new MatchReport
+            {
+                Id = "report-summary-smoke",
+                GeneratedAt = DateTimeOffset.UtcNow,
+                Backend = "规则摘要",
+                Match = new MatchSessionRecord { MatchId = 9001, HeroId = 1, HeroName = "测试英雄", Won = true },
+                AiReview = "不应在摘要阶段读取的 AI 文本",
+            };
+            MatchSessionTracker.SaveReport(report);
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(Path.Combine(directory, "broken.json"), "{ broken");
+
+            var repository = new ReportRepository(() => MatchSessionTracker.AnalysisDirectory);
+            var summaries = await repository.LoadSummariesAsync(10);
+            Check(summaries.Count == 2, "报告仓储加载摘要且保留损坏文件错误项");
+            Check(summaries.Any(item => item.IsLoadError), "单个损坏报告进入错误状态而不阻断其他报告");
+            var valid = summaries.First(item => !item.IsLoadError);
+            Check(valid.Match.MatchId == 9001 && valid.Match.HeroName == "测试英雄", "摘要包含列表所需的对局事实");
+
+            var loaded = await repository.LoadReportAsync(valid);
+            Check(loaded.AiReview.Contains("不应在摘要阶段读取"), "选中报告后才读取完整 AI 内容");
+        }
+        finally
+        {
+            MatchSessionTracker.AnalysisDirectory = previousDirectory;
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+    private static async Task TestPerformanceBaselinesAsync()
+    {
+        Console.WriteLine("[12] 性能基线测试（区分冷启动/缓存启动/GSI连续输入）");
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "AegisCoachPerfSmoke", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+
+            // 1. 冷启动场景基线测试
+            PerformanceMetrics.Instance.Reset();
+            PerformanceMetrics.Instance.SetScenario(PerformanceScenario.ColdStart);
+
+            var sw = Stopwatch.StartNew();
+            PerformanceMetrics.Instance.RecordWindowConstructed(48);
+            PerformanceMetrics.Instance.RecordWindowLoaded(115);
+            PerformanceMetrics.Instance.RecordSettingsLoaded(142);
+
+            await Task.Delay(25);
+            var heroesColdMs = sw.ElapsedMilliseconds;
+            PerformanceMetrics.Instance.RecordHeroesAvailable(heroesColdMs);
+            PerformanceMetrics.Instance.RecordFirstScreenInteractive(heroesColdMs);
+
+            await Task.Delay(20);
+            var itemsColdMs = sw.ElapsedMilliseconds;
+            PerformanceMetrics.Instance.RecordItemsAvailable(itemsColdMs);
+            PerformanceMetrics.Instance.RecordImagePrefetch(20, 55);
+
+            var coldReport = PerformanceMetrics.Instance.GenerateReport("冷启动性能基线");
+            Check(PerformanceMetrics.Instance.CurrentScenario == PerformanceScenario.ColdStart, "成功标记并记录冷启动场景");
+            Check(PerformanceMetrics.Instance.CaptureSnapshot().FirstScreenInteractiveMs > 0, "冷启动首屏可交互时间记录有效");
+            Check(PerformanceMetrics.Instance.CaptureSnapshot().HeroesAvailableMs > 0, "冷启动英雄目录可用时间记录有效");
+            Check(PerformanceMetrics.Instance.CaptureSnapshot().ItemsAvailableMs > 0, "冷启动物品目录可用时间记录有效");
+            Check(!coldReport.Contains("secret") && !coldReport.Contains("token") && !coldReport.Contains("key"), "冷启动基线报告脱敏无敏感字段");
+            Console.WriteLine(coldReport);
+
+            // 2. 缓存启动场景基线测试
+            PerformanceMetrics.Instance.Reset();
+            PerformanceMetrics.Instance.SetScenario(PerformanceScenario.WarmStart);
+            sw.Restart();
+            PerformanceMetrics.Instance.RecordWindowConstructed(28);
+            PerformanceMetrics.Instance.RecordWindowLoaded(55);
+            PerformanceMetrics.Instance.RecordSettingsLoaded(65);
+
+            await Task.Delay(5);
+            var heroesWarmMs = sw.ElapsedMilliseconds;
+            PerformanceMetrics.Instance.RecordHeroesAvailable(heroesWarmMs);
+            PerformanceMetrics.Instance.RecordFirstScreenInteractive(heroesWarmMs);
+
+            await Task.Delay(5);
+            var itemsWarmMs = sw.ElapsedMilliseconds;
+            PerformanceMetrics.Instance.RecordItemsAvailable(itemsWarmMs);
+
+            var warmReport = PerformanceMetrics.Instance.GenerateReport("缓存启动性能基线");
+            Check(PerformanceMetrics.Instance.CurrentScenario == PerformanceScenario.WarmStart, "成功标记并记录缓存启动场景");
+            Check(PerformanceMetrics.Instance.CaptureSnapshot().FirstScreenInteractiveMs < heroesColdMs, "缓存启动首屏可用速度显著快于冷启动");
+            Check(!warmReport.Contains("secret") && !warmReport.Contains("token"), "缓存启动基线报告脱敏无敏感字段");
+            Console.WriteLine(warmReport);
+
+            // 3. GSI 连续输入高频基线测试：直接验证阶段一顺序管线和 UI 状态合并。
+            PerformanceMetrics.Instance.Reset();
+            PerformanceMetrics.Instance.SetScenario(PerformanceScenario.GsiContinuousInput);
+
+            const int totalFrames = 1500;
+            var uiActions = new List<Action>();
+            var publishedStates = new List<MatchSnapshot>();
+            var publishedAdvice = new List<CoachAdvice>();
+            var uiLock = new object();
+            var snapshots = Enumerable.Range(0, totalFrames)
+                .Select(i => MatchSnapshot.FromGsi(BuildSnapshot(100 - (i % 50), 90, i > 10 ? 0 : 50, true, 200 + i)))
+                .ToList();
+
+            var expectedEngine = new CoachRuleEngine();
+            MatchSnapshot? expectedPrevious = null;
+            var expectedAdvice = new List<CoachAdvice>();
+            foreach (var snapshot in snapshots)
+            {
+                expectedAdvice.AddRange(expectedEngine.Evaluate(expectedPrevious, snapshot));
+                expectedPrevious = snapshot;
+            }
+
+            var pipeline = new GsiProcessingPipeline(
+                new CoachRuleEngine(),
+                new MatchSessionTracker(),
+                uiDispatcher: action =>
+                {
+                    lock (uiLock) uiActions.Add(action);
+                },
+                onAdvicePublished: advice => publishedAdvice.Add(advice),
+                onStatePublished: snapshot => publishedStates.Add(snapshot));
+            pipeline.Start();
+            try
+            {
+                foreach (var snapshot in snapshots)
+                {
+                    PerformanceMetrics.Instance.RecordSnapshotReceived();
+                    Check(pipeline.Enqueue(snapshot), "阶段一管线接受快照，不因队列暂满而丢帧");
+                }
+
+                await pipeline.WaitForIdleAsync(TimeSpan.FromSeconds(10));
+                Action[] pendingUiActions;
+                lock (uiLock) pendingUiActions = uiActions.ToArray();
+                Check(pipeline.EnqueuedCount == totalFrames, $"GSI 快照全部入队（{pipeline.EnqueuedCount} / {totalFrames}）");
+                Check(pipeline.DroppedCount == 0, $"阶段一管线没有丢弃已接收快照（{pipeline.DroppedCount}）");
+                Check(pipeline.ProcessedCount == totalFrames, $"GSI 快照按顺序全部处理（{pipeline.ProcessedCount}）");
+                Check(pendingUiActions.Length == 1, $"UI Dispatcher 始终只有一个待执行批次（{pendingUiActions.Length}）");
+
+                foreach (var action in pendingUiActions) action();
+
+                Check(publishedStates.Count == 1 && publishedStates[0].GameTime == snapshots[^1].GameTime,
+                    "UI 状态只发布最新快照，过时状态被合并");
+                Check(publishedAdvice.Select(item => item.Id).SequenceEqual(expectedAdvice.Select(item => item.Id)),
+                    "规则提醒数量与顺序和逐帧基准一致");
+                var snapShot = PerformanceMetrics.Instance.CaptureSnapshot();
+                Check(snapShot.SnapshotsReceivedCount == totalFrames, $"GSI 连续输入快照接收数达到预期（{snapShot.SnapshotsReceivedCount} / {totalFrames}）");
+                Check(snapShot.GsiSnapshotEnqueuedCount == totalFrames, $"GSI 连续输入快照入队数达到预期（{snapShot.GsiSnapshotEnqueuedCount}）");
+                Check(snapShot.SnapshotsProcessedCount == totalFrames, $"GSI 快照全部处理完成（{snapShot.SnapshotsProcessedCount}）");
+                Check(snapShot.UiStateMergedCount >= totalFrames - 1, $"高频输入触发 UI 状态合并（{snapShot.UiStateMergedCount}）");
+                Check(snapShot.RuleEvaluationCount == totalFrames, $"规则逐帧计算次数正确（{snapShot.RuleEvaluationCount}）");
+                Check(snapShot.AverageSnapshotProcessingTimeMs >= 0, $"快照平均处理耗时记录有效（{snapShot.AverageSnapshotProcessingTimeMs:F2} ms）");
+            }
+            finally
+            {
+                await pipeline.StopAsync();
+            }
+            var gsiReport = PerformanceMetrics.Instance.GenerateReport("GSI 连续输入性能基线");
+            Check(!gsiReport.Contains("gsi-smoke-perf-token") && !gsiReport.Contains("76561198000000000"), "GSI 基线报告严格脱敏无 Token 或 Steam ID");
+            Console.WriteLine(gsiReport);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
 }
-
-

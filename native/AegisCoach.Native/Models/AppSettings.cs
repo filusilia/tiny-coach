@@ -30,10 +30,10 @@ public sealed class AppSettings
     /// <summary>AI 后端标识：npu（默认）/ cloud / rules。</summary>
     public string AiBackend { get; set; } = "npu";
     public string CloudEndpoint { get; set; } = "https://api.openai.com/v1";
-    public string CloudModel { get; set; } = "gpt-4o-mini";
+    public string CloudModel { get; set; } = "deepseek-chat";
     [JsonIgnore]
     public string CloudApiKey { get; set; } = string.Empty;
-    public string NpuModelPath { get; set; } = Path.Combine(AegisCoachPaths.Models, "qwen2.5-1.5b-int4-ov");
+    public string NpuModelPath { get; set; } = DetectDefaultNpuModelPath();
     public bool LiveHeroTrackingEnabled { get; set; } = true;
     /// <summary>英雄资料页默认统计分段：all 或 1-8。</summary>
     public string DefaultRankId { get; set; } = "all";
@@ -123,16 +123,46 @@ public sealed class AppSettings
         }
 
         if (string.IsNullOrWhiteSpace(CloudEndpoint)) CloudEndpoint = "https://api.openai.com/v1";
-        if (string.IsNullOrWhiteSpace(CloudModel)) CloudModel = "gpt-4o-mini";
-        if (string.IsNullOrWhiteSpace(NpuModelPath))
+        if (string.IsNullOrWhiteSpace(CloudModel)) CloudModel = "deepseek-chat";
+        if (string.IsNullOrWhiteSpace(NpuModelPath) || !Directory.Exists(NpuModelPath))
         {
-            NpuModelPath = Path.Combine(AegisCoachPaths.Models, "qwen2.5-1.5b-int4-ov");
+            NpuModelPath = DetectDefaultNpuModelPath();
         }
 
         if (DefaultRankId is not ("all" or "1" or "2" or "3" or "4" or "5" or "6" or "7" or "8"))
         {
             DefaultRankId = "all";
         }
+    }
+
+    /// <summary>
+    /// 优先自动探测用户已下载的最新 Qwen3.5 / Qwen3 / Qwen2.5 本地量化模型。
+    /// </summary>
+    public static string DetectDefaultNpuModelPath()
+    {
+        var modelsDir = AegisCoachPaths.Models;
+        var candidates = new[]
+        {
+            "Qwen3.5-0.8B-int8-ov",
+            "qwen3.5-0.8b-int8-ov",
+            "Qwen3.5-0.8B-int4-ov",
+            "qwen3.5-0.8b-int4-ov",
+            "Qwen3.5-2B-int4-ov",
+            "qwen3.5-2b-int4-ov",
+            "qwen3-1.7b-int4-ov",
+            "qwen2.5-1.5b-int4-ov",
+        };
+
+        if (Directory.Exists(modelsDir))
+        {
+            foreach (var name in candidates)
+            {
+                var candidatePath = Path.Combine(modelsDir, name);
+                if (Directory.Exists(candidatePath)) return candidatePath;
+            }
+        }
+
+        return Path.Combine(modelsDir, "Qwen3.5-0.8B-int8-ov");
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)

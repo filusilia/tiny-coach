@@ -3,6 +3,7 @@
 神盾教练是一个面向 Windows PC 的 Dota 2 资料与教练工具，当前使用 WinUI 3 原生桌面技术实现。
 
 完整的功能、数据口径、完成度和后续计划见：[项目完整文档](docs/PROJECT_DOCUMENTATION.md)。
+启动、浏览和实时链路的 AI 可执行优化规范见：[性能优化实施规范](docs/AI_PERFORMANCE_OPTIMIZATION_PLAN.md)。
 逐日开发、现场诊断和验证结果见：[操作与验证历史](docs/OPERATION_LOG.md)。
 AI Agent 的统一输入契约、赛后复盘、实时解释、资料问答、数据质量和研发模板见：[AI Agent Prompt 模板](docs/AI_AGENT_PROMPT_TEMPLATES.md)。
 仓库代码 Agent 的执行边界、UI 设计 prompt 和验证矩阵见：[AGENTS.md](AGENTS.md)。
@@ -44,7 +45,7 @@ Visual Studio 2022：
 
 ```powershell
 dotnet restore native\AegisCoach.Native.sln -p:Platform=x64
-dotnet run --project native\AegisCoach.Native\AegisCoach.Native.csproj --configuration Debug --framework net8.0-windows10.0.19041.0 --runtime win-x64
+dotnet run --project native\AegisCoach.Native\AegisCoach.Native.csproj --configuration Debug --framework net10.0-windows10.0.19041.0 --runtime win-x64
 ```
 
 `AegisCoach.Native/Core` 是应用项目内的逻辑源码目录，不是独立项目，也不生成 `AegisCoach.Core.dll`。其中放置 GSI、规则和赛后分析逻辑，目的是让应用 UI 与可重复测试的逻辑保持分开。
@@ -60,11 +61,11 @@ dotnet build native\AegisCoach.Native.sln --configuration Debug --no-restore -p:
 
 生成文件位于：
 
-`native/AegisCoach.Native/bin/x64/Debug/net8.0-windows10.0.19041.0/`
+`native/AegisCoach.Native/bin/x64/Debug/net10.0-windows10.0.19041.0/`
 
 ## 打包发布版（可直接运行的 exe）
 
-可直接运行一键打包脚本：
+可直接运行一键打包脚本（按需求默认仅打包免安装独立 exe 目录，不生成 zip 压缩包以提升打包效率）：
 
 ```powershell
 pwsh -NoProfile -File .\tools\package-release.ps1
@@ -78,10 +79,9 @@ dotnet publish native\AegisCoach.Native\AegisCoach.Native.csproj --configuration
 
 发布产物（含 Windows App Runtime 与 NPU/OpenVINO 运行时，无需安装额外依赖）位于：
 
-- `release/publish/神盾教练.exe` —— 双击即可运行
-- `release/AegisCoach-发布版.zip` —— 分发压缩包（已包含全部资源）
+- `release/publish/神盾教练.exe` —— 双击即可直接运行
 
-> 说明：`AegisCoach.Native.csproj` 内置了 publish 后复制 WinUI `.xbf`/`.pri` 资源的 target，发布版 exe 依赖这些 XAML 编译资源，缺了会启动即退出。
+> 说明：`AegisCoach.Native.csproj` 内置了 publish 后复制 WinUI `.xbf`/`.pri` 资源的 target，发布版 exe 依赖这些 XAML 编译资源。若需要生成 zip 分发包，可执行 `pwsh -File .\tools\package-release.ps1 -Zip`。
 
 ## 测试
 
@@ -101,6 +101,7 @@ dotnet run --project tools\GsiReplay\AegisCoach.Replay.csproj -- "$([Environment
 
 - **项目完整技术规范与设计**：[docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md)
 - **架构评审与渐进演进路线**：[docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md)
+- **性能优化实施规范**：[docs/AI_PERFORMANCE_OPTIMIZATION_PLAN.md](docs/AI_PERFORMANCE_OPTIMIZATION_PLAN.md)
 - **AI 运行时与推理设计**：[docs/AI_RUNTIME_DESIGN.md](docs/AI_RUNTIME_DESIGN.md)
 - **AI Agent Prompt 模板与输入契约**：[docs/AI_AGENT_PROMPT_TEMPLATES.md](docs/AI_AGENT_PROMPT_TEMPLATES.md)
 - **Steam Dota 2 GSI 接入手册**：[docs/STEAM_DOTA2_GSI_GUIDE.md](docs/STEAM_DOTA2_GSI_GUIDE.md)
@@ -112,8 +113,8 @@ dotnet run --project tools\GsiReplay\AegisCoach.Replay.csproj -- "$([Environment
 
 - 解决方案：`native/AegisCoach.Native.sln`
 - WinUI 主项目：`native/AegisCoach.Native/AegisCoach.Native.csproj`
-- 视图层（MVVM）：`Views/HeroesPage.xaml`、`Views/ItemCatalogPage.xaml`、`Views/CoachPage.xaml`
-- 视图模型（ViewModels）：`ViewModels/HeroesViewModel.cs`、`ViewModels/ItemCatalogViewModel.cs`、`ViewModels/CoachViewModel.cs`
+- 视图层（MVVM）：`Views/HeroesPage.xaml`、`Views/ItemCatalogPage.xaml`、`Views/CoachPage.xaml`、`Views/AnalysisPage.xaml`
+- 视图模型（ViewModels）：`ViewModels/HeroesViewModel.cs`、`ViewModels/ItemCatalogViewModel.cs`、`ViewModels/CoachViewModel.cs`、`ViewModels/AnalysisViewModel.cs`
 - GSI 核心源码：`native/AegisCoach.Native/Core/`（Native 项目内部纯逻辑目录）
 - 冒烟测试：`tools/GsiSmoke/Program.cs`
 - NDJSON 回放：`tools/GsiReplay/Program.cs`

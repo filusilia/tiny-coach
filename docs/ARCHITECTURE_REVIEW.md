@@ -79,7 +79,8 @@ Core
 - ✅ `HeroesPage` + `HeroesViewModel`：四属性分类、防抖搜索、Dota 2 1级属性精确计算、天赋树、阿哈利姆升级与克制对阵。
 - ✅ `ItemCatalogPage` + `ItemCatalogViewModel`：官网式分组网格、56x42 悬浮卡、商店/中立分类、多选 Chip、防抖搜索与详情懒加载。
 - ✅ `CoachPage` + `CoachViewModel`：GSI 状态监听、比分昼夜概览、带证据提醒流、阵容出装推荐。
-- ⏳ 赛后分析（Analysis）与高级设置（Settings）页面可按需继续组件化。
+- ✅ `AnalysisPage` + `AnalysisViewModel`：历史报告摘要列表按需加载、单损坏文件隔离、OpenDota 对局拉取、本地 GSI 回放操作提取与 AI 复盘。
+- ⏳ 高级设置（Settings）对话框可按需继续组件化。
 
 ### P1：收紧依赖与异步生命周期
 
