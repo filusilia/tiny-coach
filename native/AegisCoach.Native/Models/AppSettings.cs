@@ -8,14 +8,17 @@ namespace AegisCoach.Native.Models;
 /// <summary>实时教练的 AI 解释后端。</summary>
 public enum AiBackendKind
 {
+    /// <summary>不调用模型，直接显示规则引擎原文，零消耗（默认）。</summary>
+    Rules,
+
     /// <summary>本地 NPU（OpenVINO GenAI），不占用 GPU，也不占用 CPU 主核。</summary>
     Npu,
 
-    /// <summary>云端 OpenAI 兼容接口，本地零性能开销，需要接口地址与密钥。</summary>
-    Cloud,
+    /// <summary>本地 Ollama 服务（localhost:11434），调用本机运行的 LLM 模型。</summary>
+    Ollama,
 
-    /// <summary>不调用模型，直接显示规则引擎原文，零消耗。</summary>
-    Rules,
+    /// <summary>云端 OpenAI / Response API 兼容接口，本地零性能开销。</summary>
+    Cloud,
 }
 
 /// <summary>仅供本应用使用的设置，保存在用户文档目录。</summary>
@@ -27,12 +30,15 @@ public sealed class AppSettings
     public bool AutoStartGsi { get; set; } = true;
     public string? DotaCfgManualPath { get; set; }
     public bool SmartCoachEnabled { get; set; } = true;
-    /// <summary>AI 后端标识：npu（默认）/ cloud / rules。</summary>
-    public string AiBackend { get; set; } = "npu";
-    public string CloudEndpoint { get; set; } = "https://api.openai.com/v1";
-    public string CloudModel { get; set; } = "deepseek-chat";
+    /// <summary>AI 后端标识：rules（默认）/ npu / ollama / cloud。</summary>
+    public string AiBackend { get; set; } = "rules";
+    public string OllamaEndpoint { get; set; } = "http://localhost:11434";
+    public string OllamaModel { get; set; } = string.Empty;
+    public string CloudEndpoint { get; set; } = string.Empty;
+    public string CloudModel { get; set; } = string.Empty;
     [JsonIgnore]
     public string CloudApiKey { get; set; } = string.Empty;
+    public string CloudApiProtocol { get; set; } = "responses";
     public string NpuModelPath { get; set; } = DetectDefaultNpuModelPath();
     public bool LiveHeroTrackingEnabled { get; set; } = true;
     /// <summary>英雄资料页默认统计分段：all 或 1-8。</summary>
@@ -42,6 +48,8 @@ public sealed class AppSettings
     public string StratzApiKey { get; set; } = string.Empty;
     public int SmartCoachMinIntervalSeconds { get; set; } = 3;
     public CoachRuleOptions RuleOptions { get; set; } = new();
+    /// <summary>AI 提示关键词 / 指导要点（保存在 settings.json 中，供实时教练提示词注入，可在设置中自定义修改）。</summary>
+    public string AiPromptKeywords { get; set; } = "给出可执行动作, 不超过40字, 结合战场状态, 不编造敌方信息";
 
     [JsonIgnore]
     public string CacheDirectory => AegisCoachPaths.Cache;
@@ -52,9 +60,10 @@ public sealed class AppSettings
     [JsonIgnore]
     public AiBackendKind BackendKind => AiBackend switch
     {
+        "npu" => AiBackendKind.Npu,
+        "ollama" => AiBackendKind.Ollama,
         "cloud" => AiBackendKind.Cloud,
-        "rules" => AiBackendKind.Rules,
-        _ => AiBackendKind.Npu,
+        _ => AiBackendKind.Rules,
     };
 
     [JsonIgnore]
@@ -117,13 +126,21 @@ public sealed class AppSettings
 
     private void Normalize()
     {
-        if (AiBackend is not ("npu" or "cloud" or "rules"))
+        if (AiBackend is not ("rules" or "npu" or "ollama" or "cloud"))
         {
-            AiBackend = "npu";
+            AiBackend = "rules";
         }
 
-        if (string.IsNullOrWhiteSpace(CloudEndpoint)) CloudEndpoint = "https://api.openai.com/v1";
-        if (string.IsNullOrWhiteSpace(CloudModel)) CloudModel = "deepseek-chat";
+        if (CloudApiProtocol is not ("chat" or "responses"))
+        {
+            CloudApiProtocol = "responses";
+        }
+
+        if (string.IsNullOrWhiteSpace(OllamaEndpoint))
+        {
+            OllamaEndpoint = "http://localhost:11434";
+        }
+
         if (string.IsNullOrWhiteSpace(NpuModelPath) || !Directory.Exists(NpuModelPath))
         {
             NpuModelPath = DetectDefaultNpuModelPath();
@@ -132,6 +149,11 @@ public sealed class AppSettings
         if (DefaultRankId is not ("all" or "1" or "2" or "3" or "4" or "5" or "6" or "7" or "8"))
         {
             DefaultRankId = "all";
+        }
+
+        if (string.IsNullOrWhiteSpace(AiPromptKeywords))
+        {
+            AiPromptKeywords = "给出可执行动作, 不超过40字, 结合战场状态, 不编造敌方信息";
         }
     }
 

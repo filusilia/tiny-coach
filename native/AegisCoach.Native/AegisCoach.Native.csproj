@@ -28,7 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Assets\**">
+    <Content Include="Assets\**" Exclude="Assets\Icons\app.png;Assets\Icons\app.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
@@ -40,11 +40,9 @@
     <Exec Command="powershell -NoProfile -Command &quot;$outPath = (Resolve-Path '$(OutputPath)').Path; $pubPath = [System.IO.Path]::GetFullPath('$(PublishDir)'); Get-ChildItem $outPath -Recurse -Include '*.xbf','*.pri' | Where-Object { $_.FullName -notlike '*\publish\*' } | ForEach-Object { $rel = $_.FullName.Substring($outPath.Length).TrimStart('\','/'); $dest = Join-Path $pubPath $rel; $dir = Split-Path $dest -Parent; if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; Copy-Item $_.FullName $dest -Force }&quot;" />
   </Target>
 
-
-
-  <!-- 发布版精简优化：剔除 70+ 多余语言目录、winmd 元数据、pdb/xml、以及未使用的 WindowsAppSDK 子系统 DLL -->
+  <!-- 发布版精简优化：剔除多余语言目录、winmd 元数据、pdb/xml、未使用的 WindowsAppSDK 子系统 DLL 与非必要 AI 插件 -->
   <Target Name="TrimPublishArtifacts" AfterTargets="CopyWinUIResourcesForPublish">
-    <Exec Command="powershell -NoProfile -Command &quot;$p = '$(PublishDir)'; Get-ChildItem $p -Directory | Where-Object { $_.Name -match '^[a-z]{2,3}(-[A-Za-z0-9]{2,4})+$' -and $_.Name -notin @('zh-CN','en-us') } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; Get-ChildItem $p -Recurse -Include '*.pdb','*.xml','*.winmd' | Remove-Item -Force -ErrorAction SilentlyContinue; if (Test-Path \&quot;$p\runtimes\&quot;) { Get-ChildItem \&quot;$p\runtimes\&quot; -Directory | Where-Object { $_.Name -notin @('win-x64') } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }; @('DirectML.dll','onnxruntime.dll','Microsoft.ML.OnnxRuntime.dll','Microsoft.Windows.AI.*','Microsoft.Windows.Internal.*','Microsoft.Windows.Private.*','Microsoft.Windows.Workloads.*','workloads.*.json','Microsoft.Windows.PushNotifications.*','PushNotificationsLongRunningTask.*','Microsoft.Windows.BadgeNotifications.*','Microsoft.Windows.AppNotifications.*','Microsoft.Windows.Widgets.*','Microsoft.Windows.Management.*','Microsoft.Windows.Media.*','Microsoft.Windows.Security.*','Microsoft.Windows.Storage.Pickers.*','Microsoft.Windows.System.Power.*','Microsoft.UI.Designer.dll','RestartAgent.exe','SessionHandleIPCProxyStub.dll','Microsoft.Security.Authentication.OAuth.*') | ForEach-Object { Get-ChildItem $p -Recurse -Filter $_ | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }&quot;" />
+    <Exec Command="powershell -NoProfile -Command &quot;$p = '$(PublishDir)'; Get-ChildItem $p -Directory | Where-Object { $_.Name -notin @('zh-CN','en-us','Assets','Themes','Views','Microsoft.UI.Xaml') -and (Test-Path (Join-Path $_.FullName '*.mui')) } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; Get-ChildItem $p -Recurse -Include '*.pdb','*.xml','*.winmd' | Remove-Item -Force -ErrorAction SilentlyContinue; if (Test-Path \&quot;$p\runtimes\&quot;) { Get-ChildItem \&quot;$p\runtimes\&quot; -Directory | Where-Object { $_.Name -notin @('win-x64') } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }; @('DirectML.dll','onnxruntime.dll','Microsoft.ML.OnnxRuntime.dll','Microsoft.Windows.AI.*','Microsoft.Windows.Internal.*','Microsoft.Windows.Private.*','Microsoft.Windows.Workloads.*','workloads.*.json','Microsoft.Windows.PushNotifications.*','PushNotificationsLongRunningTask.*','Microsoft.Windows.BadgeNotifications.*','Microsoft.Windows.AppNotifications.*','Microsoft.Windows.Widgets.*','Microsoft.Windows.Management.*','Microsoft.Windows.Media.*','Microsoft.Windows.Security.*','Microsoft.Windows.Storage.Pickers.*','Microsoft.Windows.System.Power.*','Microsoft.UI.Designer.dll','RestartAgent.exe','SessionHandleIPCProxyStub.dll','Microsoft.Security.Authentication.OAuth.*','Microsoft.Windows.Search.*','Microsoft.Web.WebView2.*','WebView2Loader.dll','openvino_intel_gpu_plugin.dll','openvino_tensorflow_lite_frontend.dll','openvino_tensorflow_frontend.dll','openvino_pytorch_frontend.dll','openvino_paddle_frontend.dll') | ForEach-Object { Get-ChildItem $p -Recurse -Filter $_ | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }&quot;" />
   </Target>
 
   <!-- 发布完成后在 release\ 目录下保留 publish 运行文件夹 -->

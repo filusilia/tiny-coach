@@ -16,7 +16,7 @@ public sealed partial class DotaDataService
     private const string DotaBase = "https://www.dota2.com/datafeed";
     private const string ChinaDotaBase = "https://www.dota2.com.cn/datafeed";
     private const string ExplorerBase = "https://api.opendota.com/api/explorer";
-    private const int MaxRequestAttempts = 3;
+    private const int MaxRequestAttempts = 2;
     private static readonly TimeSpan MinimumRequestSpacing = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan CatalogTtl = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan LocalizationTtl = TimeSpan.FromHours(12);
@@ -27,11 +27,13 @@ public sealed partial class DotaDataService
 
     private readonly HttpClient _httpClient = new()
     {
-        Timeout = TimeSpan.FromSeconds(30),
+        Timeout = TimeSpan.FromSeconds(8),
     };
     private readonly SemaphoreSlim _requestStartGate = new(1, 1);
     private DateTimeOffset _nextRequestAt = DateTimeOffset.MinValue;
     private string _cacheDirectory = AegisCoachPaths.Cache;
+    private readonly SemaphoreSlim _itemsGate = new(1, 1);
+    private Task<List<OfficialItemSummary>>? _activeItemsTask;
 
     /// <summary>官网详情文件（data\items-details-official.json）的内存索引，按物品数字 ID 匹配。</summary>
     private readonly object _officialDetailsLock = new();
@@ -237,6 +239,31 @@ public sealed partial class DotaDataService
                 return stale;
             }
 
+            if (embeddedStats is { Count: > 0 })
+            {
+                var localizedNames = embeddedList?.Heroes?.ToDictionary(hero => hero.Id, hero => hero.LocalizedName) ?? [];
+                var heroList = embeddedStats
+                    .Select(hero =>
+                    {
+                        hero.EnglishName = hero.LocalizedName;
+                        var cn = localizedNames.GetValueOrDefault(hero.Id, string.Empty);
+                        hero.LocalizedName = DotaHeroNames.GetChineseName(hero.Id, !string.IsNullOrWhiteSpace(cn) ? cn : hero.LocalizedName);
+                        return hero;
+                    })
+                    .OrderBy(hero => hero.LocalizedName, StringComparer.CurrentCulture)
+                    .ToList();
+
+                var catalog = new DotaCatalog
+                {
+                    Heroes = heroList,
+                    HeroAbilities = embeddedHeroAbilities,
+                    Abilities = embeddedAbilities,
+                };
+                ApplyOfficialHeroOverrides(catalog.Heroes);
+                CatalogSourceNote = "内置官方离线资料库 · 降级兜底";
+                return catalog;
+            }
+
             throw;
         }
     }
@@ -412,17 +439,23 @@ public sealed partial class DotaDataService
 
     /// <summary>批量刷新全部英雄的中文详情到本地缓存；返回成功更新的数量。
     /// 连续失败达到阈值时中止（网络不可用/官网下线时避免逐个英雄长时间重试）。</summary>
-    public async Task<int> RefreshAllHeroDetailsAsync(IEnumerable<int> heroIds, CancellationToken cancellationToken)
+    public async Task<int> RefreshAllHeroDetailsAsync(IEnumerable<int> heroIds, CancellationToken cancellationToken, bool force = false)
     {
         var updated = 0;
         var consecutiveFailures = 0;
-        const int abortAfterFailures = 3;
+        const int abortAfterFailures = 2;
         foreach (var heroId in heroIds)
         {
             if (cancellationToken.IsCancellationRequested) break;
+            var cachePath = CachePath($"hero-{heroId}-zh");
+            if (!force && IsFresh(cachePath, LocalizationTtl))
+            {
+                continue;
+            }
+
             try
             {
-                await LoadLocalizedHeroAsync(heroId, force: true, cancellationToken);
+                await LoadLocalizedHeroAsync(heroId, force: force, cancellationToken);
                 updated++;
                 consecutiveFailures = 0;
             }
@@ -467,6 +500,30 @@ public sealed partial class DotaDataService
     }
 
     public async Task<List<OfficialItemSummary>> LoadItemsAsync(bool force, CancellationToken cancellationToken)
+    {
+        Task<List<OfficialItemSummary>> currentTask;
+        await _itemsGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!force && _activeItemsTask is { IsCompleted: false })
+            {
+                currentTask = _activeItemsTask;
+            }
+            else
+            {
+                currentTask = LoadItemsInternalAsync(force, cancellationToken);
+                _activeItemsTask = currentTask;
+            }
+        }
+        finally
+        {
+            _itemsGate.Release();
+        }
+
+        return await currentTask;
+    }
+
+    private async Task<List<OfficialItemSummary>> LoadItemsInternalAsync(bool force, CancellationToken cancellationToken)
     {
         var cachePath = CachePath("items");
         if (!force && IsFresh(cachePath, CatalogTtl))
@@ -730,9 +787,7 @@ LIMIT 24";
                 var item = pair.Value!;
                 var id = item.Id > 0 ? item.Id : int.TryParse(pair.Key, out var parsedId) ? parsedId : 0;
                 var name = string.IsNullOrWhiteSpace(item.Name) ? $"item_{pair.Key}" : item.Name;
-                var localizedName = LocalizedText.ChineseOr(
-                    item.LocalizedName,
-                    LocalizedText.ChineseOr(item.DisplayName, "中文名称待同步"));
+                var localizedName = DotaItemNameTable.ResolveChineseName(name, item.LocalizedName, item.DisplayName, id);
                 var summary = new OfficialItemSummary
                 {
                     Id = id,
@@ -1461,8 +1516,29 @@ GROUP BY item_id";
 
     private sealed class ItemListData
     {
-        private List<OfficialItemSummary> _items = [];
-        [JsonPropertyName("itemabilities")] public List<OfficialItemSummary> Items { get => _items; set => _items = value ?? []; }
+        [JsonPropertyName("result")]
+        public ItemListResult? Result { get; set; }
+
+        [JsonPropertyName("data")]
+        public ItemListDataInner? Data { get; set; }
+
+        [JsonPropertyName("itemabilities")]
+        public List<OfficialItemSummary>? DirectItems { get; set; }
+
+        public List<OfficialItemSummary> Items =>
+            Result?.Data?.Items ?? Data?.Items ?? DirectItems ?? [];
+    }
+
+    private sealed class ItemListResult
+    {
+        [JsonPropertyName("data")]
+        public ItemListDataInner? Data { get; set; }
+    }
+
+    private sealed class ItemListDataInner
+    {
+        [JsonPropertyName("itemabilities")]
+        public List<OfficialItemSummary> Items { get; set; } = [];
     }
 
     private sealed class ItemDetailData

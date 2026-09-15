@@ -6,11 +6,16 @@ namespace AegisCoach.Native.Services;
 /// <summary>实时教练 AI 解释的统一提示词，NPU 与云端后端共用同一格式。</summary>
 public static class CoachAiPrompts
 {
-    public static string BuildPrompt(CoachAdvice advice, MatchSnapshot snapshot) =>
-        "你是Dota 2实时教练。只解释这一条规则提醒，不替代规则判断。用不超过40个中文字符，给出一个可执行动作。" +
-        "只使用下面给出的状态，不要编造敌方信息。\n" +
-        "规则：" + advice.Title + "\n提醒：" + advice.Message +
-        "\n当前状态：\n" + BuildContext(snapshot);
+    public static string BuildPrompt(CoachAdvice advice, MatchSnapshot snapshot, string? customKeywords = null)
+    {
+        var guidance = string.IsNullOrWhiteSpace(customKeywords)
+            ? "用不超过40个中文字符，给出一个可执行动作。只使用下面给出的状态，不要编造敌方信息。"
+            : $"指导要求与关键词：{customKeywords.Trim()}。只使用下面给出的状态，不要编造敌方信息。";
+
+        return "你是Dota 2实时教练。只解释这一条规则提醒，不替代规则判断。" + guidance + "\n" +
+            "规则：" + advice.Title + "\n提醒：" + advice.Message +
+            "\n当前状态：\n" + BuildContext(snapshot);
+    }
 
     /// <summary>把一帧 GSI 归一化快照压缩成 AI 可读的中文战场状态文本。</summary>
     public static string BuildContext(MatchSnapshot snapshot)
@@ -56,7 +61,8 @@ public static class CoachAiPrompts
         double durationSeconds,
         MatchOperationSummary ops,
         IReadOnlyList<string>? finalItems = null,
-        ApiMatchSummary? api = null)
+        ApiMatchSummary? api = null,
+        string? customKeywords = null)
     {
         const int maxOperationLines = 260;
         var lines = new List<string>
@@ -68,10 +74,15 @@ public static class CoachAiPrompts
             "3) 指出1-2个做得好的操作；",
             "4) 严格区分事实与推断，数据不足时写“无法判断”，不要编造英雄技能数值或敌方信息；",
             "5) 总字数控制在500字以内。",
-            "",
-            $"英雄：{heroName} · 结果：{(won ? "胜利" : "失败")} · 时长 {MatchSnapshot.FormatGameTime(durationSeconds)} · 比分 {ops.ScoreText}",
-            $"总数据：KDA {ops.Kills}/{ops.Deaths}/{ops.Assists} · 补刀 {ops.LastHits} · 反补 {ops.Denies} · GPM {ops.Gpm} · XPM {ops.Xpm} · 最高等级 {ops.MaxLevel}",
         };
+        if (!string.IsNullOrWhiteSpace(customKeywords))
+        {
+            lines.Add($"6) 重点关注要点与关键词：{customKeywords.Trim()}。");
+        }
+        lines.Add("");
+        lines.Add($"英雄：{heroName} · 结果：{(won ? "胜利" : "失败")} · 时长 {MatchSnapshot.FormatGameTime(durationSeconds)} · 比分 {ops.ScoreText}");
+        lines.Add($"总数据：KDA {ops.Kills}/{ops.Deaths}/{ops.Assists} · 补刀 {ops.LastHits} · 反补 {ops.Denies} · GPM {ops.Gpm} · XPM {ops.Xpm} · 最高等级 {ops.MaxLevel}");
+
         if (finalItems is { Count: > 0 })
         {
             lines.Add($"最终装备：{string.Join("、", finalItems)}");

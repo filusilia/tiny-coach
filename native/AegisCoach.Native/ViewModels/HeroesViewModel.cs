@@ -140,6 +140,9 @@ public sealed partial class HeroesViewModel : ObservableObject
     public partial Brush? DetailAttrBadgeBrush { get; set; }
 
     [ObservableProperty]
+    public partial Brush DetailAttrBadgeForeground { get; set; } = new SolidColorBrush(Microsoft.UI.Colors.White);
+
+    [ObservableProperty]
     public partial string DetailPrimaryAttributeIcon { get; set; } = string.Empty;
 
     [ObservableProperty]
@@ -548,8 +551,7 @@ public sealed partial class HeroesViewModel : ObservableObject
         foreach (var hero in _allHeroes) hero.UpdateRank(currentRank);
 
         var query = _allHeroes.Where(item => string.IsNullOrWhiteSpace(keyword) ||
-            item.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
-            item.Hero.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+            DotaAliasTable.MatchesHero(item, keyword));
 
         query = (SelectedSort?.Id ?? "winrate") switch
         {
@@ -599,6 +601,7 @@ public sealed partial class HeroesViewModel : ObservableObject
         DetailImage = new BitmapImage(ImageCacheService.Instance.Resolve(item.Hero.ImageUrl));
         DetailAttrBadgeText = item.AttributeLabel;
         DetailAttrBadgeBrush = item.AttrBrush;
+        DetailAttrBadgeForeground = item.AttrForeground;
         DetailPrimaryAttributeIcon = item.Hero.PrimaryAttributeIcon;
         DetailAttackTypeText = item.AttackLabel;
         DetailAttackTypeIcon = item.Hero.AttackTypeIcon;
@@ -645,11 +648,9 @@ public sealed partial class HeroesViewModel : ObservableObject
         {
             return;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             AbilityStatusText = "官方中文详情暂不可用，显示基础技能";
-            HasError = true;
-            ErrorMessage = $"无法加载该英雄的官方中文技能：{exception.Message}";
         }
 
         if (requestId != _detailsRequestId) return;
@@ -772,8 +773,8 @@ public sealed partial class HeroesViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasTalents));
-        await LoadHeroBuildsAsync(item, requestId);
-        await LoadHeroCountersAsync(item, requestId);
+        _ = LoadHeroBuildsAsync(item, requestId);
+        _ = LoadHeroCountersAsync(item, requestId);
 
         AbilityStatusText = localized.Abilities.Count > 0
             ? $"{SelectedAbilities.Count} 项技能"

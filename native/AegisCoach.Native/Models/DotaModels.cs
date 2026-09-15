@@ -720,7 +720,7 @@ public sealed class ItemCardItem
     public OfficialItemSummary Item { get; }
     public ItemMetric Metric { get; set; }
     public BitmapImage Image { get; }
-    public string Name => LocalizedText.ChineseOr(Item.LocalizedName, "中文名称待同步");
+    public string Name => DotaItemNameTable.ResolveChineseName(Item.Name, Item.LocalizedName, Item.EnglishName, Item.Id);
     public string EnglishName => Item.EnglishName;
     public string CostText => Item.Cost > 0 ? "$" + Item.Cost.ToString("N0") : string.Empty;
     public string PicksText => Metric.Picks > 0 ? $"购买 {Metric.PicksText}" : "暂无统计";
@@ -1207,6 +1207,9 @@ public sealed class HeroCardItem : INotifyPropertyChanged
         "int" => (Brush)Microsoft.UI.Xaml.Application.Current.Resources["HeroAttrIntBrush"],
         _ => (Brush)Microsoft.UI.Xaml.Application.Current.Resources["HeroAttrAllBrush"],
     };
+    public Brush AttrForeground => Hero.PrimaryAttribute == "all"
+        ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 24, 24, 27))
+        : new SolidColorBrush(Microsoft.UI.Colors.White);
     public BitmapImage LargeImage { get; }
     public BitmapImage SmallImage { get; }
     public BitmapImage DisplayImage => IsCompact ? SmallImage : LargeImage;

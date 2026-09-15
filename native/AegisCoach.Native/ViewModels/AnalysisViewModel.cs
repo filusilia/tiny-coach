@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using AegisCoach.Core.Models;
 using AegisCoach.Core.Services;
@@ -91,9 +92,69 @@ public sealed partial class AnalysisViewModel : ObservableObject
     public partial string HabitsSummaryText { get; set; } = "暂无历史对局…";
 
     [ObservableProperty]
+    public partial bool HasHabits { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasReports { get; set; }
+
+    [ObservableProperty]
+    public partial string HabitTotalMatchesText { get; set; } = "0";
+
+    [ObservableProperty]
+    public partial string HabitWinRateText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial bool HabitIsWinRatePositive { get; set; }
+
+    [ObservableProperty]
+    public partial string HabitAverageKdaText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HabitMostPlayedHeroText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HabitMostBoughtItemText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HabitAverageDurationText { get; set; } = "--";
+
+    [ObservableProperty]
     public partial string ReportCountText { get; set; } = "0 份报告";
 
     // 详情字段
+    [ObservableProperty]
+    public partial string DetailHeroName { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string DetailResultText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool? DetailResultWon { get; set; }
+
+    [ObservableProperty]
+    public partial string DetailDurationText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string DetailDateText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string DetailKdaText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string DetailLastHitsText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string DetailDeniesText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string DetailGpmText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string DetailXpmText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string DetailMaxLevelText { get; set; } = "--";
+
     [ObservableProperty]
     public partial string DetailTitleText { get; set; } = string.Empty;
 
@@ -126,6 +187,21 @@ public sealed partial class AnalysisViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool HasApiData { get; set; }
+
+    public ObservableCollection<string> DetailFinalItems { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasFinalItems { get; set; }
+
+    public ObservableCollection<string> DetailKeyMoments { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasKeyMoments { get; set; }
+
+    public ObservableCollection<EconomySample> DetailEconomySamples { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasEconomySamples { get; set; }
 
     public void ConfigureServices(
         ReportRepository reportRepository,
@@ -443,6 +519,9 @@ public sealed partial class AnalysisViewModel : ObservableObject
             }
         }
 
+        var settings = _settingsProvider?.Invoke();
+        var keywords = settings?.AiPromptKeywords;
+
         var prompt = operations is not null || api is { HeroId: > 0 }
             ? CoachAiPrompts.BuildMatchReviewPrompt(
                 heroName,
@@ -450,11 +529,11 @@ public sealed partial class AnalysisViewModel : ObservableObject
                 record.DurationSeconds,
                 operations ?? EmptyOperationsFrom(record, heroName, api),
                 record.FinalItems,
-                api)
-            : BuildStatsOnlyPrompt(heroName, record);
+                api,
+                keywords)
+            : BuildStatsOnlyPrompt(heroName, record, keywords);
 
         string? review = null;
-        var settings = _settingsProvider?.Invoke();
         if (settings is not null)
         {
             try
@@ -465,6 +544,18 @@ public sealed partial class AnalysisViewModel : ObservableObject
                         review = await _npuCoach.ExplainAsync(prompt, ActiveToken, maxTokens: 420).ConfigureAwait(false);
                         if (!string.IsNullOrWhiteSpace(review)) report.Backend = "NPU 本地推理";
                         break;
+                    case AiBackendKind.Ollama when _cloudCoach is not null:
+                        review = await _cloudCoach.GenerateAsync(
+                            prompt,
+                            "你是Dota 2赛后复盘教练，只依据给定操作记录分析，不编造数据；区分事实与推断；建议必须带游戏时间。",
+                            settings.OllamaEndpoint,
+                            settings.OllamaModel,
+                            "",
+                            maxTokens: 700,
+                            ActiveToken,
+                            "chat").ConfigureAwait(false);
+                        if (!string.IsNullOrWhiteSpace(review)) report.Backend = "Ollama 本地推理";
+                        break;
                     case AiBackendKind.Cloud when _cloudCoach is not null:
                         review = await _cloudCoach.GenerateAsync(
                             prompt,
@@ -473,7 +564,8 @@ public sealed partial class AnalysisViewModel : ObservableObject
                             settings.CloudModel,
                             settings.CloudApiKey,
                             maxTokens: 700,
-                            ActiveToken).ConfigureAwait(false);
+                            ActiveToken,
+                            settings.CloudApiProtocol).ConfigureAwait(false);
                         if (!string.IsNullOrWhiteSpace(review)) report.Backend = "云端 API";
                         break;
                 }
@@ -503,6 +595,30 @@ public sealed partial class AnalysisViewModel : ObservableObject
     private void DisplayReport(MatchReport report)
     {
         var record = report.Match;
+        DetailHeroName = record.HeroName;
+        DetailResultText = record.ResultText;
+        DetailResultWon = record.Won;
+        DetailDurationText = record.DurationText;
+        DetailDateText = record.DateText;
+        DetailKdaText = record.KdaText;
+        DetailLastHitsText = record.LastHits.ToString();
+        DetailDeniesText = record.Denies.ToString();
+        DetailGpmText = record.Gpm.ToString();
+        DetailXpmText = record.Xpm.ToString();
+        DetailMaxLevelText = $"Lv{record.MaxLevel}";
+
+        DetailFinalItems.Clear();
+        foreach (var item in record.FinalItems) DetailFinalItems.Add(item);
+        HasFinalItems = DetailFinalItems.Count > 0;
+
+        DetailKeyMoments.Clear();
+        foreach (var moment in record.KeyMoments) DetailKeyMoments.Add(moment);
+        HasKeyMoments = DetailKeyMoments.Count > 0;
+
+        DetailEconomySamples.Clear();
+        foreach (var sample in record.Economy) DetailEconomySamples.Add(sample);
+        HasEconomySamples = DetailEconomySamples.Count > 0;
+
         DetailTitleText = $"{record.HeroName} · {record.ResultText} · {record.DurationText}";
         DetailMetaText = $"{record.DateText}  KDA {record.KdaText}  补刀 {record.LastHits}  GPM {record.Gpm}  XPM {record.Xpm}  最高等级 {record.MaxLevel}";
         DetailBackendText = $"报告生成于 {report.GeneratedText} · 由 {report.Backend} 生成";
@@ -542,6 +658,25 @@ public sealed partial class AnalysisViewModel : ObservableObject
         DetailMetaText = $"{summary.Match.HeroName} · {summary.GeneratedText}";
         DetailBackendText = summary.Backend;
 
+        DetailHeroName = summary.Match.HeroName;
+        DetailResultText = summary.Match.ResultText;
+        DetailResultWon = summary.Match.Won;
+        DetailDurationText = summary.Match.DurationText;
+        DetailDateText = summary.Match.DateText;
+        DetailKdaText = summary.Match.KdaText;
+        DetailLastHitsText = summary.Match.LastHits.ToString();
+        DetailDeniesText = summary.Match.Denies.ToString();
+        DetailGpmText = summary.Match.Gpm.ToString();
+        DetailXpmText = summary.Match.Xpm.ToString();
+        DetailMaxLevelText = $"Lv{summary.Match.MaxLevel}";
+
+        DetailFinalItems.Clear();
+        HasFinalItems = false;
+        DetailKeyMoments.Clear();
+        HasKeyMoments = false;
+        DetailEconomySamples.Clear();
+        HasEconomySamples = false;
+
         DetailTitleText = title;
         DetailReviewText = message;
         DetailItemsText = "--";
@@ -559,6 +694,16 @@ public sealed partial class AnalysisViewModel : ObservableObject
 
     private void UpdateHabitsSummary()
     {
+        HasHabits = _habits.TotalMatches > 0;
+        HasReports = AnalysisReports.Count > 0;
+        HabitTotalMatchesText = _habits.TotalMatches.ToString();
+        HabitWinRateText = _habits.WinRateText;
+        HabitIsWinRatePositive = _habits.WinRate >= 50.0;
+        HabitAverageKdaText = _habits.AverageKda;
+        HabitMostPlayedHeroText = _habits.MostPlayedHero;
+        HabitMostBoughtItemText = _habits.MostBoughtItem;
+        HabitAverageDurationText = _habits.AverageDuration;
+
         HabitsSummaryText = _habits.TotalMatches == 0
             ? "暂无历史对局：通过 GSI 打完一局后，这里会自动记录你的游戏习惯并生成赛后分析。"
             : $"共 {_habits.TotalMatches} 场 · 胜率 {_habits.WinRateText} · 常用英雄 {_habits.MostPlayedHero} · 平均 KDA {_habits.AverageKda} · 常见装备 {_habits.MostBoughtItem} · 场均时长 {_habits.AverageDuration}";
@@ -749,12 +894,16 @@ public sealed partial class AnalysisViewModel : ObservableObject
         return string.Join("\n\n", lines);
     }
 
-    private static string BuildStatsOnlyPrompt(string heroName, MatchSessionRecord record) =>
-        "你是Dota 2赛后复盘教练。请基于下面的统计写一份中文复盘报告，控制在250字以内：\n" +
-        "1) 总体评价；2) 指出1-2个最值得改进的点并给出可执行建议；3) 提到做得好的地方。只使用下面的事实，不要编造数据。\n\n" +
-        $"英雄：{heroName}，结果：{(record.Won == true ? "胜利" : record.Won == false ? "失败" : "未知")}，" +
-        $"时长 {record.DurationText}\nKDA {record.KdaText}，补刀 {record.LastHits}，GPM {record.Gpm}，XPM {record.Xpm}，" +
-        $"最高等级 {record.MaxLevel}，最终装备：{(record.FinalItems.Count > 0 ? string.Join("、", record.FinalItems) : "无")}";
+    private static string BuildStatsOnlyPrompt(string heroName, MatchSessionRecord record, string? customKeywords = null)
+    {
+        var guidance = string.IsNullOrWhiteSpace(customKeywords) ? "" : $"关注关键词：{customKeywords.Trim()}。\n";
+        return "你是Dota 2赛后复盘教练。请基于下面的统计写一份中文复盘报告，控制在250字以内：\n" +
+            "1) 总体评价；2) 指出1-2个最值得改进的点并给出可执行建议；3) 提到做得好的地方。只使用下面的事实，不要编造数据。\n" +
+            guidance + "\n" +
+            $"英雄：{heroName}，结果：{(record.Won == true ? "胜利" : record.Won == false ? "失败" : "未知")}，" +
+            $"时长 {record.DurationText}\nKDA {record.KdaText}，补刀 {record.LastHits}，GPM {record.Gpm}，XPM {record.Xpm}，" +
+            $"最高等级 {record.MaxLevel}，最终装备：{(record.FinalItems.Count > 0 ? string.Join("、", record.FinalItems) : "无")}";
+    }
 
     public void Cancel()
     {

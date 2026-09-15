@@ -35,7 +35,13 @@ public sealed partial class CoachViewModel : ObservableObject
     public partial string AdviceCountText { get; set; } = "0 条提醒";
 
     [ObservableProperty]
-    public partial bool IsHeroPanelVisible { get; set; }
+    public partial bool IsHeroPanelVisible { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool HasHeroData { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasAdvices { get; set; }
 
     [ObservableProperty]
     public partial string HeroName { get; set; } = "等待英雄数据…";
@@ -68,6 +74,27 @@ public sealed partial class CoachViewModel : ObservableObject
     public partial string HeroKdaText { get; set; } = "KDA --/--/--";
 
     [ObservableProperty]
+    public partial string HeroKillsText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HeroDeathsText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HeroAssistsText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HeroGoldText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HeroGpmText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HeroXpmText { get; set; } = "--";
+
+    [ObservableProperty]
+    public partial string HeroLastHitsText { get; set; } = "--";
+
+    [ObservableProperty]
     public partial string HeroStatsText { get; set; } = "--";
 
     [ObservableProperty]
@@ -75,6 +102,21 @@ public sealed partial class CoachViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string EnemyHeroesCountText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool HasAllyHeroes { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasEnemyHeroes { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasCountersMe { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasCountersTarget { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasPickRecommendations { get; set; }
 
     [ObservableProperty]
     public partial string HeroesStatusText { get; set; } = "未启用";
@@ -99,6 +141,7 @@ public sealed partial class CoachViewModel : ObservableObject
     private void ClearAdvices()
     {
         Advices.Clear();
+        HasAdvices = false;
         AdviceCountText = "0 条提醒";
     }
 
@@ -164,6 +207,7 @@ public sealed partial class CoachViewModel : ObservableObject
         if (snapshot.Hero.Id > 0)
         {
             if (!IsHeroPanelVisible) IsHeroPanelVisible = true;
+            HasHeroData = true;
 
             // 英雄更换时才更新英雄名称和图标
             if (snapshot.Hero.Id != _lastHeroId)
@@ -226,12 +270,19 @@ public sealed partial class CoachViewModel : ObservableObject
                 _lastDeaths = snapshot.Player.Deaths;
                 _lastAssists = snapshot.Player.Assists;
                 HeroKdaText = $"KDA {snapshot.Player.Kills}/{snapshot.Player.Deaths}/{snapshot.Player.Assists}";
+                HeroKillsText = snapshot.Player.Kills.ToString();
+                HeroDeathsText = snapshot.Player.Deaths.ToString();
+                HeroAssistsText = snapshot.Player.Assists.ToString();
             }
 
             if (snapshot.Player.Gold != _lastGold || snapshot.Player.LastHits != _lastLastHits)
             {
                 _lastGold = snapshot.Player.Gold;
                 _lastLastHits = snapshot.Player.LastHits;
+                HeroGoldText = $"{snapshot.Player.Gold:N0}";
+                HeroGpmText = snapshot.Player.Gpm.ToString();
+                HeroXpmText = snapshot.Player.Xpm.ToString();
+                HeroLastHitsText = snapshot.Player.LastHits.ToString();
                 HeroStatsText = $"金钱 {snapshot.Player.Gold:N0} · GPM {snapshot.Player.Gpm} · XPM {snapshot.Player.Xpm} · 补刀 {snapshot.Player.LastHits}";
             }
 
@@ -257,7 +308,7 @@ public sealed partial class CoachViewModel : ObservableObject
         }
         else
         {
-            if (IsHeroPanelVisible) IsHeroPanelVisible = false;
+            HasHeroData = false;
         }
     }
 
@@ -265,6 +316,7 @@ public sealed partial class CoachViewModel : ObservableObject
     {
         Advices.Insert(0, advice);
         while (Advices.Count > 200) Advices.RemoveAt(Advices.Count - 1);
+        HasAdvices = true;
         AdviceCountText = $"{Advices.Count} 条提醒";
     }
 
@@ -280,6 +332,7 @@ public sealed partial class CoachViewModel : ObservableObject
         {
             AllyHeroes.Add(new HeroChip(getHeroName(hero.HeroId), getHeroIcon(hero.HeroId)));
         }
+        HasAllyHeroes = AllyHeroes.Count > 0;
         AllyHeroesCountText = AllyHeroes.Count > 0 ? $"{AllyHeroes.Count} 人" : "";
 
         EnemyHeroes.Clear();
@@ -287,6 +340,7 @@ public sealed partial class CoachViewModel : ObservableObject
         {
             EnemyHeroes.Add(new HeroChip(getHeroName(hero.HeroId), getHeroIcon(hero.HeroId)));
         }
+        HasEnemyHeroes = EnemyHeroes.Count > 0;
         EnemyHeroesCountText = EnemyHeroes.Count > 0 ? $"{EnemyHeroes.Count} 人" : "";
     }
 
@@ -298,12 +352,15 @@ public sealed partial class CoachViewModel : ObservableObject
     {
         CountersMe.Clear();
         foreach (var item in countersMe) CountersMe.Add(item);
+        HasCountersMe = CountersMe.Count > 0;
 
         CountersTarget.Clear();
         foreach (var item in countersTarget) CountersTarget.Add(item);
+        HasCountersTarget = CountersTarget.Count > 0;
 
         PickRecommendations.Clear();
         foreach (var item in pickRecommendations) PickRecommendations.Add(item);
+        HasPickRecommendations = PickRecommendations.Count > 0;
 
         CounterStatusText = statusText;
     }

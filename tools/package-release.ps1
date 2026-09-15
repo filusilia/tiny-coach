@@ -54,19 +54,45 @@ New-Item -ItemType Directory -Path $releaseLib -Force | Out-Null
 Write-Host "==> 正在同步主程序运行库到 release/publish/lib..." -ForegroundColor Cyan
 & robocopy $publishSrc $releaseLib /MIR /R:1 /W:1 /NP /NFL /NDL | Out-Null
 
-Write-Host '==> 正在进行客户端瘦身优化（剥离无用转换前端与 PDB 符号）...' -ForegroundColor Cyan
+Write-Host '==> 正在进行客户端瘦身优化（剥离无用硬件插件、未用子系统、多余语言包与 PDB 符号）...' -ForegroundColor Cyan
 $unusedLibs = @(
+    'openvino_intel_gpu_plugin.dll',
     'openvino_tensorflow_frontend.dll',
+    'openvino_tensorflow_lite_frontend.dll',
     'openvino_pytorch_frontend.dll',
-    'openvino_paddle_frontend.dll'
+    'openvino_paddle_frontend.dll',
+    'Microsoft.Windows.Search.dll',
+    'Microsoft.Windows.Search.Projection.dll',
+    'Microsoft.Web.WebView2.Core.dll',
+    'Microsoft.Web.WebView2.Core.Projection.dll',
+    'WebView2Loader.dll'
 )
 foreach ($lib in $unusedLibs) {
     $targetLib = Join-Path $releaseLib $lib
     if (Test-Path $targetLib) {
         Remove-Item $targetLib -Force
-        Write-Host "    已移除无用转换库: $lib" -ForegroundColor DarkGray
+        Write-Host "    已移除无用依赖库: $lib" -ForegroundColor DarkGray
     }
 }
+
+# 剔除未使用的多语言 MUI 目录（仅保留 zh-CN 与 en-us，清除 ca-Es-VALENCIA 等残留）
+Get-ChildItem $releaseLib -Directory | Where-Object { $_.Name -notin @('zh-CN', 'en-us', 'Assets', 'Themes', 'Views', 'Microsoft.UI.Xaml') -and (Test-Path (Join-Path $_.FullName '*.mui')) } | ForEach-Object {
+    Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "    已移除冗余语言目录: $($_.Name)" -ForegroundColor DarkGray
+}
+
+# 剔除未引用的 2MB 高清原图与重复图标
+$redundantAssets = @(
+    Join-Path $releaseLib 'Assets\Icons\app.png',
+    Join-Path $releaseLib 'Assets\Icons\app.ico'
+)
+foreach ($asset in $redundantAssets) {
+    if (Test-Path $asset) {
+        Remove-Item $asset -Force
+        Write-Host "    已移除冗余静态资产: $(Split-Path $asset -Leaf)" -ForegroundColor DarkGray
+    }
+}
+
 Get-ChildItem $releaseLib -Filter '*.pdb' | Remove-Item -Force
 
 # 将 lib 内部的核心程序标记为隐藏，让普通用户打开 lib 目录时只看到纯粹的库与资源，避免双重 exe 混淆

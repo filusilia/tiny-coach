@@ -35,18 +35,16 @@
       <TitleBar.Content>
         <Grid VerticalAlignment="Center">
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
 
-          <!-- 稳定 320px 搜索框（采用原生 TextBox，文本垂直绝对居中，右侧预留按钮边距） -->
-          <Grid Grid.Column="0" Width="320" VerticalAlignment="Center">
+          <!-- 仿照图吧工具箱风格的标准 320px 搜索框（天然原生垂直居中，右侧图标精确定位于输入框内） -->
+          <Grid Grid.Column="0" Width="320" VerticalAlignment="Center" Margin="12,0,0,0">
             <TextBox x:Name="TitleBarSearchBox"
-                     Height="32"
-                     Padding="10,5,32,5"
+                     MinHeight="30"
                      VerticalAlignment="Center"
-                     VerticalContentAlignment="Center"
                      PlaceholderText="搜索英雄或物品 (Ctrl+F)"
                      TextChanged="TitleBarSearchBox_TextChanged"
                      KeyDown="TitleBarSearchBox_KeyDown"
@@ -61,7 +59,7 @@
                     Click="TitleBarSearchSubmitButton_Click"
                     ToolTipService.ToolTip="搜索"
                     AutomationProperties.Name="执行搜索">
-              <FontIcon FontSize="13" Glyph="&#xE721;" Foreground="{ThemeResource GameTextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <FontIcon FontSize="14" Glyph="&#xE721;" Foreground="{ThemeResource GameTextSecondaryBrush}" />
             </Button>
           </Grid>
 
@@ -93,16 +91,16 @@
         SelectionChanged="AppNavigation_SelectionChanged">
       <NavigationView.MenuItems>
         <NavigationViewItem Content="英雄资料" Tag="heroes" IsSelected="True">
-          <NavigationViewItem.Icon><SymbolIcon Symbol="People" /></NavigationViewItem.Icon>
+          <NavigationViewItem.Icon><FontIcon Glyph="&#xE7FC;" /></NavigationViewItem.Icon>
         </NavigationViewItem>
         <NavigationViewItem Content="物品资料" Tag="items">
-          <NavigationViewItem.Icon><SymbolIcon Symbol="Shop" /></NavigationViewItem.Icon>
+          <NavigationViewItem.Icon><FontIcon Glyph="&#xEB9D;" /></NavigationViewItem.Icon>
         </NavigationViewItem>
         <NavigationViewItem Content="实时教练" Tag="coach">
-          <NavigationViewItem.Icon><SymbolIcon Symbol="Play" /></NavigationViewItem.Icon>
+          <NavigationViewItem.Icon><FontIcon Glyph="&#xE705;" /></NavigationViewItem.Icon>
         </NavigationViewItem>
         <NavigationViewItem Content="赛后分析" Tag="analysis">
-          <NavigationViewItem.Icon><SymbolIcon Symbol="Document" /></NavigationViewItem.Icon>
+          <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D2;" /></NavigationViewItem.Icon>
         </NavigationViewItem>
       </NavigationView.MenuItems>
 
@@ -119,204 +117,11 @@
 
         <!-- ============ 赛后分析（独立页面：历史对局/习惯统计/AI 复盘/操作回放） ============ -->
         <views:AnalysisPage x:Name="AnalysisPage" Visibility="Collapsed" />
+
+        <!-- ============ 应用设置（独立页面：Dota 2 实时连接/教练功能/规则阈值/硬件状态/检查更新） ============ -->
+        <views:SettingsPage x:Name="SettingsPage" Visibility="Collapsed" />
         </Grid>
       </NavigationView.Content>
     </NavigationView>
-
-    <ContentDialog
-        x:Name="CoachSettingsDialog"
-        Title="设置"
-        PrimaryButtonText="保存设置"
-        CloseButtonText="取消"
-        DefaultButton="Primary"
-        PrimaryButtonClick="CoachSettingsDialog_PrimaryButtonClick"
-        MaxWidth="740">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="640">
-        <StackPanel Spacing="16" MaxWidth="640" HorizontalAlignment="Stretch">
-          <StackPanel Spacing="4">
-            <TextBlock x:Name="SettingsIntroTitle" Text="完成基础设置后开始运行" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="20" FontWeight="SemiBold" />
-            <TextBlock x:Name="SettingsIntroText" Text="应用会自动处理本地连接和文件位置，通常不需要修改高级选项。" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" TextWrapping="Wrap" />
-          </StackPanel>
-
-          <!-- 1. Dota 2 实时连接模块 -->
-          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
-            <StackPanel Spacing="14">
-              <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <StackPanel Spacing="3">
-                  <TextBlock Text="Dota 2 实时连接" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" />
-                  <TextBlock Text="自动查找 Steam 中的 Dota 2 并安装所需 GSI 配置。" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
-                </StackPanel>
-                <ToggleSwitch Grid.Column="1" x:Name="CoachAutoStartBox" IsOn="True" OnContent="自动连接" OffContent="手动连接" />
-              </Grid>
-
-              <!-- 2x2 宽按钮网格，保证按钮文字完整展示，杜绝截断 -->
-              <Grid ColumnSpacing="10" RowSpacing="10">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                  <RowDefinition Height="Auto" />
-                  <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <Button Grid.Row="0" Grid.Column="0" Content="自动配置 Dota 2" Click="CoachInstallButton_Click" HorizontalAlignment="Stretch" Height="36" Style="{StaticResource AccentButtonStyle}" />
-                <Button Grid.Row="0" Grid.Column="1" x:Name="CoachToggleButton" Content="立即连接" Click="CoachToggleButton_Click" HorizontalAlignment="Stretch" Height="36" />
-                <Button Grid.Row="1" Grid.Column="0" Content="选择游戏目录" Click="CoachBrowseButton_Click" HorizontalAlignment="Stretch" Height="34" />
-                <Button Grid.Row="1" Grid.Column="1" Content="打开配置目录" Click="CoachOpenCfgButton_Click" HorizontalAlignment="Stretch" Height="34" />
-              </Grid>
-
-              <InfoBar x:Name="CoachInfoBar" IsOpen="False" IsClosable="True" Severity="Informational" />
-            </StackPanel>
-          </Border>
-
-          <!-- 2. 教练功能模块 -->
-          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
-            <StackPanel Spacing="12">
-              <TextBlock Text="教练功能" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" />
-              <CheckBox x:Name="SmartCoachEnabledBox" Content="启用智能解释" IsChecked="True" />
-              <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                <TextBlock Text="解释方式" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" VerticalAlignment="Center" />
-                <ComboBox x:Name="AiBackendBox" Grid.Column="1" MinHeight="36" HorizontalAlignment="Stretch" SelectionChanged="AiBackendBox_SelectionChanged" />
-              </Grid>
-              <CheckBox x:Name="LiveHeroTrackingEnabledBox" Content="显示全场英雄与出装建议（仅公开比赛）" />
-            </StackPanel>
-          </Border>
-
-          <!-- 3. 数据保存位置 -->
-          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
-            <Grid ColumnSpacing="12">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-              <StackPanel Spacing="3">
-                <TextBlock Text="数据保存位置" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" />
-                <TextBlock x:Name="DataDirectoryText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
-              </StackPanel>
-              <Button Grid.Column="1" Content="打开文件夹" Click="CoachOpenDataButton_Click" VerticalAlignment="Center" Height="34" />
-            </Grid>
-          </Border>
-
-          <!-- 4. 高级设置（折叠面板） -->
-          <Expander Header="高级设置" HorizontalAlignment="Stretch">
-            <StackPanel Spacing="16" Padding="0,12,0,4">
-              <!-- Dota 2 安装位置 -->
-              <StackPanel Spacing="8">
-                <TextBlock Text="Dota 2 安装位置" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
-                <Grid ColumnSpacing="8">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                  <TextBox x:Name="CoachPathBox" PlaceholderText="仅在自动查找失败时选择" IsReadOnly="True" Height="34" />
-                  <Button Grid.Column="1" Content="选择目录" Click="CoachBrowseButton_Click" Height="34" />
-                </Grid>
-              </StackPanel>
-
-              <!-- 教练提醒规则 -->
-              <StackPanel Spacing="10">
-                <TextBlock Text="教练提醒阈值与规则" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
-                <Grid ColumnSpacing="10" RowSpacing="8">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="72" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="72" /></Grid.ColumnDefinitions>
-                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                  <TextBlock Text="低血提醒 %" VerticalAlignment="Center" /><TextBox Grid.Column="1" x:Name="CoachLowHealthBox" Height="32" />
-                  <TextBlock Grid.Column="2" Text="低蓝提醒 %" VerticalAlignment="Center" /><TextBox Grid.Column="3" x:Name="CoachLowManaBox" Height="32" />
-                  <TextBlock Grid.Row="1" Text="集结生命 %" VerticalAlignment="Center" /><TextBox Grid.Row="1" Grid.Column="1" x:Name="CoachFightHealthBox" Height="32" />
-                  <TextBlock Grid.Row="1" Grid.Column="2" Text="集结魔法 %" VerticalAlignment="Center" /><TextBox Grid.Row="1" Grid.Column="3" x:Name="CoachFightManaBox" Height="32" />
-                </Grid>
-
-                <!-- 5 列整齐排布的提醒开关网格，绝不挤压溢出 -->
-                <Grid ColumnSpacing="8" RowSpacing="6">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                  </Grid.ColumnDefinitions>
-                  <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                  </Grid.RowDefinitions>
-                  <CheckBox Grid.Row="0" Grid.Column="0" x:Name="CoachLowHealthEnabledBox" Content="低血" />
-                  <CheckBox Grid.Row="0" Grid.Column="1" x:Name="CoachLowManaEnabledBox" Content="低蓝" />
-                  <CheckBox Grid.Row="0" Grid.Column="2" x:Name="CoachUltimateEnabledBox" Content="大招" />
-                  <CheckBox Grid.Row="0" Grid.Column="3" x:Name="CoachDeathEnabledBox" Content="阵亡" />
-                  <CheckBox Grid.Row="0" Grid.Column="4" x:Name="CoachControlEnabledBox" Content="受控" />
-
-                  <CheckBox Grid.Row="1" Grid.Column="0" x:Name="CoachBuybackEnabledBox" Content="买活" />
-                  <CheckBox Grid.Row="1" Grid.Column="1" x:Name="CoachFightReadyEnabledBox" Content="集结" />
-                  <CheckBox Grid.Row="1" Grid.Column="2" x:Name="CoachSmokeEnabledBox" Content="开雾" />
-                  <CheckBox Grid.Row="1" Grid.Column="3" x:Name="CoachSmokedEnabledBox" Content="雾中" />
-                  <CheckBox Grid.Row="1" Grid.Column="4" x:Name="CoachNightEnabledBox" Content="天黑" />
-
-                  <CheckBox Grid.Row="2" Grid.Column="0" x:Name="CoachBuildingEnabledBox" Content="建筑" />
-                  <CheckBox Grid.Row="2" Grid.Column="1" x:Name="CoachRoshanEnabledBox" Content="肉山" />
-                  <CheckBox Grid.Row="2" Grid.Column="2" x:Name="CoachItemReadyEnabledBox" Content="道具就绪" />
-                  <CheckBox Grid.Row="2" Grid.Column="3" x:Name="CoachAbilityReadyEnabledBox" Content="技能就绪" />
-                  <CheckBox Grid.Row="2" Grid.Column="4" x:Name="CoachMapAwarenessEnabledBox" Content="关键时间" />
-                </Grid>
-
-                <Grid ColumnSpacing="8">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="140" /></Grid.ColumnDefinitions>
-                  <ComboBox x:Name="CoachCooldownRuleBox" Header="提醒类型" HorizontalAlignment="Stretch" SelectionChanged="CoachCooldownRuleBox_SelectionChanged" />
-                  <NumberBox x:Name="CoachCooldownSecondsBox" Grid.Column="1" Header="冷却（秒）" Minimum="1" Maximum="3600" SpinButtonPlacementMode="Compact" />
-                </Grid>
-              </StackPanel>
-
-              <!-- 本地模型状态提示 -->
-              <Border x:Name="NpuSection" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="12">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="本机硬件状态" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
-                  <TextBlock x:Name="NpuModelStatusText" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
-                  <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <TextBox x:Name="NpuModelPathBox" IsReadOnly="True" Height="34" />
-                    <Button Grid.Column="1" Content="选择目录" Click="CoachBrowseModelButton_Click" Height="34" />
-                  </Grid>
-                  <TextBlock x:Name="NpuStatusText" Text="保存后检查本机能力" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                  <TextBlock Text="推荐模型：ModelScope 搜索下载 OpenVINO/Qwen3.5-0.8B-int8-ov 或 Qwen3.5 系列端侧量化模型" Foreground="{ThemeResource GameAccentBrush}" FontSize="11" TextWrapping="Wrap" />
-                </StackPanel>
-              </Border>
-
-              <!-- AI 智能解释（云端 / 本地 Ollama 兼容端点） -->
-              <Border x:Name="CloudSection" Visibility="Collapsed" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="12">
-                <StackPanel Spacing="10">
-                  <TextBlock Text="AI 智能解释配置（支持 OpenAI / DeepSeek / Ollama / LocalAI）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
-                  <PasswordBox x:Name="CloudApiKeyBox" Header="API 密钥（本地 Ollama 可填任意字符）" PlaceholderText="安全保存在 Windows 凭据保险库" />
-                  <Expander Header="自定义接口地址与模型名称" HorizontalAlignment="Stretch">
-                    <Grid ColumnSpacing="8" RowSpacing="8" Padding="0,8,0,0">
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="100" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                      <TextBlock Text="接口地址" VerticalAlignment="Center" /><TextBox Grid.Column="1" x:Name="CloudEndpointBox" Height="32" PlaceholderText="如 https://api.deepseek.com/v1 或 http://localhost:11434/v1" />
-                      <TextBlock Grid.Row="1" Text="模型名称" VerticalAlignment="Center" /><TextBox Grid.Row="1" Grid.Column="1" x:Name="CloudModelBox" Height="32" PlaceholderText="如 deepseek-chat、qwen3.8-plus 或 qwen3:8b" />
-                    </Grid>
-                  </Expander>
-                  <Button Content="测试接口连接" Click="SmartCoachCloudProbeButton_Click" HorizontalAlignment="Left" Height="34" />
-                </StackPanel>
-              </Border>
-
-              <!-- 数据增强 -->
-              <StackPanel Spacing="8">
-                <TextBlock Text="数据增强" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
-                <PasswordBox x:Name="StratzApiKeyBox" Header="Stratz API 密钥（可选）" PlaceholderText="留空使用公开数据；填写后保存到 Windows 凭据保险库" />
-                <Grid ColumnSpacing="8">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="72" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                  <TextBlock Text="解释间隔" VerticalAlignment="Center" /><TextBox Grid.Column="1" x:Name="SmartCoachIntervalBox" Text="3" Height="32" />
-                  <TextBlock Grid.Column="2" Text="秒" Foreground="{ThemeResource SecondaryTextBrush}" VerticalAlignment="Center" />
-                </Grid>
-              </StackPanel>
-
-              <!-- 运行记录 -->
-              <StackPanel Spacing="8">
-                <TextBlock Text="运行记录" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
-                <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" Padding="8" MaxHeight="130" CornerRadius="4">
-                  <ScrollViewer VerticalScrollBarVisibility="Auto"><TextBlock x:Name="CoachLogText" Text="尚未启动" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" FontFamily="Consolas" TextWrapping="Wrap" /></ScrollViewer>
-                </Border>
-                <TextBlock x:Name="SmartCoachStatusText" Text="规则提醒可离线运行" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-              </StackPanel>
-            </StackPanel>
-          </Expander>
-        </StackPanel>
-      </ScrollViewer>
-    </ContentDialog>
   </Grid>
 </Window>

@@ -44,8 +44,8 @@
 
 ### 已生成发布包
 
-- elease/publish/神盾教练.exe
-- elease/AegisCoach-发布版.zip
+- `release/publish/神盾教练.exe`
+- `release/AegisCoach-发布版.zip`
 
 ### 未验证风险
 

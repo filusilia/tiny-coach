@@ -6,10 +6,12 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:AegisCoach.Core.Models"
+    xmlns:viewModels="using:AegisCoach.Native.ViewModels"
     mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=viewModels:AnalysisViewModel}"
     SizeChanged="AnalysisPage_SizeChanged">
 
-  <Grid x:Name="AnalysisRootGrid" Padding="24,18,24,22" RowSpacing="12">
+  <Grid x:Name="AnalysisRootGrid" Padding="24,18,24,22" RowSpacing="14">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
@@ -17,42 +19,129 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- 顶栏：标题与 API 快速拉取 -->
-    <Grid Grid.Row="0" RowSpacing="8">
+    <!-- 1. 顶栏：标题、报告数量与 API 快速拉取 -->
+    <Grid Grid.Row="0" RowSpacing="10">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
-      <StackPanel Grid.Row="0" Spacing="2">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="赛后分析" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="20" FontWeight="SemiBold" />
-          <TextBlock Text="{Binding ReportCountText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+
+      <!-- 页面主副标题 -->
+      <StackPanel Grid.Row="0" Spacing="4" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="赛后分析" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="22" FontWeight="SemiBold" />
+          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="10,2" VerticalAlignment="Center">
+            <TextBlock Text="{Binding ReportCountText}" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="12" FontWeight="SemiBold" />
+          </Border>
         </StackPanel>
-        <TextBlock Text="游戏习惯记录 + AI 复盘 · 数据来自本地 GSI 快照，不依赖网络也可出规则摘要" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" />
+        <TextBlock Text="游戏习惯挖掘 + AI 智能复盘 · 本地 GSI 数据沉淀与 OpenDota 多维结合" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
       </StackPanel>
 
-      <StackPanel x:Name="AnalysisImportPanel" Grid.Row="0" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
-        <TextBox x:Name="MatchIdBox" Text="{Binding MatchIdInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="170" Height="32" PlaceholderText="输入比赛 ID" />
-        <Button Content="从 API 拉取复盘" Command="{Binding FetchMatchCommand}" IsEnabled="{Binding IsFetchingMatch, Converter={StaticResource BoolToVisibilityConverter}}" Height="32" />
+      <!-- API 导入操作区（响应式下可换行放置） -->
+      <StackPanel x:Name="AnalysisImportPanel" Grid.Row="0" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <TextBox x:Name="MatchIdBox" Text="{Binding MatchIdInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="190" Height="34" CornerRadius="6" PlaceholderText="输入比赛 ID (MatchId)" />
+        <Button Content="从 API 拉取复盘" Command="{Binding FetchMatchCommand}" IsEnabled="{Binding IsFetchingMatch, Converter={StaticResource BoolToVisibilityConverter}}" Height="34" CornerRadius="6" />
       </StackPanel>
     </Grid>
 
     <Border Grid.Row="1" Height="1" Background="{ThemeResource BorderBrush}" Margin="0,2,0,2" />
 
-    <!-- 历史习惯概要横幅 -->
-    <Border Grid.Row="2" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12,8">
-      <TextBlock Text="{Binding HabitsSummaryText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
-    </Border>
+    <!-- 2. 历史习惯战力画像 (Habits Telemetry Dashboard) -->
+    <Grid Grid.Row="2">
+      <!-- 状态 A：有历史对局时，展示 5 项核心指标看板 -->
+      <Grid Visibility="{Binding HasHabits, Converter={StaticResource BoolToVisibilityConverter}}" ColumnSpacing="10" RowSpacing="10">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="1.2*" />
+          <ColumnDefinition Width="1.1*" />
+          <ColumnDefinition Width="1.5*" />
+        </Grid.ColumnDefinitions>
 
-    <!-- 主展示区：左侧报告列表 + 右侧详情 -->
-    <Grid Grid.Row="3" ColumnSpacing="14">
+        <!-- 卡片 1：总场次 -->
+        <Border Grid.Column="0" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+          <StackPanel Spacing="3">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE734;" FontSize="13" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="生涯对局" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
+              <TextBlock Text="{Binding HabitTotalMatchesText}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="18" FontWeight="Bold" />
+              <TextBlock Text="场" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- 卡片 2：综合胜率 -->
+        <Border Grid.Column="1" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+          <StackPanel Spacing="3">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE9D9;" FontSize="13" Foreground="{ThemeResource CoachSuccessBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="综合胜率" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" />
+            </StackPanel>
+            <TextBlock Text="{Binding HabitWinRateText}" Foreground="{ThemeResource CoachSuccessBrush}" FontSize="18" FontWeight="Bold" Margin="0,2,0,0" />
+          </StackPanel>
+        </Border>
+
+        <!-- 卡片 3：常用英雄 -->
+        <Border Grid.Column="2" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+          <StackPanel Spacing="3">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE77B;" FontSize="13" Foreground="{ThemeResource CoachGoldLightBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="常用英雄" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" />
+            </StackPanel>
+            <TextBlock Text="{Binding HabitMostPlayedHeroText}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+          </StackPanel>
+        </Border>
+
+        <!-- 卡片 4：场均 KDA -->
+        <Border Grid.Column="3" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+          <StackPanel Spacing="3">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE78A;" FontSize="13" Foreground="{ThemeResource CoachInfoBlueBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="场均 K / D / A" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" />
+            </StackPanel>
+            <TextBlock Text="{Binding HabitAverageKdaText}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" Margin="0,3,0,0" />
+          </StackPanel>
+        </Border>
+
+        <!-- 卡片 5：偏好出装与时长 -->
+        <Border Grid.Column="4" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+          <StackPanel Spacing="3">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE719;" FontSize="13" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="核心偏好 · 场均时长" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,3,0,0">
+              <TextBlock Text="{Binding HabitMostBoughtItemText}" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="·" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="13" />
+              <TextBlock Text="{Binding HabitAverageDurationText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- 状态 B：暂无历史对局引导 -->
+      <Border Visibility="{Binding HasHabits, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+              Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,10">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="暂无历史对局数据：通过 GSI 进行一局完整比赛后，神盾教练将在此自动沉淀您的游戏习惯与生涯战报。"
+                     Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" VerticalAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- 3. 主展示区：左侧历史战报列表 + 右侧复盘深度详情 -->
+    <Grid Grid.Row="3" ColumnSpacing="16">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition x:Name="AnalysisListColumn" Width="330" MinWidth="280" />
+        <ColumnDefinition x:Name="AnalysisListColumn" Width="340" MinWidth="280" />
         <ColumnDefinition x:Name="AnalysisDetailColumn" Width="*" MinWidth="360" />
       </Grid.ColumnDefinitions>
 
-      <!-- 报告列表 -->
-      <ListView x:Name="ReportsListView" Grid.Column="0" ItemsSource="{Binding AnalysisReports}" SelectedItem="{Binding SelectedSummary, Mode=TwoWay}" SelectionMode="Single" SelectionChanged="ReportsListView_SelectionChanged" Background="Transparent">
+      <!-- 左侧报告列表 -->
+      <ListView x:Name="ReportsListView" Grid.Column="0" ItemsSource="{Binding AnalysisReports}" SelectedItem="{Binding SelectedSummary, Mode=TwoWay}"
+                SelectionMode="Single" SelectionChanged="ReportsListView_SelectionChanged" Background="Transparent">
         <ListView.ItemContainerStyle>
           <Style TargetType="ListViewItem">
             <Setter Property="Padding" Value="0" />
@@ -62,31 +151,61 @@
         </ListView.ItemContainerStyle>
         <ListView.ItemTemplate>
           <DataTemplate>
-            <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="10,8">
-              <StackPanel Spacing="2">
-                <Grid>
-                  <TextBlock Text="{Binding Match.HeroName}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                  <Border HorizontalAlignment="Right" Padding="6,1" CornerRadius="2" Background="{Binding Match.Won, Converter={StaticResource ResultToBrushConverter}}">
-                    <TextBlock Text="{Binding Match.ResultText}" Foreground="{ThemeResource OnAccentBrush}" FontSize="9" FontWeight="SemiBold" />
-                  </Border>
-                </Grid>
-                <TextBlock Text="{Binding Match.SummaryLine}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                <TextBlock Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10">
-                  <Run Text="{Binding GeneratedText}" /><Run Text=" · " /><Run Text="{Binding Backend}" />
-                </TextBlock>
-              </StackPanel>
-            </Border>
+            <Grid>
+              <!-- 左侧胜负彩色标条 -->
+              <Border Width="4" HorizontalAlignment="Left" CornerRadius="2" Background="{Binding Match.Won, Converter={StaticResource ResultToBrushConverter}}" />
+
+              <!-- 卡片主体 -->
+              <Border Margin="8,0,0,0" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                <StackPanel Spacing="6">
+                  <!-- 英雄与胜负状态 -->
+                  <Grid>
+                    <TextBlock Text="{Binding Match.HeroName}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <Border HorizontalAlignment="Right" Padding="8,2" CornerRadius="4" Background="{Binding Match.Won, Converter={StaticResource ResultToBrushConverter}}">
+                      <TextBlock Text="{Binding Match.ResultText}" Foreground="{ThemeResource OnAccentBrush}" FontSize="10" FontWeight="Bold" />
+                    </Border>
+                  </Grid>
+
+                  <!-- 战绩与比赛时长胶囊 -->
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                      <TextBlock Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="11" FontWeight="SemiBold">
+                        <Run Text="KDA " /><Run Text="{Binding Match.KdaText}" />
+                      </TextBlock>
+                    </Border>
+                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                      <TextBlock Foreground="{ThemeResource CoachSuccessBrush}" FontSize="11">
+                        <Run Text="GPM " /><Run Text="{Binding Match.Gpm}" />
+                      </TextBlock>
+                    </Border>
+                    <TextBlock Text="{Binding Match.DurationText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                  </StackPanel>
+
+                  <!-- 生成时间与后端徽标 -->
+                  <Grid>
+                    <TextBlock Text="{Binding GeneratedText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" VerticalAlignment="Center" />
+                    <Border HorizontalAlignment="Right" Background="{ThemeResource SubtlePanelBrush}" CornerRadius="3" Padding="5,1">
+                      <TextBlock Text="{Binding Backend}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="9" />
+                    </Border>
+                  </Grid>
+                </StackPanel>
+              </Border>
+            </Grid>
           </DataTemplate>
         </ListView.ItemTemplate>
       </ListView>
 
-      <!-- 详情卡片面板 -->
-      <Border x:Name="AnalysisDetailPanel" Grid.Column="1" Visibility="{Binding IsDetailVisible, Converter={StaticResource BoolToVisibilityConverter}}" Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="3">
+      <!-- 右侧复盘详情面板 -->
+      <Border x:Name="AnalysisDetailPanel" Grid.Column="1" Visibility="{Binding IsDetailVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+              Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="8">
         <Grid>
-          <!-- 初始空状态 -->
-          <StackPanel x:Name="AnalysisEmptyState" Visibility="{Binding SelectedSummary, Converter={StaticResource EmptyToCollapsedConverter}}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
-            <FontIcon Glyph="&#xE8A5;" FontSize="28" Foreground="{ThemeResource TertiaryTextBrush}" HorizontalAlignment="Center" />
-            <TextBlock Text="选择左侧报告查看复盘详情" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" />
+          <!-- 初始未选择空状态 -->
+          <StackPanel x:Name="AnalysisEmptyState" Visibility="{Binding SelectedSummary, Converter={StaticResource EmptyToCollapsedConverter}}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+            <Border Width="64" Height="64" CornerRadius="32" Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" HorizontalAlignment="Center">
+              <FontIcon Glyph="&#xE8A5;" FontSize="28" Foreground="{ThemeResource TertiaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Text="选择左侧战报条目以查看复盘详情与深度数据" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="13" />
           </StackPanel>
 
           <!-- 详情内容或加载/错误状态 -->
@@ -96,76 +215,239 @@
               <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- 顶部操作条（返回/关闭） -->
-            <Grid Grid.Row="0" Margin="12,10,12,6">
-              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Style="{StaticResource GameIconButtonStyle}" Command="{Binding CloseDetailCommand}" ToolTipService.ToolTip="关闭复盘详情" AutomationProperties.Name="关闭复盘详情">
-                  <FontIcon Glyph="&#xE72B;" FontSize="16" />
+            <!-- 顶部操作条（返回 / 关闭详情） -->
+            <Border Grid.Row="0" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,10">
+              <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Button Style="{StaticResource GameIconButtonStyle}" Command="{Binding CloseDetailCommand}"
+                        ToolTipService.ToolTip="关闭复盘详情" AutomationProperties.Name="关闭复盘详情">
+                  <FontIcon Glyph="&#xE72B;" FontSize="15" />
                 </Button>
-                <TextBlock Text="复盘详情" Foreground="{ThemeResource GameTextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" />
+                <TextBlock Text="对局深度复盘与战术报告" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
               </StackPanel>
-            </Grid>
+            </Border>
 
             <!-- 加载或错误状态占位 -->
-            <Grid Grid.Row="1" Visibility="{Binding IsDetailStateVisible, Converter={StaticResource BoolToVisibilityConverter}}" Padding="24">
-              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
-                <ProgressRing IsActive="{Binding IsLoadingDetail}" Visibility="{Binding IsLoadingDetail, Converter={StaticResource BoolToVisibilityConverter}}" Width="32" Height="32" />
-                <TextBlock Text="{Binding DetailStateTitle}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Text="{Binding DetailStateMessage}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="360" />
+            <Grid Grid.Row="1" Visibility="{Binding IsDetailStateVisible, Converter={StaticResource BoolToVisibilityConverter}}" Padding="28">
+              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
+                <ProgressRing IsActive="{Binding IsLoadingDetail}" Visibility="{Binding IsLoadingDetail, Converter={StaticResource BoolToVisibilityConverter}}" Width="36" Height="36" />
+                <TextBlock Text="{Binding DetailStateTitle}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding DetailStateMessage}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="380" />
               </StackPanel>
             </Grid>
 
             <!-- 完整复盘内容 ScrollViewer -->
-            <ScrollViewer Grid.Row="1" x:Name="AnalysisDetailHost" Visibility="{Binding IsDetailContentVisible, Converter={StaticResource BoolToVisibilityConverter}}" VerticalScrollBarVisibility="Auto" BringIntoViewOnFocusChange="False">
-              <StackPanel Padding="18,16" Spacing="8">
-                <TextBlock Text="{Binding DetailTitleText}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding DetailMetaText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding DetailBackendText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" />
-                <Border BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,2" />
+            <ScrollViewer Grid.Row="1" x:Name="AnalysisDetailHost" Visibility="{Binding IsDetailContentVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                          VerticalScrollBarVisibility="Auto" BringIntoViewOnFocusChange="False">
+              <StackPanel Padding="20,18" Spacing="14">
 
-                <!-- AI 复盘卡片 -->
-                <Grid>
-                  <StackPanel Orientation="Horizontal" Spacing="7">
-                    <FontIcon Glyph="&#xE90A;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
-                    <TextBlock Text="AI 复盘" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                <!-- 1. 战报顶部 Banner（英雄名称 + 胜负徽章 + 5 项战绩指标） -->
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16,14">
+                  <StackPanel Spacing="12">
+                    <!-- 顶行：英雄名、胜负结果、时长、时间 -->
+                    <Grid>
+                      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding DetailHeroName}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="22" FontWeight="Bold" />
+                        <Border Padding="10,3" CornerRadius="4" Background="{Binding DetailResultWon, Converter={StaticResource ResultToBrushConverter}}" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding DetailResultText}" Foreground="{ThemeResource OnAccentBrush}" FontSize="11" FontWeight="Bold" />
+                        </Border>
+                        <TextBlock Text="{Binding DetailDurationText}" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Text="{Binding DetailDateText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- 5 项战绩核心指标卡片 -->
+                    <Grid ColumnSpacing="8">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+
+                      <!-- KDA -->
+                      <Border Grid.Column="0" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                        <StackPanel Spacing="2" HorizontalAlignment="Center">
+                          <TextBlock Text="K / D / A" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Center" />
+                          <TextBlock Text="{Binding DetailKdaText}" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" />
+                        </StackPanel>
+                      </Border>
+
+                      <!-- 正反补 -->
+                      <Border Grid.Column="1" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                        <StackPanel Spacing="2" HorizontalAlignment="Center">
+                          <TextBlock Text="补刀 / 反补" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Center" />
+                          <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding DetailLastHitsText}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="Bold" />
+                            <TextBlock Text="/" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" />
+                            <TextBlock Text="{Binding DetailDeniesText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" FontWeight="Bold" />
+                          </StackPanel>
+                        </StackPanel>
+                      </Border>
+
+                      <!-- GPM -->
+                      <Border Grid.Column="2" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                        <StackPanel Spacing="2" HorizontalAlignment="Center">
+                          <TextBlock Text="GPM" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Center" />
+                          <TextBlock Text="{Binding DetailGpmText}" Foreground="{ThemeResource CoachSuccessBrush}" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" />
+                        </StackPanel>
+                      </Border>
+
+                      <!-- XPM -->
+                      <Border Grid.Column="3" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                        <StackPanel Spacing="2" HorizontalAlignment="Center">
+                          <TextBlock Text="XPM" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Center" />
+                          <TextBlock Text="{Binding DetailXpmText}" Foreground="{ThemeResource CoachInfoBlueBrush}" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" />
+                        </StackPanel>
+                      </Border>
+
+                      <!-- 最高等级 -->
+                      <Border Grid.Column="4" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                        <StackPanel Spacing="2" HorizontalAlignment="Center">
+                          <TextBlock Text="等级" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="10" HorizontalAlignment="Center" />
+                          <TextBlock Text="{Binding DetailMaxLevelText}" Foreground="{ThemeResource CoachGoldBrush}" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" />
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+
+                    <!-- 底部署名与引擎 -->
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <FontIcon Glyph="&#xE90A;" FontSize="11" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding DetailBackendText}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                    </StackPanel>
                   </StackPanel>
-                  <Button Content="重新生成复盘" Command="{Binding RegenerateReviewCommand}" HorizontalAlignment="Right" Padding="10,4" FontSize="11" />
-                </Grid>
-                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                  <TextBlock Text="{Binding DetailReviewText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
                 </Border>
 
-                <!-- 最终装备 -->
-                <TextBlock Text="最终装备" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                <TextBlock Text="{Binding DetailItemsText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
-
-                <!-- 关键节点 -->
-                <TextBlock Text="关键节点" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                  <TextBlock Text="{Binding DetailMomentsText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="17" TextWrapping="Wrap" />
-                </Border>
-
-                <!-- 经济曲线 -->
-                <TextBlock Text="经济曲线（每 5 分钟采样）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                <TextBlock Text="{Binding DetailEconomyText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-
-                <!-- 回放操作记录 -->
-                <TextBlock Text="回放操作记录（GSI 提取）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                  <StackPanel>
-                    <TextBlock Text="本局没有回放记录，无法提取操作。请确认 GSI 快照记录已开启后，点击“重新生成复盘”。" Visibility="{Binding HasOperations, Converter={StaticResource EmptyToCollapsedConverter}}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding DetailOperationsText}" Visibility="{Binding HasOperations, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="17" TextWrapping="Wrap" />
+                <!-- 2. AI 复盘卡片 -->
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource CoachGoldDarkBrush}" BorderThickness="1" CornerRadius="8" Padding="16,14">
+                  <StackPanel Spacing="10">
+                    <Grid>
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE90A;" FontSize="16" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="AI 智能战术复盘" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" />
+                        <Border Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                          <TextBlock Text="智能体深度解析" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="10" />
+                        </Border>
+                      </StackPanel>
+                      <Button Content="重新生成复盘" Command="{Binding RegenerateReviewCommand}" HorizontalAlignment="Right" Padding="12,4" FontSize="11" CornerRadius="6" />
+                    </Grid>
+                    <TextBlock Text="{Binding DetailReviewText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" LineHeight="22" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
 
-                <!-- 整场数据（OpenDota） -->
-                <TextBlock Text="整场数据（OpenDota）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,0" />
-                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="12">
-                  <StackPanel>
-                    <TextBlock Text="未拉取 OpenDota 整场数据。可在页面右上角输入比赛 ID 拉取，或点击“重新生成复盘”重试。" Visibility="{Binding HasApiData, Converter={StaticResource EmptyToCollapsedConverter}}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding DetailApiText}" Visibility="{Binding HasApiData, Converter={StaticResource BoolToVisibilityConverter}}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="17" TextWrapping="Wrap" />
+                <!-- 3. 最终出装 (结构化 Chip 胶囊展示) -->
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <FontIcon Glyph="&#xE719;" FontSize="14" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="最终神装" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding DetailFinalItems}" Visibility="{Binding HasFinalItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <ItemsWrapGrid Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,8,8" Padding="10,5" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6">
+                            <TextBlock Text="{Binding}" Foreground="{ThemeResource CoachGoldLightBrush}" FontSize="12" FontWeight="SemiBold" />
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="本局未记录到最终神装" Visibility="{Binding HasFinalItems, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                               Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" />
                   </StackPanel>
                 </Border>
+
+                <!-- 4. 关键节点时间轴 (Timeline) -->
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <FontIcon Glyph="&#xE823;" FontSize="14" Foreground="{ThemeResource CoachInfoBlueBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="关键战术节点" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding DetailKeyMoments}" Visibility="{Binding HasKeyMoments, Converter={StaticResource BoolToVisibilityConverter}}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,6" Padding="10,6" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <FontIcon Glyph="&#xE73E;" FontSize="11" Foreground="{ThemeResource CoachGoldBrush}" VerticalAlignment="Center" />
+                              <TextBlock Text="{Binding}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="本局未采集到关键战术节点" Visibility="{Binding HasKeyMoments, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                               Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" />
+                  </StackPanel>
+                </Border>
+
+                <!-- 5. 经济曲线演进 (5 分钟采样步进) -->
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <FontIcon Glyph="&#xE9D9;" FontSize="14" Foreground="{ThemeResource CoachSuccessBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="经济采样曲线（每 5 分钟）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding DetailEconomySamples}" Visibility="{Binding HasEconomySamples, Converter={StaticResource BoolToVisibilityConverter}}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <ItemsWrapGrid Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,8,8" Padding="10,6" Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <TextBlock Text="{Binding TimeText}" Foreground="{ThemeResource CoachGoldBrush}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" />
+                              <TextBlock Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" VerticalAlignment="Center">
+                                <Run Text="GPM " /><Run Text="{Binding Gpm}" FontWeight="SemiBold" Foreground="{ThemeResource CoachSuccessBrush}" /><Run Text=" · XPM " /><Run Text="{Binding Xpm}" FontWeight="SemiBold" Foreground="{ThemeResource CoachInfoBlueBrush}" />
+                              </TextBlock>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="暂无经济采样数据" Visibility="{Binding HasEconomySamples, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}"
+                               Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" />
+                  </StackPanel>
+                </Border>
+
+                <!-- 6. 回放操作记录（GSI 提取） -->
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <FontIcon Glyph="&#xE756;" FontSize="14" Foreground="{ThemeResource PrimaryTextBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="回放操作记录（GSI 轨迹）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <TextBlock Text="本局没有回放记录，无法提取操作。请确认 GSI 快照记录已开启后，点击“重新生成复盘”。"
+                               Visibility="{Binding HasOperations, Converter={StaticResource EmptyToCollapsedConverter}}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                    <Border Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12"
+                            Visibility="{Binding HasOperations, Converter={StaticResource BoolToVisibilityConverter}}">
+                      <TextBlock Text="{Binding DetailOperationsText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="18" TextWrapping="Wrap" FontFamily="Consolas, Cascadia Code, Courier New" />
+                    </Border>
+                  </StackPanel>
+                </Border>
+
+                <!-- 7. 整场数据（OpenDota） -->
+                <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16,12">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <FontIcon Glyph="&#xE71B;" FontSize="14" Foreground="{ThemeResource PrimaryTextBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="整场数据（OpenDota 上下文）" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <TextBlock Text="未拉取 OpenDota 整场数据。可在页面右上角输入比赛 ID 拉取，或点击“重新生成复盘”重试。"
+                               Visibility="{Binding HasApiData, Converter={StaticResource EmptyToCollapsedConverter}}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                    <Border Background="{ThemeResource CoachPanelTintBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12"
+                            Visibility="{Binding HasApiData, Converter={StaticResource BoolToVisibilityConverter}}">
+                      <TextBlock Text="{Binding DetailApiText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" LineHeight="18" TextWrapping="Wrap" FontFamily="Consolas, Cascadia Code, Courier New" />
+                    </Border>
+                  </StackPanel>
+                </Border>
+
               </StackPanel>
             </ScrollViewer>
           </Grid>

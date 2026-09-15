@@ -1,0 +1,524 @@
+<Page
+    x:Class="AegisCoach.Native.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:AegisCoach.Native.ViewModels"
+    mc:Ignorable="d"
+    NavigationCacheMode="Required">
+
+  <ScrollViewer x:Name="SettingsScrollViewer"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled"
+                BringIntoViewOnFocusChange="False"
+                Padding="28,20,28,36">
+    <!-- 主容器：最大宽 1560px，自适应居中，大屏满铺、超大屏居中 -->
+    <Grid x:Name="SettingsRootContainer"
+          HorizontalAlignment="Stretch"
+          MaxWidth="1560"
+          RowSpacing="16">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <!-- 顶栏：标题、副标题与主保存操作 -->
+      <Grid Grid.Row="0" ColumnSpacing="16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Spacing="4">
+          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <FontIcon Glyph="&#xE713;" FontSize="22" Foreground="{ThemeResource GameAccentBrush}" />
+            <TextBlock Text="{Binding IntroTitle}" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="24" FontWeight="Bold" />
+          </StackPanel>
+          <TextBlock Text="{Binding IntroText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <Button Content="保存设置"
+                  Command="{Binding SaveSettingsCommand}"
+                  Style="{StaticResource AccentButtonStyle}"
+                  Height="38" Padding="24,0"
+                  FontWeight="SemiBold" />
+        </StackPanel>
+      </Grid>
+
+      <!-- 全局操作反馈提示 -->
+      <InfoBar Grid.Row="1"
+               IsOpen="{Binding IsInfoOpen, Mode=TwoWay}"
+               Severity="{Binding InfoSeverity}"
+               Title="{Binding InfoTitle}"
+               Message="{Binding InfoMessage}"
+               IsClosable="True" />
+
+      <!-- 核心双列响应式内容区：左列教练与规则，右列连接、存储、关于与折叠日志 -->
+      <Grid x:Name="ContentGrid" Grid.Row="2" ColumnSpacing="20" RowSpacing="18">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition x:Name="LeftCol" Width="1.08*" MinWidth="0" />
+          <ColumnDefinition x:Name="RightCol" Width="0.92*" MinWidth="0" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition x:Name="Row0" Height="Auto" />
+          <RowDefinition x:Name="Row1" Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 左列：教练与 AI 推理引擎 + 提醒阈值与细分规则 -->
+        <StackPanel x:Name="LeftColumnPanel" Grid.Column="0" Grid.Row="0" Spacing="18">
+
+          <!-- 1. 教练功能与 AI 推理引擎 -->
+          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+            <StackPanel Spacing="16">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource GameAccentBrush}" />
+                <TextBlock Text="教练引擎与 AI 推理" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+              </StackPanel>
+
+              <CheckBox Content="启用对局教练实时建议" IsChecked="{Binding SmartCoachEnabled, Mode=TwoWay}" />
+
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="90" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="解释引擎" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" SelectedIndex="{Binding BackendIndex, Mode=TwoWay}" MinHeight="36" HorizontalAlignment="Stretch">
+                  <ComboBoxItem Content="规则引擎（默认推荐 · 毫秒级响应 · 零硬件消耗）" />
+                  <ComboBoxItem Content="本地 NPU（Intel NPU 硬件加速推理）" />
+                  <ComboBoxItem Content="本地 Ollama（本机 localhost:11434 服务）" />
+                  <ComboBoxItem Content="远程 API（支持 Response API 及 OpenAI 兼容接口）" />
+                </ComboBox>
+              </Grid>
+
+              <!-- 模式 0：规则引擎提示区（默认无需填写任何配置） -->
+              <StackPanel Visibility="{Binding IsRulesVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+                  <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE73E;" FontSize="16" Foreground="{ThemeResource GameAccentBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                    <TextBlock Text="规则模式已就绪：基于内置预设逻辑与实时对局状态提供毫秒级战术指导（低血低魔、大招就绪、买活窗口等）。无需配置任何模型文件或 API 密钥，对游戏帧率完全零干扰。" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <!-- 模式 1：本地 NPU 加速参数区（选择本地 NPU 后出现） -->
+              <StackPanel Spacing="12" Visibility="{Binding IsNpuVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+                  <StackPanel Spacing="14">
+                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="本机硬件加速能力" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding NpuStatus}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="8">
+                      <TextBlock Text="端侧模型目录" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
+                      <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding NpuModelPath, Mode=TwoWay}"
+                                 PlaceholderText="支持 OpenVINO / ONNX 本地量化模型路径"
+                                 Height="34"
+                                 IsSpellCheckEnabled="False"
+                                 IsTextPredictionEnabled="False" />
+                        <Button Grid.Column="1" Content="选择模型" Command="{Binding BrowseNpuModelCommand}" Height="34" />
+                      </Grid>
+                      <TextBlock Text="{Binding NpuModelStatus}" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <!-- 模式 2：本地 Ollama 服务参数区（选择本地 Ollama 后出现） -->
+              <StackPanel Spacing="12" Visibility="{Binding IsOllamaVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+                  <StackPanel Spacing="12">
+                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                      <TextBlock Text="自动连接本机运行的 Ollama 服务（默认 http://localhost:11434），无需填写密钥。点击「拉取本地模型」可自动识别已安装的模型。" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                    </Border>
+
+                    <Grid ColumnSpacing="12" RowSpacing="10">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+
+                      <TextBlock Text="服务地址" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                      <TextBox Grid.Column="1"
+                               Text="{Binding OllamaEndpoint, Mode=TwoWay}"
+                               Height="34"
+                               PlaceholderText="http://localhost:11434"
+                               IsSpellCheckEnabled="False"
+                               IsTextPredictionEnabled="False" />
+
+                      <TextBlock Grid.Row="1" Text="模型名称" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                      <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Text="{Binding OllamaModel, Mode=TwoWay}"
+                                  ItemsSource="{Binding AvailableOllamaModels}"
+                                  IsEditable="True"
+                                  Height="34"
+                                  HorizontalAlignment="Stretch"
+                                  PlaceholderText="选择或输入本地模型（如 qwen2.5:7b）" />
+                        <Button Grid.Column="1"
+                                Content="拉取本地模型"
+                                Command="{Binding FetchOllamaModelsCommand}"
+                                Height="34" />
+                      </Grid>
+
+                      <TextBlock Grid.Row="2" Grid.Column="1"
+                                 Text="{Binding FetchOllamaModelsStatus}"
+                                 Foreground="{ThemeResource TertiaryTextBrush}"
+                                 FontSize="11" TextWrapping="Wrap" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <!-- 模式 3：远程 API 接口参数区（支持 Response API 及 OpenAI 兼容接口） -->
+              <StackPanel Spacing="12" Visibility="{Binding IsCloudVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+                  <StackPanel Spacing="12">
+                    <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                      <TextBlock Text="支持 OpenAI Response API (/v1/responses) 及标准 Chat Completions (/v1/chat/completions) 格式接口。支持点击「拉取远程模型」自动获取可用模型列表。" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                    </Border>
+
+                    <Grid ColumnSpacing="12" RowSpacing="10">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+
+                      <TextBlock Text="API 协议" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                      <ComboBox Grid.Column="1"
+                                SelectedIndex="{Binding ApiProtocolIndex, Mode=TwoWay}"
+                                HorizontalAlignment="Stretch" Height="34">
+                        <ComboBoxItem Content="Chat Completions API (/v1/chat/completions)" />
+                        <ComboBoxItem Content="Responses API (/v1/responses) [推荐]" />
+                      </ComboBox>
+
+                      <TextBlock Grid.Row="1" Text="接口地址" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                      <TextBox Grid.Row="1" Grid.Column="1"
+                               Text="{Binding CloudEndpoint, Mode=TwoWay}"
+                               Height="34"
+                               PlaceholderText="支持 Response API 或 OpenAI 兼容接口地址"
+                               IsSpellCheckEnabled="False"
+                               IsTextPredictionEnabled="False" />
+
+                      <TextBlock Grid.Row="2" Text="API 密钥" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                      <TextBox Grid.Row="2" Grid.Column="1"
+                               Text="{Binding CloudApiKey, Mode=TwoWay}"
+                               Height="34"
+                               PlaceholderText="填写接口鉴权密钥 (sk-...)"
+                               IsSpellCheckEnabled="False"
+                               IsTextPredictionEnabled="False" />
+
+                      <TextBlock Grid.Row="3" Text="模型名称" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                      <Grid Grid.Row="3" Grid.Column="1" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Text="{Binding CloudModel, Mode=TwoWay}"
+                                  ItemsSource="{Binding AvailableCloudModels}"
+                                  IsEditable="True"
+                                  Height="34"
+                                  HorizontalAlignment="Stretch"
+                                  PlaceholderText="选择或输入模型名称" />
+                        <Button Grid.Column="1"
+                                Content="拉取远程模型"
+                                Command="{Binding FetchRemoteModelsCommand}"
+                                Height="34" />
+                      </Grid>
+
+                      <TextBlock Grid.Row="4" Grid.Column="1"
+                                 Text="{Binding FetchModelsStatus}"
+                                 Foreground="{ThemeResource TertiaryTextBrush}"
+                                 FontSize="11" TextWrapping="Wrap" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <!-- 通用教练选项 -->
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="90" />
+                  <ColumnDefinition Width="120" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="提醒间隔(秒)" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                <TextBox Grid.Column="1" Text="{Binding IntervalSeconds, Mode=TwoWay}" Height="34" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False" />
+                <TextBlock Grid.Column="2" Text="两次语音/文字提醒之间的最小冷静时间（建议 3-5 秒）" VerticalAlignment="Center" Foreground="{ThemeResource TertiaryTextBrush}" FontSize="12" />
+              </Grid>
+
+              <CheckBox Content="显示全场英雄与出装建议（仅公开对局可用）" IsChecked="{Binding LiveHeroTrackingEnabled, Mode=TwoWay}" />
+
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="90" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Stratz 密钥" VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding StratzApiKey, Mode=TwoWay}"
+                         Height="34"
+                         PlaceholderText="可选：填写后可对任意公开对局实时获取全场英雄信息"
+                         IsSpellCheckEnabled="False"
+                         IsTextPredictionEnabled="False" />
+              </Grid>
+
+              <!-- AI 提示关键词与指导原则（外置配置） -->
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="90" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="AI 提示关键词" VerticalAlignment="Top" Margin="0,8,0,0" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="13" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBox Text="{Binding AiPromptKeywords, Mode=TwoWay}"
+                           Height="34"
+                           PlaceholderText="例如：单一核心发现, 秒级时间戳片刻, 落地刻意练习, 严禁脑补视野与无据因果, 不超过500字"
+                           IsSpellCheckEnabled="False"
+                           IsTextPredictionEnabled="False" />
+                  <TextBlock Text="外置提示词关键词配置：实时教练与赛后复盘生成建议时自动注入该指导要点（可自定义限制字数、动作风格、战术侧重等，保存后实时生效并写入本地 settings.json）。"
+                             Foreground="{ThemeResource TertiaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- 2. 教练提醒规则与灵敏度阈值 -->
+          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+            <StackPanel Spacing="16">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE724;" FontSize="16" Foreground="{ThemeResource GameAccentBrush}" />
+                <TextBlock Text="提醒阈值与细分规则" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+              </StackPanel>
+
+              <!-- 4 列紧凑排布的阈值输入区 -->
+              <Grid ColumnSpacing="12" RowSpacing="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="低血提醒 %" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding LowHealthPercentText, Mode=TwoWay}" Height="32" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False" />
+
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="低蓝提醒 %" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LowManaPercentText, Mode=TwoWay}" Height="32" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False" />
+
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="集结生命 %" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding FightHealthPercentText, Mode=TwoWay}" Height="32" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False" />
+
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="集结魔法 %" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" />
+                <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding FightManaPercentText, Mode=TwoWay}" Height="32" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False" />
+              </Grid>
+
+              <!-- 15 个细分规则开关（3 列整齐排布） -->
+              <Grid ColumnSpacing="14" RowSpacing="6">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <CheckBox Grid.Row="0" Grid.Column="0" Content="低血提醒" IsChecked="{Binding EnableLowHealth, Mode=TwoWay}" />
+                <CheckBox Grid.Row="0" Grid.Column="1" Content="低蓝提醒" IsChecked="{Binding EnableLowMana, Mode=TwoWay}" />
+                <CheckBox Grid.Row="0" Grid.Column="2" Content="大招就绪" IsChecked="{Binding EnableUltimate, Mode=TwoWay}" />
+
+                <CheckBox Grid.Row="1" Grid.Column="0" Content="阵亡提醒" IsChecked="{Binding EnableDeath, Mode=TwoWay}" />
+                <CheckBox Grid.Row="1" Grid.Column="1" Content="受控提醒" IsChecked="{Binding EnableControl, Mode=TwoWay}" />
+                <CheckBox Grid.Row="1" Grid.Column="2" Content="买活窗口" IsChecked="{Binding EnableBuyback, Mode=TwoWay}" />
+
+                <CheckBox Grid.Row="2" Grid.Column="0" Content="集结就绪" IsChecked="{Binding EnableFightReady, Mode=TwoWay}" />
+                <CheckBox Grid.Row="2" Grid.Column="1" Content="开雾提醒" IsChecked="{Binding EnableSmoke, Mode=TwoWay}" />
+                <CheckBox Grid.Row="2" Grid.Column="2" Content="雾中状态" IsChecked="{Binding EnableSmoked, Mode=TwoWay}" />
+
+                <CheckBox Grid.Row="3" Grid.Column="0" Content="天黑交替" IsChecked="{Binding EnableNight, Mode=TwoWay}" />
+                <CheckBox Grid.Row="3" Grid.Column="1" Content="建筑受击" IsChecked="{Binding EnableBuilding, Mode=TwoWay}" />
+                <CheckBox Grid.Row="3" Grid.Column="2" Content="肉山事件" IsChecked="{Binding EnableRoshan, Mode=TwoWay}" />
+
+                <CheckBox Grid.Row="4" Grid.Column="0" Content="道具就绪" IsChecked="{Binding EnableItemReady, Mode=TwoWay}" />
+                <CheckBox Grid.Row="4" Grid.Column="1" Content="技能就绪" IsChecked="{Binding EnableAbilityReady, Mode=TwoWay}" />
+                <CheckBox Grid.Row="4" Grid.Column="2" Content="关键时间" IsChecked="{Binding EnableMapAwareness, Mode=TwoWay}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+        </StackPanel>
+
+        <!-- 右列：Dota 2 实时连接 + 数据存储 + 关于与更新 + 默认折叠的诊断日志 -->
+        <StackPanel x:Name="RightColumnPanel" Grid.Column="1" Grid.Row="0" Spacing="18">
+
+          <!-- 1. Dota 2 实时连接与 GSI 集成 -->
+          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+            <StackPanel Spacing="16">
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE7FC;" FontSize="16" Foreground="{ThemeResource GameAccentBrush}" />
+                    <TextBlock Text="Dota 2 实时连接与 GSI" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+                  </StackPanel>
+                  <TextBlock Text="自动检测 Steam 与 Dota 2 游戏目录，一键写入局内游戏状态集成 (GSI) 监听配置。" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoStartGsi, Mode=TwoWay}" OnContent="随应用自动连接" OffContent="手动启动连接" />
+              </Grid>
+
+              <!-- 4 操作快捷网格 -->
+              <Grid ColumnSpacing="12" RowSpacing="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Button Grid.Row="0" Grid.Column="0"
+                        Content="自动配置 Dota 2"
+                        Command="{Binding AutoConfigureDotaCommand}"
+                        HorizontalAlignment="Stretch" Height="36"
+                        Style="{StaticResource AccentButtonStyle}" />
+                <Button Grid.Row="0" Grid.Column="1"
+                        Content="{Binding GsiButtonText}"
+                        Command="{Binding ToggleGsiCommand}"
+                        HorizontalAlignment="Stretch" Height="36" />
+                <Button Grid.Row="1" Grid.Column="0"
+                        Content="选择游戏目录"
+                        Command="{Binding BrowseGameDirectoryCommand}"
+                        HorizontalAlignment="Stretch" Height="34" />
+                <Button Grid.Row="1" Grid.Column="1"
+                        Content="打开配置目录"
+                        Command="{Binding OpenCfgDirectoryCommand}"
+                        HorizontalAlignment="Stretch" Height="34" />
+              </Grid>
+
+              <TextBox Text="{Binding DotaPath, Mode=TwoWay}"
+                       PlaceholderText="Dota 2 cfg 路径（自动识别成功无需手动填写）"
+                       Height="34"
+                       IsSpellCheckEnabled="False"
+                       IsTextPredictionEnabled="False" />
+            </StackPanel>
+          </Border>
+
+          <!-- 2. 数据与存储管理 -->
+          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+            <StackPanel Spacing="12">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE8B7;" FontSize="16" Foreground="{ThemeResource GameAccentBrush}" />
+                <TextBlock Text="数据与存储" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+              </StackPanel>
+
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="3">
+                  <TextBlock Text="数据保存位置" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding DataDirectory}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="打开文件夹" Command="{Binding OpenDataDirectoryCommand}" Height="34" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- 3. 关于神盾教练与检查更新 -->
+          <Border Background="{ThemeResource SubtlePanelBrush}" BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+            <StackPanel Spacing="14">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE897;" FontSize="16" Foreground="{ThemeResource GameAccentBrush}" />
+                <TextBlock Text="关于与版本更新" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="16" FontWeight="SemiBold" />
+              </StackPanel>
+
+              <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                  <TextBlock Text="神盾教练 (AegisCoach) · 桌面客户端" Foreground="{ThemeResource PrimaryTextBrush}" FontSize="14" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding UpdateStatusText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Button Content="检查更新"
+                          Command="{Binding CheckForUpdatesCommand}"
+                          IsEnabled="{Binding CanCheckUpdate}"
+                          Height="34" />
+                  <Button Content="前往发布页"
+                          Command="{Binding OpenReleaseUrlCommand}"
+                          Height="34" />
+                </StackPanel>
+              </Grid>
+
+              <!-- 发现新版本时展开更新日志 -->
+              <Border Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibilityConverter}}"
+                      Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource GameAccentBrush}" BorderThickness="1" CornerRadius="6" Padding="12">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="新版本说明：" Foreground="{ThemeResource GameAccentBrush}" FontSize="12" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding ReleaseNotes}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <!-- 4. 运行诊断日志（使用 Expander 默认折叠隐藏，大幅改善排版视觉效果） -->
+          <Expander Header="实时运行诊断日志"
+                    IsExpanded="False"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    Background="{ThemeResource SubtlePanelBrush}"
+                    BorderBrush="{ThemeResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+            <Border Background="{ThemeResource PanelBackgroundBrush}" BorderBrush="{ThemeResource SubtleBorderBrush}" BorderThickness="1" Padding="12,10" Height="220" CornerRadius="6" Margin="0,8,0,0">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock Text="{Binding CoachLogText}" Foreground="{ThemeResource SecondaryTextBrush}" FontSize="11" FontFamily="Consolas" TextWrapping="Wrap" />
+              </ScrollViewer>
+            </Border>
+          </Expander>
+
+        </StackPanel>
+      </Grid>
+    </Grid>
+  </ScrollViewer>
+</Page>

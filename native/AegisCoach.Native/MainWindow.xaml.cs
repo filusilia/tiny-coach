@@ -33,8 +33,6 @@ public sealed partial class MainWindow : Window
     private MatchSessionTracker _sessionTracker = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, DotaDataService.HeroItemPopularity> _popularityCache = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, List<DotaDataService.HeroMatchupStat>> _matchupCache = new();
-    private Dictionary<string, int> _cooldownDraft = new(StringComparer.OrdinalIgnoreCase);
-    private string? _selectedCooldownKey;
     private readonly SemaphoreSlim _recommendationGate = new(1, 1);
     private readonly SemaphoreSlim _counterGate = new(1, 1);
     private readonly object _recommendationSync = new();
@@ -63,35 +61,11 @@ public sealed partial class MainWindow : Window
     private bool _isClosing;
     private bool _coachRunning;
     private bool _applicationStarted;
-    private bool _settingsSaved;
     private DateTimeOffset _lastSmartExplanationAt = DateTimeOffset.MinValue;
     private NavigationViewItem? _lastNavigationItem;
     private static string SnapshotDirectory => AegisCoachPaths.Snapshots;
     private CancellationToken AppToken => _appLifetimeCts.Token;
     private DotaCatalog? Catalog => HeroesPage.ViewModel.Catalog;
-    private static IReadOnlyList<RuleCooldownChoice> RuleCooldownChoices { get; } =
-    [
-        new("game_state", "比赛阶段"),
-        new("low_health", "低血"),
-        new("low_mana", "低蓝"),
-        new("ult_ready", "大招就绪"),
-        new("died", "阵亡"),
-        new("control_locked", "受控"),
-        new("buyback_window", "买活窗口"),
-        new("fight_ready", "集结状态"),
-        new("smoke_purchased", "购买诡计之雾"),
-        new("smoke_used", "使用诡计之雾"),
-        new("smoked_active", "处于雾中"),
-        new("night_fall", "昼夜变化"),
-        new("building_attacked", "建筑受击"),
-        new("building_destroyed", "建筑摧毁"),
-        new("roshan_killed", "肉山击杀"),
-        new("roshan_respawned", "肉山复活"),
-        new("item_ready", "道具就绪"),
-        new("ability_ready", "技能就绪"),
-        new("map_awareness", "关键时间"),
-    ];
-
 
     private readonly Stopwatch _startupStopwatch = Stopwatch.StartNew();
 
@@ -100,11 +74,15 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         HeroesPage.UseDataService(_dataService);
         ItemCatalogPage.UseDataService(_dataService);
+        SetupSettingsPage();
         SetupTitleBar();
         RootGrid.DataContext = this;
         RootGrid.Loaded += MainWindow_Loaded;
         Closed += MainWindow_Closed;
-        CoachPage.ViewModel.OpenSettingsRequested += async () => await OpenCoachSettingsAsync();
+        CoachPage.ViewModel.OpenSettingsRequested += () =>
+        {
+            AppNavigation.SelectedItem = AppNavigation.SettingsItem;
+        };
         PerformanceMetrics.Instance.RecordWindowConstructed(_startupStopwatch.ElapsedMilliseconds);
     }
 
@@ -186,15 +164,58 @@ public sealed partial class MainWindow : Window
         PerformanceMetrics.Instance.RecordSettingsLoaded(_startupStopwatch.ElapsedMilliseconds);
         var isWarm = File.Exists(Path.Combine(_settings.CacheDirectory, "catalog.json"));
         PerformanceMetrics.Instance.SetScenario(isWarm ? PerformanceScenario.WarmStart : PerformanceScenario.ColdStart);
-        PopulateSettings();
+        SettingsPage.ViewModel.LoadFromSettings(_settings, _coachRunning);
         ApplyResponsiveLayout();
         if (!_settings.SetupCompleted)
         {
-            var configured = await OpenCoachSettingsAsync(firstRun: true);
-            if (!configured) return;
+            SettingsPage.ViewModel.IntroTitle = "首次配置";
+            SettingsPage.ViewModel.IntroText = "检测到首次运行神盾教练，请检查基础设置并点击“保存设置”，随后即可开始使用。";
+            AppNavigation.SelectedItem = AppNavigation.SettingsItem;
+            return;
         }
 
         await StartApplicationAsync();
+    }
+
+    private void SetupSettingsPage()
+    {
+        SettingsPage.ViewModel.PickFolderHandler = async () => (await PickFolderAsync())?.Path;
+        SettingsPage.ViewModel.PickModelFolderHandler = async () => (await PickFolderAsync())?.Path;
+        SettingsPage.ViewModel.ToggleGsiHandler = async start => await ToggleCoachAsync(start);
+        SettingsPage.ViewModel.OnSettingsApplied = ApplySettingsFromPage;
+    }
+
+    private void ApplySettingsFromPage(AppSettings newSettings)
+    {
+        _settings = newSettings;
+        _dataService.CacheDirectory = _settings.CacheDirectory;
+        HeroesPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
+        ItemCatalogPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
+        MatchSessionTracker.HabitsDirectory = AegisCoachPaths.Habits;
+        MatchSessionTracker.AnalysisDirectory = _settings.AnalysisDirectory;
+        _npuCoach.ModelPath = _settings.NpuModelPath;
+
+        if (!_settings.LiveHeroTrackingEnabled)
+        {
+            CancelHeroTracking();
+            CoachPage.ViewModel.HeroesStatusText = "未启用";
+        }
+
+        var rules = _settings.RuleOptions ??= new CoachRuleOptions();
+        rules.Normalize();
+        _coachRules = new CoachRuleEngine(options: rules);
+        _pipeline?.UpdateRuleEngine(_coachRules);
+
+        AppendCoachLog("设置已更新并生效");
+
+        if (!_applicationStarted)
+        {
+            _ = DispatcherQueue.TryEnqueue(async () =>
+            {
+                await StartApplicationAsync();
+                AppNavigation.SelectedItem = AppNavigation.MenuItems[0];
+            });
+        }
     }
 
     private async Task StartApplicationAsync()
@@ -217,8 +238,6 @@ public sealed partial class MainWindow : Window
         MatchSessionTracker.AnalysisDirectory = _settings.AnalysisDirectory;
         _npuCoach.ModelPath = _settings.NpuModelPath;
         try { Directory.CreateDirectory(DotaDataService.OfficialDataDirectory); } catch { /* 官网数据文件目录可选 */ }
-        NpuStatusText.Text = NpuCapabilityDetector.Detect().Summary;
-        UpdateNpuModelStatus();
         RegisterBackgroundTask(RefreshNpuRuntimeAsync());
 
         AnalysisPage.ViewModel.ConfigureServices(
@@ -314,6 +333,8 @@ public sealed partial class MainWindow : Window
     /// <summary>后台批量刷新全部英雄的中文详情（官网接口优先），并清理不再属于当前版本的旧详情缓存。</summary>
     private async Task RefreshAllHeroDetailsInBackgroundAsync()
     {
+        // 延迟 8 秒再在闲时尝试增量同步，优先保证用户启动与首屏操作零网络竞争
+        try { await Task.Delay(8000, AppToken); } catch (OperationCanceledException) { return; }
         await HeroesPage.LoadAsync(false);
         var heroIds = Catalog?.Heroes.Select(hero => hero.Id).ToList() ?? [];
         if (heroIds.Count == 0) return;
@@ -443,36 +464,50 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void AppNavigation_SelectionChanged(NavigationView _, NavigationViewSelectionChangedEventArgs args)
+    private void AppNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (args.IsSettingsSelected)
+        var isSettings = args.IsSettingsSelected;
+        if (isSettings)
         {
-            await OpenCoachSettingsAsync();
-            AppNavigation.SelectedItem = _lastNavigationItem ?? AppNavigation.MenuItems[0];
-            return;
+            _lastNavigationItem = sender.SettingsItem as NavigationViewItem;
+        }
+        else if (args.SelectedItem is NavigationViewItem selectedItem)
+        {
+            _lastNavigationItem = selectedItem;
         }
 
-        if (args.SelectedItem is NavigationViewItem selectedItem) _lastNavigationItem = selectedItem;
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag?.ToString();
-        var showHeroes = tag == "heroes" || string.IsNullOrEmpty(tag);
-        var showItems = tag == "items";
-        var showCoach = tag == "coach";
-        var showAnalysis = tag == "analysis";
+        var showHeroes = !isSettings && (tag == "heroes" || string.IsNullOrEmpty(tag));
+        var showItems = !isSettings && tag == "items";
+        var showCoach = !isSettings && tag == "coach";
+        var showAnalysis = !isSettings && tag == "analysis";
+        var showSettings = isSettings;
+
         HeroesPage.Visibility = showHeroes ? Visibility.Visible : Visibility.Collapsed;
         ItemCatalogPage.Visibility = showItems ? Visibility.Visible : Visibility.Collapsed;
         CoachPage.Visibility = showCoach ? Visibility.Visible : Visibility.Collapsed;
         AnalysisPage.Visibility = showAnalysis ? Visibility.Visible : Visibility.Collapsed;
-        UpdateTitleBarForPage(tag);
+        SettingsPage.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
+        UpdateTitleBarForPage(isSettings ? "settings" : tag);
 
         if (showHeroes)
         {
-            await HeroesPage.LoadAsync(false);
+            _ = HeroesPage.LoadAsync(false);
         }
         else if (showItems)
         {
             // 物品资料页自带加载保护；这里同时为教练页预热 _allItems（推荐反查用）。
-            await ItemCatalogPage.LoadAsync(false);
-            if (!_itemsLoaded && !_itemsLoading) await LoadItemsAsync(false);
+            _ = ItemCatalogPage.LoadAsync(false);
+            if (!_itemsLoaded && !_itemsLoading) _ = LoadItemsAsync(false);
+        }
+        if (showSettings)
+        {
+            ApplyResponsiveLayout();
+            SettingsPage.StartInputPump();
+        }
+        else
+        {
+            SettingsPage.StopInputPump();
         }
     }
 
@@ -496,6 +531,11 @@ public sealed partial class MainWindow : Window
         else if (tag == "analysis")
         {
             TitleBarSearchBox.PlaceholderText = "搜索比赛 ID 或英雄 (Ctrl+F)";
+            TitleBarSearchBox.Text = string.Empty;
+        }
+        else if (tag == "settings")
+        {
+            TitleBarSearchBox.PlaceholderText = "神盾教练设置";
             TitleBarSearchBox.Text = string.Empty;
         }
     }
@@ -583,6 +623,7 @@ public sealed partial class MainWindow : Window
         var compact = RootGrid.ActualWidth > 0 && RootGrid.ActualWidth < 1100;
         AnalysisPage.ApplyResponsiveLayout(compact);
         CoachPage.ApplyResponsiveLayout(compact);
+        SettingsPage.ApplyResponsiveLayout(compact);
     }
 
     /// <summary>详情打开时折叠页头与搜索区，让详情铺满页面；返回列表时恢复。</summary>
@@ -617,70 +658,13 @@ public sealed partial class MainWindow : Window
         _ => "all",
     };
 
-    private void PopulateSettings()
-    {
-        _settings.RuleOptions ??= new CoachRuleOptions();
-        _settings.RuleOptions.Normalize();
-        _cooldownDraft = new Dictionary<string, int>(
-            _settings.RuleOptions.CooldownSeconds,
-            StringComparer.OrdinalIgnoreCase);
-        _selectedCooldownKey = null;
-        CoachCooldownRuleBox.ItemsSource = RuleCooldownChoices;
-        CoachCooldownRuleBox.SelectedIndex = 0;
-        CoachLowHealthBox.Text = _settings.RuleOptions.LowHealthPercent.ToString("0.#");
-        CoachLowManaBox.Text = _settings.RuleOptions.LowManaPercent.ToString("0.#");
-        CoachFightHealthBox.Text = _settings.RuleOptions.FightReadyHealthPercent.ToString("0.#");
-        CoachFightManaBox.Text = _settings.RuleOptions.FightReadyManaPercent.ToString("0.#");
-        CoachLowHealthEnabledBox.IsChecked = _settings.RuleOptions.EnableLowHealth;
-        CoachLowManaEnabledBox.IsChecked = _settings.RuleOptions.EnableLowMana;
-        CoachUltimateEnabledBox.IsChecked = _settings.RuleOptions.EnableUltimateReady;
-        CoachDeathEnabledBox.IsChecked = _settings.RuleOptions.EnableDeath;
-        CoachControlEnabledBox.IsChecked = _settings.RuleOptions.EnableControlLocked;
-        CoachBuybackEnabledBox.IsChecked = _settings.RuleOptions.EnableBuybackWindow;
-        CoachFightReadyEnabledBox.IsChecked = _settings.RuleOptions.EnableFightReady;
-        CoachSmokeEnabledBox.IsChecked = _settings.RuleOptions.EnableSmoke;
-        CoachSmokedEnabledBox.IsChecked = _settings.RuleOptions.EnableSmokedState;
-        CoachNightEnabledBox.IsChecked = _settings.RuleOptions.EnableNightFall;
-        CoachBuildingEnabledBox.IsChecked = _settings.RuleOptions.EnableBuildings;
-        CoachRoshanEnabledBox.IsChecked = _settings.RuleOptions.EnableRoshan;
-        CoachItemReadyEnabledBox.IsChecked = _settings.RuleOptions.EnableItemReady;
-        CoachAbilityReadyEnabledBox.IsChecked = _settings.RuleOptions.EnableAbilityReady;
-        CoachMapAwarenessEnabledBox.IsChecked = _settings.RuleOptions.EnableMapAwareness;
-        _coachRules = new CoachRuleEngine(options: _settings.RuleOptions);
-        CoachPathBox.Text = _settings.DotaCfgManualPath ?? string.Empty;
-        CoachAutoStartBox.IsOn = _settings.AutoStartGsi;
-        SmartCoachEnabledBox.IsChecked = _settings.SmartCoachEnabled;
-        HeroesPage.ViewModel.SetDefaultRank(_settings.DefaultRankId);
-        AiBackendBox.ItemsSource = new List<string>
-        {
-            "规则引擎（毫秒级响应，零性能消耗，推荐）",
-            "AI 智能解释（兼容 OpenAI / DeepSeek / Ollama / 本地大模型）",
-        };
-        AiBackendBox.SelectedIndex = _settings.BackendKind == AiBackendKind.Rules ? 0 : 1;
-        CloudEndpointBox.Text = _settings.CloudEndpoint;
-        CloudModelBox.Text = _settings.CloudModel;
-        CloudApiKeyBox.Password = _settings.CloudApiKey;
-        CloudSection.Visibility = _settings.BackendKind != AiBackendKind.Rules ? Visibility.Visible : Visibility.Collapsed;
-        SmartCoachIntervalBox.Text = _settings.SmartCoachMinIntervalSeconds.ToString();
-        NpuStatusText.Text = _applicationStarted ? NpuCapabilityDetector.Detect().Summary : "保存后检查本机能力";
-        NpuModelPathBox.Text = _settings.NpuModelPath;
-        DataDirectoryText.Text = AegisCoachPaths.Root;
-        _npuCoach.ModelPath = _settings.NpuModelPath;
-        StratzApiKeyBox.Password = _settings.StratzApiKey;
-        LiveHeroTrackingEnabledBox.IsChecked = _settings.LiveHeroTrackingEnabled;
-        UpdateNpuModelStatus();
-        if (!_settings.LiveHeroTrackingEnabled) CoachPage.ViewModel.HeroesStatusText = "未启用";
-        CoachInfoBar.IsOpen = false;
-        UpdateCoachStatusUi();
-    }
-
     private async Task ToggleCoachAsync(bool start)
     {
         if (_isClosing) return;
 
         if (start)
         {
-            ApplyCoachSettings();
+            _coachRules = new CoachRuleEngine(options: _settings.RuleOptions ?? new CoachRuleOptions());
             _sessionTracker = new MatchSessionTracker();
             _pipeline = new GsiProcessingPipeline(
                 _coachRules,
@@ -701,7 +685,7 @@ public sealed partial class MainWindow : Window
             AppendCoachLog($"原始快照记录目录：{SnapshotDirectory}");
             if (!_coachRunning && _receiver.LastError is not null)
             {
-                ShowCoachInfo(InfoBarSeverity.Error, "GSI 启动失败", _receiver.LastError);
+                AppendCoachLog($"GSI 启动失败：{_receiver.LastError}");
             }
         }
         else
@@ -725,111 +709,6 @@ public sealed partial class MainWindow : Window
         }
 
         UpdateCoachStatusUi();
-    }
-
-    private bool ApplyCoachSettings(bool completeSetup = false)
-    {
-        _settings.DotaCfgManualPath = string.IsNullOrWhiteSpace(CoachPathBox.Text) ? null : CoachPathBox.Text.Trim();
-        _settings.AutoStartGsi = CoachAutoStartBox.IsOn;
-        _settings.SmartCoachEnabled = SmartCoachEnabledBox.IsChecked == true;
-        _settings.AiBackend = AiBackendBox.SelectedIndex == 0 ? "rules" : "cloud";
-        _settings.CloudEndpoint = string.IsNullOrWhiteSpace(CloudEndpointBox.Text)
-            ? "https://api.openai.com/v1" : CloudEndpointBox.Text.Trim();
-        _settings.CloudModel = string.IsNullOrWhiteSpace(CloudModelBox.Text)
-            ? "gpt-4o-mini" : CloudModelBox.Text.Trim();
-        _settings.CloudApiKey = CloudApiKeyBox.Password.Trim();
-        _settings.SmartCoachMinIntervalSeconds = int.TryParse(SmartCoachIntervalBox.Text.Trim(), out var interval)
-            ? Math.Clamp(interval, 1, 60) : 3;
-        _settings.NpuModelPath = string.IsNullOrWhiteSpace(NpuModelPathBox.Text)
-            ? _settings.NpuModelPath : NpuModelPathBox.Text.Trim();
-        _npuCoach.ModelPath = _settings.NpuModelPath;
-        _dataService.CacheDirectory = _settings.CacheDirectory;
-        HeroesPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
-        ItemCatalogPage.ViewModel.UseCacheDirectory(_settings.CacheDirectory);
-        MatchSessionTracker.HabitsDirectory = AegisCoachPaths.Habits;
-        MatchSessionTracker.AnalysisDirectory = _settings.AnalysisDirectory;
-        _settings.LiveHeroTrackingEnabled = LiveHeroTrackingEnabledBox.IsChecked == true;
-        _settings.StratzApiKey = StratzApiKeyBox.Password.Trim();
-        if (!_settings.LiveHeroTrackingEnabled) CancelHeroTracking();
-        var rules = _settings.RuleOptions ??= new CoachRuleOptions();
-        rules.LowHealthPercent = ParseRulePercent(CoachLowHealthBox.Text, rules.LowHealthPercent);
-        rules.LowManaPercent = ParseRulePercent(CoachLowManaBox.Text, rules.LowManaPercent);
-        rules.FightReadyHealthPercent = ParseRulePercent(CoachFightHealthBox.Text, rules.FightReadyHealthPercent);
-        rules.FightReadyManaPercent = ParseRulePercent(CoachFightManaBox.Text, rules.FightReadyManaPercent);
-        rules.EnableLowHealth = CoachLowHealthEnabledBox.IsChecked == true;
-        rules.EnableLowMana = CoachLowManaEnabledBox.IsChecked == true;
-        rules.EnableUltimateReady = CoachUltimateEnabledBox.IsChecked == true;
-        rules.EnableDeath = CoachDeathEnabledBox.IsChecked == true;
-        rules.EnableControlLocked = CoachControlEnabledBox.IsChecked == true;
-        rules.EnableBuybackWindow = CoachBuybackEnabledBox.IsChecked == true;
-        rules.EnableFightReady = CoachFightReadyEnabledBox.IsChecked == true;
-        rules.EnableSmoke = CoachSmokeEnabledBox.IsChecked == true;
-        rules.EnableSmokedState = CoachSmokedEnabledBox.IsChecked == true;
-        rules.EnableNightFall = CoachNightEnabledBox.IsChecked == true;
-        rules.EnableBuildings = CoachBuildingEnabledBox.IsChecked == true;
-        rules.EnableRoshan = CoachRoshanEnabledBox.IsChecked == true;
-        rules.EnableItemReady = CoachItemReadyEnabledBox.IsChecked == true;
-        rules.EnableAbilityReady = CoachAbilityReadyEnabledBox.IsChecked == true;
-        rules.EnableMapAwareness = CoachMapAwarenessEnabledBox.IsChecked == true;
-        SaveCurrentCooldownDraft();
-        rules.CooldownSeconds = new Dictionary<string, int>(_cooldownDraft, StringComparer.OrdinalIgnoreCase);
-        rules.Normalize();
-        _coachRules = new CoachRuleEngine(options: rules);
-        _pipeline?.UpdateRuleEngine(_coachRules);
-        if (completeSetup) _settings.SetupCompleted = true;
-        if (!_settings.Save())
-        {
-            if (completeSetup) _settings.SetupCompleted = false;
-            ShowCoachInfo(
-                InfoBarSeverity.Error,
-                "设置无法保存",
-                _settings.LastSaveError ?? $"请确认可以写入 {AegisCoachPaths.Root}");
-            return false;
-        }
-        SmartCoachIntervalBox.Text = _settings.SmartCoachMinIntervalSeconds.ToString();
-        UpdateNpuModelStatus();
-        if (!_settings.LiveHeroTrackingEnabled) CoachPage.ViewModel.HeroesStatusText = "未启用";
-        CoachLowHealthBox.Text = rules.LowHealthPercent.ToString("0.#");
-        CoachLowManaBox.Text = rules.LowManaPercent.ToString("0.#");
-        CoachFightHealthBox.Text = rules.FightReadyHealthPercent.ToString("0.#");
-        CoachFightManaBox.Text = rules.FightReadyManaPercent.ToString("0.#");
-        return true;
-    }
-
-    private static double ParseRulePercent(string value, double fallback) =>
-        double.TryParse(value.Trim(), out var parsed) ? Math.Clamp(parsed, 1, 100) : fallback;
-
-    private void CoachCooldownRuleBox_SelectionChanged(object _, SelectionChangedEventArgs __)
-    {
-        SaveCurrentCooldownDraft();
-        if (CoachCooldownRuleBox.SelectedItem is not RuleCooldownChoice choice) return;
-        _selectedCooldownKey = choice.Key;
-        CoachCooldownSecondsBox.Value = _cooldownDraft.GetValueOrDefault(choice.Key, 30);
-    }
-
-    private void SaveCurrentCooldownDraft()
-    {
-        if (string.IsNullOrWhiteSpace(_selectedCooldownKey)) return;
-        var value = double.IsNaN(CoachCooldownSecondsBox.Value)
-            ? _cooldownDraft.GetValueOrDefault(_selectedCooldownKey, 30)
-            : (int)Math.Round(CoachCooldownSecondsBox.Value);
-        _cooldownDraft[_selectedCooldownKey] = Math.Clamp(value, 1, 3600);
-    }
-
-    private void UpdateNpuModelStatus()
-    {
-        if (NpuModelStatusText is null) return;
-        if (_settings.BackendKind != AiBackendKind.Npu)
-        {
-            NpuModelStatusText.Text = _settings.BackendKind == AiBackendKind.Cloud
-                ? "云端后端启用，本机不执行推理"
-                : "规则原文后端，不调用模型";
-            return;
-        }
-
-        NpuModelStatusText.Text = _npuCoach.IsConfigured
-            ? "模型目录就绪，首次解释时加载（约 30 秒）"
-            : "未找到模型目录，请检查路径或先下载 NPU 模型";
     }
 
     private void OnSnapshotReceived(object? _, MatchSnapshot snapshot)
@@ -884,16 +763,22 @@ public sealed partial class MainWindow : Window
         try
         {
             string? explanation = null;
+            var keywords = _settings.AiPromptKeywords;
             switch (_settings.BackendKind)
             {
                 case AiBackendKind.Npu:
                     explanation = await _npuCoach.ExplainAsync(
-                        CoachAiPrompts.BuildPrompt(advice, snapshot), cancellationToken);
+                        CoachAiPrompts.BuildPrompt(advice, snapshot, keywords), cancellationToken);
+                    break;
+                case AiBackendKind.Ollama:
+                    explanation = await _cloudCoach.ExplainAsync(
+                        advice, snapshot, _settings.OllamaEndpoint, _settings.OllamaModel, "",
+                        cancellationToken, "chat", keywords);
                     break;
                 case AiBackendKind.Cloud:
                     explanation = await _cloudCoach.ExplainAsync(
                         advice, snapshot, _settings.CloudEndpoint, _settings.CloudModel, _settings.CloudApiKey,
-                        cancellationToken);
+                        cancellationToken, _settings.CloudApiProtocol, keywords);
                     break;
             }
 
@@ -915,39 +800,13 @@ public sealed partial class MainWindow : Window
         try
         {
             var report = await _npuRuntime.RegisterAsync(AppToken);
-            DispatcherQueue.TryEnqueue(() => NpuStatusText.Text = report.Summary);
+            DispatcherQueue.TryEnqueue(() => SettingsPage.ViewModel.NpuStatus = report.Summary);
         }
         catch (Exception exception)
         {
-            DispatcherQueue.TryEnqueue(() => NpuStatusText.Text =
+            DispatcherQueue.TryEnqueue(() => SettingsPage.ViewModel.NpuStatus =
                 "NPU provider 检查失败；GPU provider 已禁用，AI 解释仅允许使用 CPU。 " + exception.Message);
         }
-    }
-
-    private async void SmartCoachCloudProbeButton_Click(object _, RoutedEventArgs __)
-    {
-        SmartCoachStatusText.Text = "正在测试云端连接…";
-        try
-        {
-            var endpoint = string.IsNullOrWhiteSpace(CloudEndpointBox.Text)
-                ? "https://api.openai.com/v1"
-                : CloudEndpointBox.Text.Trim();
-            var available = await _cloudCoach.ProbeAsync(
-                endpoint, CloudApiKeyBox.Password.Trim(), AppToken);
-            SmartCoachStatusText.Text = available
-                ? "云端连接可用"
-                : "云端连接失败（地址或密钥无效，或网络不可达）";
-        }
-        catch (Exception exception)
-        {
-            SmartCoachStatusText.Text = "测试失败：" + exception.Message;
-        }
-    }
-
-    private void AiBackendBox_SelectionChanged(object _, SelectionChangedEventArgs __)
-    {
-        if (CloudSection is null || AiBackendBox is null) return;
-        CloudSection.Visibility = AiBackendBox.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnConnectionChanged(object? _, bool connected)
@@ -1507,32 +1366,8 @@ public sealed partial class MainWindow : Window
     private void UpdateCoachStatusUi()
     {
         CoachPage.ViewModel.UpdateStatus(_coachRunning, _receiver?.IsConnected == true, _receiver?.LastError);
-        CoachToggleButton.Content = _coachRunning ? "停止监听" : "启动监听";
-    }
-
-    private async Task<bool> OpenCoachSettingsAsync(bool firstRun = false)
-    {
-        PopulateSettings();
-        CoachSettingsDialog.Title = firstRun ? "首次设置" : "设置";
-        CoachSettingsDialog.PrimaryButtonText = firstRun ? "保存并开始" : "保存设置";
-        CoachSettingsDialog.CloseButtonText = firstRun ? string.Empty : "取消";
-        SettingsIntroTitle.Text = firstRun ? "完成基础设置后开始运行" : "调整应用设置";
-        SettingsIntroText.Text = firstRun
-            ? "保存前不会加载资料、连接 Dota 2 或启动智能服务。"
-            : "常用选项立即显示，专业参数统一收在高级设置中。";
-        CoachToggleButton.IsEnabled = _applicationStarted;
-        _settingsSaved = false;
-        CoachSettingsDialog.XamlRoot = RootGrid.XamlRoot;
-        var result = await CoachSettingsDialog.ShowAsync();
-        if (result != ContentDialogResult.Primary || !_settingsSaved) return false;
-        if (firstRun) InstallCoachConfig();
-        return true;
-    }
-
-    private void CoachSettingsDialog_PrimaryButtonClick(ContentDialog _, ContentDialogButtonClickEventArgs args)
-    {
-        _settingsSaved = ApplyCoachSettings(completeSetup: true);
-        args.Cancel = !_settingsSaved;
+        SettingsPage.ViewModel.IsGsiRunning = _coachRunning;
+        SettingsPage.ViewModel.GsiButtonText = _coachRunning ? "停止监听" : "立即连接";
     }
 
     private static SolidColorBrush ThemeBrush(string key) =>
@@ -1540,71 +1375,7 @@ public sealed partial class MainWindow : Window
 
     private void AppendCoachLog(string message)
     {
-        var line = $"{DateTime.Now:HH:mm:ss}  {message}";
-        CoachLogText.Text = string.IsNullOrWhiteSpace(CoachLogText.Text) || CoachLogText.Text == "尚未启动"
-            ? line
-            : $"{line}\n{CoachLogText.Text}";
-        var lines = CoachLogText.Text.Split('\n');
-        if (lines.Length > 80) CoachLogText.Text = string.Join('\n', lines.Take(80));
-    }
-
-    private void ShowCoachInfo(InfoBarSeverity severity, string title, string message)
-    {
-        CoachInfoBar.Severity = severity;
-        CoachInfoBar.Title = title;
-        CoachInfoBar.Message = message;
-        CoachInfoBar.IsOpen = true;
-        AppendCoachLog($"{title}：{message}");
-    }
-
-    private async void CoachToggleButton_Click(object _, RoutedEventArgs __)
-    {
-        if (_applicationStarted) await ToggleCoachAsync(!_coachRunning);
-    }
-
-    private void CoachInstallButton_Click(object _, RoutedEventArgs __)
-    {
-        InstallCoachConfig();
-    }
-
-    private void InstallCoachConfig()
-    {
-        var manualPath = string.IsNullOrWhiteSpace(CoachPathBox.Text) ? null : CoachPathBox.Text.Trim();
-        var authToken = EnsureGsiAuthToken();
-        var result = GsiConfigInstaller.Install(manualPath, AppSettings.GsiPort, authToken);
-        ShowCoachInfo(result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Warning,
-            result.Success ? "GSI 配置已安装" : "GSI 配置未安装",
-            result.Success ? $"{result.Message} 请完全退出并重新启动 Dota 2 后生效。" : result.Message);
-        if (!result.Success)
-        {
-            var export = AegisCoachPaths.ExportedGsiConfig;
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(export)!);
-                AtomicFile.WriteAllText(export, result.CfgContent);
-                CoachInfoBar.Message += $" 已同时导出到 {export}";
-            }
-            catch (Exception exception)
-            {
-                CoachInfoBar.Message += $" 导出失败：{exception.Message}";
-            }
-        }
-    }
-
-    private async void CoachBrowseButton_Click(object _, RoutedEventArgs __)
-    {
-        var folder = await PickFolderAsync();
-        if (folder is not null)
-        {
-            CoachPathBox.Text = folder.Path;
-            AppendCoachLog($"已设置 Dota cfg 目录：{folder.Path}");
-        }
-    }
-
-    private async void CoachBrowseModelButton_Click(object _, RoutedEventArgs __)
-    {
-        var folder = await PickFolderAsync();
-        if (folder is not null) NpuModelPathBox.Text = folder.Path;
+        SettingsPage.ViewModel.AppendLog(message);
     }
 
     private async Task<Windows.Storage.StorageFolder?> PickFolderAsync()
@@ -1619,44 +1390,6 @@ public sealed partial class MainWindow : Window
         return await picker.PickSingleFolderAsync();
     }
 
-    private void CoachOpenCfgButton_Click(object _, RoutedEventArgs __)
-    {
-        var manualPath = string.IsNullOrWhiteSpace(CoachPathBox.Text) ? null : CoachPathBox.Text.Trim();
-        var directory = GsiConfigInstaller.LocateDotaCfgDirectory(manualPath);
-        if (directory is null)
-        {
-            ShowCoachInfo(InfoBarSeverity.Warning, "未找到 Dota 2 cfg 目录",
-                "请用“选择目录”指定 ...\\dota 2 beta\\game\\dota\\cfg，或参考 Steam 接入手册。");
-            return;
-        }
-
-        try
-        {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{directory}\"") { UseShellExecute = true });
-            AppendCoachLog($"已打开 Dota 2 cfg 目录：{directory}");
-            var cfgPath = Path.Combine(directory, GsiConfigInstaller.CfgFileName);
-            ShowCoachInfo(InfoBarSeverity.Informational, "cfg 目录已打开",
-                File.Exists(cfgPath) ? $"已找到 {GsiConfigInstaller.CfgFileName}" : "当前目录尚未安装 AegisCoach cfg");
-        }
-        catch (Exception exception)
-        {
-            ShowCoachInfo(InfoBarSeverity.Error, "无法打开 cfg 目录", exception.Message);
-        }
-    }
-
-    private void CoachOpenDataButton_Click(object _, RoutedEventArgs __)
-    {
-        try
-        {
-            Directory.CreateDirectory(AegisCoachPaths.Root);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{AegisCoachPaths.Root}\"") { UseShellExecute = true });
-        }
-        catch (Exception exception)
-        {
-            ShowCoachInfo(InfoBarSeverity.Error, "无法打开数据目录", exception.Message);
-        }
-    }
-
     private static string EnsureGsiAuthToken()
     {
         const string TokenCredentialKey = "GsiAuthToken";
@@ -1669,11 +1402,6 @@ public sealed partial class MainWindow : Window
             AppCredentialStore.Save(TokenCredentialKey, token, out _);
         }
         return token;
-    }
-
-    private sealed record RuleCooldownChoice(string Key, string Label)
-    {
-        public override string ToString() => Label;
     }
 }
 

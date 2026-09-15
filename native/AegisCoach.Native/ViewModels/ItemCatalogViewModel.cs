@@ -258,14 +258,30 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             }
         }
 
+        // 保持 Dota 2 装备排版一致性契约：主动类技能置顶优先，被动类技能紧随其后
+        abilities = abilities
+            .OrderBy(a => a.Type switch
+            {
+                AbilityType.Active => 0,
+                AbilityType.Use => 1,
+                AbilityType.Toggle => 2,
+                _ => 3,
+            })
+            .ToList();
+
+        var hasActiveAbility = abilities.Any(a => a.IsActive);
         foreach (var ability in abilities)
         {
             if (!string.IsNullOrWhiteSpace(ability.Description))
             {
                 ability.Description = AbilityDisplay.ResolveParameters(ability.Description, specials, null);
             }
-            ability.Cooldown ??= cooldown;
-            ability.ManaCost ??= manaCost;
+            // 若装备同时包含主动和被动技能（如林肯法球），全局冷却与法力消耗属于主动技能，被动技能不重复展示主动冷却
+            if (ability.IsActive || !hasActiveAbility)
+            {
+                ability.Cooldown ??= cooldown;
+                ability.ManaCost ??= manaCost;
+            }
             item.Abilities.Add(ability);
         }
 
@@ -581,7 +597,7 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
         {
             Id = summary.Name,
             OriginalId = summary.Id,
-            Name = LocalizedText.ChineseOr(summary.LocalizedName, "中文名称待同步"),
+            Name = DotaItemNameTable.ResolveChineseName(summary.Name, summary.LocalizedName, summary.EnglishName, summary.Id),
             Subtitle = summary.EnglishName,
             Category = isNeutral ? NeutralMode : ShopMode,
             SubCategory = subCategory,
@@ -649,7 +665,7 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
             .Select(filter => filter.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-        IEnumerable<CatalogItem> query = _allItems;
+        IEnumerable<CatalogItem> query = _allItems.Where(item => item.Category == Mode);
         if (selected.Count > 0) query = query.Where(item => selected.Contains(item.SubCategory));
         if (!string.IsNullOrWhiteSpace(keyword)) query = query.Where(item => MatchesKeyword(item, keyword));
         var matched = query.ToList();
@@ -692,9 +708,7 @@ public sealed partial class ItemCatalogViewModel : ObservableObject
 
     private static bool MatchesKeyword(CatalogItem item, string keyword)
     {
-        if (item.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase)) return true;
-        if (item.Subtitle?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true) return true;
-        return item.SearchTokens.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+        return DotaAliasTable.MatchesItem(item, keyword);
     }
 
     private static readonly Dictionary<string, string> PinyinMap = new(StringComparer.Ordinal)
