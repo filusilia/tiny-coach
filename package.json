@@ -1,0 +1,16 @@
+{
+  "name": "aegis-coach",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter frontend dev",
+    "build": "pnpm --filter frontend build",
+    "preview": "pnpm --filter frontend preview",
+    "verify-notes": "node scripts/verify-agent-notes.cjs",
+    "archive-note": "npx tsx scripts/archive-agent-note.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1"
+  }
+}

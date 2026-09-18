@@ -1,0 +1,4570 @@
+[
+  {
+    "hero_id": 1,
+    "hero_name": "antimage",
+    "ability_name": "antimage_mana_break",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升每次攻击燃烧的最大魔法值。",
+    "resolved_text": "提升每次攻击燃烧的最大魔法值。"
+  },
+  {
+    "hero_id": 1,
+    "hero_name": "antimage",
+    "ability_name": "antimage_blink",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "施放闪烁后，%empowered_mana_break_duration%秒内的法力损毁将额外燃烧%empowered_max_burn_pct_tooltip%%%最大魔法值，并且阻止目标在短时间内恢复或获得魔法。这个负面状态无法驱散。",
+    "resolved_text": "施放闪烁后，5秒内的法力损毁将额外燃烧20%最大魔法值，并且阻止目标在短时间内恢复或获得魔法。这个负面状态无法驱散。"
+  },
+  {
+    "hero_id": 1,
+    "hero_name": "antimage",
+    "ability_name": "antimage_counterspell",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "开启后反弹指向性技能时会在敌方施法者身边制造一个敌法师的闪烁碎片。",
+    "resolved_text": "开启后反弹指向性技能时会在敌方施法者身边制造一个敌法师的闪烁碎片。"
+  },
+  {
+    "hero_id": 2,
+    "hero_name": "axe",
+    "ability_name": "axe_berserkers_call",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "狂战士之吼会对作用下单位施加战斗饥渴。",
+    "resolved_text": "狂战士之吼会对作用下单位施加战斗饥渴。"
+  },
+  {
+    "hero_id": 2,
+    "hero_name": "axe",
+    "ability_name": "axe_battle_hunger",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "多个战斗饥渴效果可以叠加在单个目标身上。",
+    "resolved_text": "多个战斗饥渴效果可以叠加在单个目标身上。"
+  },
+  {
+    "hero_id": 2,
+    "hero_name": "axe",
+    "ability_name": "axe_counter_helix",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "反击螺旋现在对击中的敌人施加一个可叠加的负面效果，使其对斧王造成的攻击伤害减少。反击螺旋不再具有冷却时间，并且斧王的攻击也会计入触发记数。",
+    "resolved_text": "反击螺旋现在对击中的敌人施加一个可叠加的负面效果，使其对斧王造成的攻击伤害减少。反击螺旋不再具有冷却时间，并且斧王的攻击也会计入触发记数。"
+  },
+  {
+    "hero_id": 3,
+    "hero_name": "bane",
+    "ability_name": "bane_brain_sap",
+    "kind": "shard",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "减少%bonus_AbilityCooldown%秒冷却时间。蚀脑变成%shard_radius%作用范围的技能。次级目标只有%shard_secondary_target_heal_pct%%%<font color='#07d738'>治疗</font>效果。",
+    "resolved_text": "减少3秒冷却时间。蚀脑变成550作用范围的技能。次级目标只有30%治疗效果。"
+  },
+  {
+    "hero_id": 3,
+    "hero_name": "bane",
+    "ability_name": "bane_fiends_grip",
+    "kind": "scepter",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "魔爪的冷却时间减少%bonus_AbilityCooldown%秒。魔爪将产生两个不可控制的幻象，幻象也将对目标持续施放魔爪。幻象承受%scepter_incoming_illusion_damage%%%伤害，并且被打断后立刻消失。伤害不会叠加。",
+    "resolved_text": "魔爪的冷却时间减少40秒。魔爪将产生两个不可控制的幻象，幻象也将对目标持续施放魔爪。幻象承受225%伤害，并且被打断后立刻消失。伤害不会叠加。"
+  },
+  {
+    "hero_id": 4,
+    "hero_name": "bloodseeker",
+    "ability_name": "bloodseeker_bloodrage",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "血怒下血魔的攻击现在造成%max_health_dmg_pct%%%目标最大生命值的<font color=\"#d8ae53\">纯粹</font>伤害。",
+    "resolved_text": "血怒下血魔的攻击现在造成1.5%目标最大生命值的纯粹伤害。"
+  },
+  {
+    "hero_id": 4,
+    "hero_name": "bloodseeker",
+    "ability_name": "bloodseeker_rupture",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升初始伤害，并且提供%AbilityCharges%点割裂能量点数。",
+    "resolved_text": "提升初始伤害，并且提供2点割裂能量点数。"
+  },
+  {
+    "hero_id": 5,
+    "hero_name": "crystal_maiden",
+    "ability_name": "crystal_maiden_crystal_clone",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "向一个方向滑行，在原地制造一个自身的冰晶克隆，并且躲避多种飞行过程中的攻击和技能弹道。如果克隆受到了足量伤害，或者超过一定时间都会碎裂，对附近%frostbite_radius%范围内敌人施加冰封禁制。克隆体也可以被水晶室女自身的技能摧毁。"
+  },
+  {
+    "hero_id": 5,
+    "hero_name": "crystal_maiden",
+    "ability_name": "crystal_maiden_freezing_field",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "使自身在极寒领域期间可以移动、施法和攻击。仍然可以被敌人打断。在此期间移动速度降低%shard_self_movement_speed_slow_pct%%%。冰爆总数提升%shard_bonus_explosion%%%。对极寒领域内停留超过%frostbite_delay%秒的所有单位都会施加冰封禁制。",
+    "resolved_text": "使自身在极寒领域期间可以移动、施法和攻击。仍然可以被敌人打断。在此期间移动速度降低75%。冰爆总数提升20%。对极寒领域内停留超过3秒的所有单位都会施加冰封禁制。"
+  },
+  {
+    "hero_id": 6,
+    "hero_name": "drow_ranger",
+    "ability_name": "drow_ranger_frost_arrows",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "霜冻之箭现在对敌人施加低温的叠加效果，提升霜冻之箭的伤害，并且每层叠加效果都会降低生命回复。若敌人在低温效果下阵亡，他们将会爆炸，对范围内的敌人造成伤害和减速。",
+    "resolved_text": "霜冻之箭现在对敌人施加低温的叠加效果，提升霜冻之箭的伤害，并且每层叠加效果都会降低生命回复。若敌人在低温效果下阵亡，他们将会爆炸，对范围内的敌人造成伤害和减速。"
+  },
+  {
+    "hero_id": 6,
+    "hero_name": "drow_ranger",
+    "ability_name": "drow_ranger_glacier",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "卓尔游侠在她脚下创造一片冰山，击退附近的敌人。站在山上的单位会获得飞行视野，而卓尔游侠和她的远程友军会获得攻击距离加成。卓尔游侠站在山上时攻击下方目标时获得额外伤害。<br><br>山的前面会阻挡视野，并且除了卓尔游侠外无法穿行。施放时不会打断数箭齐发。"
+  },
+  {
+    "hero_id": 7,
+    "hero_name": "earthshaker",
+    "ability_name": "earthshaker_fissure",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "降低沟壑的冷却时间，并且撼地者每次施放其他技能时都会沿着沟壑释放余震，造成<font color='#2dd5e4'>眩晕</font>的时间有所降低。",
+    "resolved_text": "降低沟壑的冷却时间，并且撼地者每次施放其他技能时都会沿着沟壑释放余震，造成眩晕的时间有所降低。"
+  },
+  {
+    "hero_id": 7,
+    "hero_name": "earthshaker",
+    "ability_name": "earthshaker_enchant_totem",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "强化图腾可以对地施放，施放后会跳至半空中再降落至目标地点，在目标地点施放强化图腾。双击技能会按原技能施放，不会跳跃。强化图腾拥有分裂效果。",
+    "resolved_text": "强化图腾可以对地施放，施放后会跳至半空中再降落至目标地点，在目标地点施放强化图腾。双击技能会按原技能施放，不会跳跃。强化图腾拥有分裂效果。"
+  },
+  {
+    "hero_id": 8,
+    "hero_name": "juggernaut",
+    "ability_name": "juggernaut_blade_fury",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [
+      "attack_interval"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "juggernaut_swift_slash"
+    },
+    "original_text": "提升作用范围并减速范围内的敌人。<br><br>主宰每%attack_interval%秒对作用的敌人发动一次攻击。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 8,
+    "hero_name": "juggernaut",
+    "ability_name": "juggernaut_healing_ward",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升守卫的治疗量和生命值。",
+    "resolved_text": "提升守卫的治疗量和生命值。"
+  },
+  {
+    "hero_id": 8,
+    "hero_name": "juggernaut",
+    "ability_name": "juggernaut_swift_slash",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "发动一次短时间的无敌斩，持续%duration%秒。"
+  },
+  {
+    "hero_id": 9,
+    "hero_name": "mirana",
+    "ability_name": "mirana_arrow",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "月神之箭在主神箭行进途中对敌人释放群星风暴。对击中的单位施放第二个群星风暴，造成的伤害有所降低。",
+    "resolved_text": "月神之箭在主神箭行进途中对敌人释放群星风暴。对击中的单位施放第二个群星风暴，造成的伤害有所降低。"
+  },
+  {
+    "hero_id": 9,
+    "hero_name": "mirana",
+    "ability_name": "mirana_leap",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "获得+%additional_charges%跳跃能量点数。",
+    "resolved_text": "获得+1跳跃能量点数。"
+  },
+  {
+    "hero_id": 9,
+    "hero_name": "mirana",
+    "ability_name": "mirana_celestial_quiver",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "跳跃的加成状态生效时获得%quiver_restore%点临时能量。",
+    "resolved_text": "跳跃的加成状态生效时获得3点临时能量。"
+  },
+  {
+    "hero_id": 10,
+    "hero_name": "morphling",
+    "ability_name": "morphling_morph_agi",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "变体精灵在眩晕状态下可以变换属性。降低魔法消耗。",
+    "resolved_text": "变体精灵在眩晕状态下可以变换属性。降低魔法消耗。"
+  },
+  {
+    "hero_id": 10,
+    "hero_name": "morphling",
+    "ability_name": "morphling_morph_str",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "变体精灵在眩晕状态下可以变换属性。降低魔法消耗。",
+    "resolved_text": "变体精灵在眩晕状态下可以变换属性。降低魔法消耗。"
+  },
+  {
+    "hero_id": 10,
+    "hero_name": "morphling",
+    "ability_name": "morphling_replicate",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "变形增加<font color=\"#FF0000\">多样施法</font>（右键点击技能栏图标）。开启后会产生目标英雄的强幻象，可以施放英雄的所有基础技能。如果变体精灵切换变形时幻象还存活，他就会摧毁该幻象，并取而代之。",
+    "resolved_text": "变形增加多样施法（右键点击技能栏图标）。开启后会产生目标英雄的强幻象，可以施放英雄的所有基础技能。如果变体精灵切换变形时幻象还存活，他就会摧毁该幻象，并取而代之。"
+  },
+  {
+    "hero_id": 11,
+    "hero_name": "nevermore",
+    "ability_name": "nevermore_shadowraze1",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "每击中一名敌方英雄后冷却时间减少%cooldown_reduction_on_hero_hit%秒。对击中的敌人施加可叠加的%movement_speed_debuff%%%移动速度减缓的负面效果。",
+    "resolved_text": "每击中一名敌方英雄后冷却时间减少2秒。对击中的敌人施加可叠加的12%移动速度减缓的负面效果。"
+  },
+  {
+    "hero_id": 11,
+    "hero_name": "nevermore",
+    "ability_name": "nevermore_requiem",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "降低冷却时间，并且魂之挽歌可以回归影魔。影魔会回复与回归伤害值相等的生命。",
+    "resolved_text": "降低冷却时间，并且魂之挽歌可以回归影魔。影魔会回复与回归伤害值相等的生命。"
+  },
+  {
+    "hero_id": 11,
+    "hero_name": "nevermore",
+    "ability_name": "nevermore_necromastery",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "提高灵魂数量上限。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 12,
+    "hero_name": "phantom_lancer",
+    "ability_name": "phantom_lancer_spirit_lance",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "灵魂之矛可以向范围内敌人弹射一次，以英雄优先。提升灵魂之矛的幻象继承攻击力。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 12,
+    "hero_name": "phantom_lancer",
+    "ability_name": "phantom_lancer_phantom_edge",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升距离。每当幻影长矛手冲锋时穿过敌人，他就会制造并列幻象攻击他们。另外，每冲锋%illusion_spawn_travel_distance%距离还会在幻影长矛手身旁制造一个并列幻象，向目标冲去。",
+    "resolved_text": "提升距离。每当幻影长矛手冲锋时穿过敌人，他就会制造并列幻象攻击他们。另外，每冲锋600距离还会在幻影长矛手身旁制造一个并列幻象，向目标冲去。"
+  },
+  {
+    "hero_id": 12,
+    "hero_name": "phantom_lancer",
+    "ability_name": "phantom_lancer_juxtapose",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "并列增加主动技能。使幻影长矛手进入<font color='#d7ccc7'>隐身</font>，最多持续%invis_duration%秒，同时产生一个复制幻象来迷惑敌人。隐身期间自身移动速度提升%invis_movespeed%%%。",
+    "resolved_text": "并列增加主动技能。使幻影长矛手进入隐身，最多持续8秒，同时产生一个复制幻象来迷惑敌人。隐身期间自身移动速度提升15%。"
+  },
+  {
+    "hero_id": 13,
+    "hero_name": "puck",
+    "ability_name": "puck_phase_shift",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "帕克的攻击造成额外魔法伤害。帕克每次施放相位转移时对攻击距离内所有敌人发动一次攻击。",
+    "resolved_text": "帕克的攻击造成额外魔法伤害。帕克每次施放相位转移时对攻击距离内所有敌人发动一次攻击。"
+  },
+  {
+    "hero_id": 13,
+    "hero_name": "puck",
+    "ability_name": "puck_dream_coil",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "梦境缠绕作用下的所有敌人都会被帕克攻击，攻击频率基于帕克攻击频率的%attack_rate_pct%%%。即使目标挣脱梦境，被<font color='#2dd5e4'>眩晕</font>时攻击也会继续。",
+    "resolved_text": "梦境缠绕作用下的所有敌人都会被帕克攻击，攻击频率基于帕克攻击频率的90%。即使目标挣脱梦境，被眩晕时攻击也会继续。"
+  },
+  {
+    "hero_id": 14,
+    "hero_name": "pudge",
+    "ability_name": "pudge_meat_hook",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "肉钩击中敌人时会根据牵引距离造成额外伤害。<br><br>肉钩击中友军时，肉钩的冷却时间会减少%cooldown_reduction_pct_allied_hook%%%。",
+    "resolved_text": "肉钩击中敌人时会根据牵引距离造成额外伤害。\n\n肉钩击中友军时，肉钩的冷却时间会减少50%。"
+  },
+  {
+    "hero_id": 14,
+    "hero_name": "pudge",
+    "ability_name": "pudge_rot",
+    "kind": "scepter",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "腐烂的作用范围提升%bonus_rot_radius%，伤害提升%bonus_rot_damage%点，并且可以降低敌人的%scepter_rot_regen_reduction_pct%%%生命回复。",
+    "resolved_text": "腐烂的作用范围提升200，伤害提升90点，并且可以降低敌人的20%生命回复。"
+  },
+  {
+    "hero_id": 15,
+    "hero_name": "razor",
+    "ability_name": "razor_static_link",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [
+      "move_speed_factor"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "提升施法距离。减缓目标的移动速度，数值为连接生效时%move_speed_factor%倍的攻击力窃取量。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 15,
+    "hero_name": "razor",
+    "ability_name": "razor_storm_surge",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "风暴之眼开启时，打击几率为%eye_of_the_storm_chance_multiplier%倍，打击冷却时间减少%strike_cd_reduction_during_storm%秒，而且闪电会打击风暴之眼范围内所有敌人。单次伤害不会对同个敌人施加两次。",
+    "resolved_text": "风暴之眼开启时，打击几率为2倍，打击冷却时间减少2秒，而且闪电会打击风暴之眼范围内所有敌人。单次伤害不会对同个敌人施加两次。"
+  },
+  {
+    "hero_id": 15,
+    "hero_name": "razor",
+    "ability_name": "razor_eye_of_the_storm",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "风暴之眼可以同时打击两个目标，并且能对建筑造成伤害。打击建筑时，只会以防御塔、兵营和遗迹作为目标。",
+    "resolved_text": "风暴之眼可以同时打击两个目标，并且能对建筑造成伤害。打击建筑时，只会以防御塔、兵营和遗迹作为目标。"
+  },
+  {
+    "hero_id": 16,
+    "hero_name": "sand_king",
+    "ability_name": "sandking_scorpion_strike",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [
+      "caustic_damage_pct"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "被尾刺的最中心范围击中的每个敌方英雄都会立刻产生一次腐尸毒的爆炸，造成%caustic_damage_pct%%%伤害。阿哈利姆神杖升级产生的尾刺不会施加。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 16,
+    "hero_name": "sand_king",
+    "ability_name": "sandking_epicenter",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "地震的脉冲开始时每%spine_tick_rate%秒会在随机地点产生%scepter_explosions_per_pulse%片尾刺的攻击区域，每片区域为地震当前范围的%scepter_explosion_radius_pct%%%，对击中的敌人造成%spine_damage_pct%%%尾刺伤害。魔晶的地震波会产生%shard_explosions_per_pulse%次攻击。",
+    "resolved_text": "地震的脉冲开始时每0.5秒会在随机地点产生3片尾刺的攻击区域，每片区域为地震当前范围的35%，对击中的敌人造成40%尾刺伤害。魔晶的地震波会产生1次攻击。"
+  },
+  {
+    "hero_id": 16,
+    "hero_name": "sand_king",
+    "ability_name": "sandking_epicenter",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "每%shard_interval%秒会在沙王身上产生一个较小的地震波。",
+    "resolved_text": "每3秒会在沙王身上产生一个较小的地震波。"
+  },
+  {
+    "hero_id": 17,
+    "hero_name": "storm_spirit",
+    "ability_name": "storm_spirit_electric_vortex",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "电子涡流变成范围型技能，可以作用于风暴之灵周围所有敌人。",
+    "resolved_text": "电子涡流变成范围型技能，可以作用于风暴之灵周围所有敌人。"
+  },
+  {
+    "hero_id": 17,
+    "hero_name": "storm_spirit",
+    "ability_name": "storm_spirit_overload",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "施放后风暴之灵和附近友方英雄获得%shard_activation_charges%次超负荷效果。提供额外攻击速度。持续最多%shard_activation_duration%秒，或效果用尽。",
+    "resolved_text": "施放后风暴之灵和附近友方英雄获得3次超负荷效果。提供额外攻击速度。持续最多12秒，或效果用尽。"
+  },
+  {
+    "hero_id": 18,
+    "hero_name": "sven",
+    "ability_name": "sven_storm_bolt",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升施法距离，并且对目标施加弱驱散效果。可以影响无敌目标。设为<font color=\"#FF0000\">多样施法</font>（右键点击技能栏图标）后，额外造成%scepter_bonus_damage%点伤害并且斯温会跟随风暴之拳行进。",
+    "resolved_text": "提升施法距离，并且对目标施加弱驱散效果。可以影响无敌目标。设为多样施法（右键点击技能栏图标）后，额外造成180点伤害并且斯温会跟随风暴之拳行进。"
+  },
+  {
+    "hero_id": 18,
+    "hero_name": "sven",
+    "ability_name": "sven_warcry",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升作用范围和移动速度加成。现在战吼不可驱散，并提供%base_barrier_amount%点<font color='#b94512'>物理伤害护盾</font>。",
+    "resolved_text": "提升作用范围和移动速度加成。现在战吼不可驱散，并提供300点物理伤害护盾。"
+  },
+  {
+    "hero_id": 19,
+    "hero_name": "tiny",
+    "ability_name": "tiny_tree_channel",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "持续施法 - 小小进行持续施法，随机将自身周围的树木扔向目标范围。每棵树对该区域内敌人造成的伤害为小小的攻击伤害加上扔树的额外伤害。"
+  },
+  {
+    "hero_id": 19,
+    "hero_name": "tiny",
+    "ability_name": "tiny_grow",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "现在投掷扔出的单位，扔树和树木连掷扔出的树木都会在落地点的更大范围内造成额外伤害和减速效果。",
+    "resolved_text": "现在投掷扔出的单位，扔树和树木连掷扔出的树木都会在落地点的更大范围内造成额外伤害和减速效果。"
+  },
+  {
+    "hero_id": 20,
+    "hero_name": "vengefulspirit",
+    "ability_name": "vengefulspirit_magic_missile",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "可以对敌人弹射一次，以英雄优先，弹射距离为主目标的%bounce_range_pct%%%魔法箭施法距离内。",
+    "resolved_text": "可以对敌人弹射一次，以英雄优先，弹射距离为主目标的75%魔法箭施法距离内。"
+  },
+  {
+    "hero_id": 20,
+    "hero_name": "vengefulspirit",
+    "ability_name": "vengefulspirit_command_aura",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升自身加成系数。死亡时产生一个复仇之魂的强幻象，继承全额攻击力，可以施放自己的所有技能。<br><br>复仇之魂复活时若幻象依然存在，则自身会直接将其取代。幻象获得的经验将给予英雄。强幻象不会被相关技能秒杀。",
+    "resolved_text": "提升自身加成系数。死亡时产生一个复仇之魂的强幻象，继承全额攻击力，可以施放自己的所有技能。\n\n复仇之魂复活时若幻象依然存在，则自身会直接将其取代。幻象获得的经验将给予英雄。强幻象不会被相关技能秒杀。"
+  },
+  {
+    "hero_id": 21,
+    "hero_name": "windrunner",
+    "ability_name": "windrunner_gale_force",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "以矢量为目标。召唤出一阵强风，将目标区域内所有敌人朝目标方向推去。"
+  },
+  {
+    "hero_id": 21,
+    "hero_name": "windrunner",
+    "ability_name": "windrunner_tailwind",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "攻击也会提供顺风效果。顺风的持续时间更长，并且不可驱散。",
+    "resolved_text": "攻击也会提供顺风效果。顺风的持续时间更长，并且不可驱散。"
+  },
+  {
+    "hero_id": 22,
+    "hero_name": "zuus",
+    "ability_name": "zuus_cloud",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "在地图任意地点创造一朵雷云，雷云将自动对附近敌人施放雷击。"
+  },
+  {
+    "hero_id": 22,
+    "hero_name": "zuus",
+    "ability_name": "zuus_lightning_hands",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "宙斯获得攻击速度加成，并且他的攻击会产生弧形闪电，造成一定百分比的伤害。可以关闭，使攻击不附带该效果。"
+  },
+  {
+    "hero_id": 23,
+    "hero_name": "kunkka",
+    "ability_name": "kunkka_tidal_wave",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "释放一道在昆卡身后出现的潮汐波。造成点伤害，并将敌人沿着波浪拖拽距离。敌人被拖拽时无法攻击。"
+  },
+  {
+    "hero_id": 23,
+    "hero_name": "kunkka",
+    "ability_name": "kunkka_ghostship",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "幽灵船在目标地点以%fleet_interval%秒的间隔产生%fleet_count%艘船组成的舰队。每艘船现在还会从左舷和右舷发射%num_cannon_volleys%波炮弹，穿过敌人时造成%cannon_ball_damage_pct%%%幽灵船伤害。",
+    "resolved_text": "幽灵船在目标地点以2.5秒的间隔产生2艘船组成的舰队。每艘船现在还会从左舷和右舷发射3波炮弹，穿过敌人时造成40%幽灵船伤害。"
+  },
+  {
+    "hero_id": 25,
+    "hero_name": "lina",
+    "ability_name": "lina_flame_cloak",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "使莉娜获得顺畅的移动状态，并且提升技能伤害和魔法抗性。开启时获得炽魂的最高叠加层数。"
+  },
+  {
+    "hero_id": 25,
+    "hero_name": "lina",
+    "ability_name": "lina_laguna_blade",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "施放神灭斩会暂时让莉娜的能量达到顶峰，给予炽魂的叠加效果。",
+    "resolved_text": "施放神灭斩会暂时让莉娜的能量达到顶峰，给予炽魂的叠加效果。"
+  },
+  {
+    "hero_id": 26,
+    "hero_name": "lion",
+    "ability_name": "lion_mana_drain",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "法力吸取可以作用最多%shard_bonus_targets%个额外敌人，并且断裂距离增加。持续施法期间莱恩为<font color='#d76907'>减益免疫</font>状态，并且获得%magic_resist%%%魔法抗性。",
+    "resolved_text": "法力吸取可以作用最多2个额外敌人，并且断裂距离增加。持续施法期间莱恩为减益免疫状态，并且获得60%魔法抗性。"
+  },
+  {
+    "hero_id": 26,
+    "hero_name": "lion",
+    "ability_name": "lion_finger_of_death",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "死亡之指的初始施法获得范围型伤害，并且后续的近战攻击提升持续时间和分裂伤害。",
+    "resolved_text": "死亡之指的初始施法获得范围型伤害，并且后续的近战攻击提升持续时间和分裂伤害。"
+  },
+  {
+    "hero_id": 27,
+    "hero_name": "shadow_shaman",
+    "ability_name": "shadow_shaman_shackles",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升施法距离。被绑住的单位每%scepter_shock_interval%秒会释放一次辐射状的苍穹震击，作用于%scepter_shock_radius%范围内其他所有单位，造成伤害的数值为%scepter_shock_pct%%%苍穹震击普通伤害。另外还能使枷锁可以对暗影萨满附近%ally_break_range%范围内的友军和群蛇守卫施放。友方单位不会被控制。",
+    "resolved_text": "提升施法距离。被绑住的单位每0.9秒会释放一次辐射状的苍穹震击，作用于600范围内其他所有单位，造成伤害的数值为100%苍穹震击普通伤害。另外还能使枷锁可以对暗影萨满附近2000范围内的友军和群蛇守卫施放。友方单位不会被控制。"
+  },
+  {
+    "hero_id": 27,
+    "hero_name": "shadow_shaman",
+    "ability_name": "shadow_shaman_fowl_play",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [
+      "chicken_illusions",
+      "ally_voodoo_duration"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "shadow_shaman_urnaconda"
+    },
+    "original_text": "伤害减免时间提升至%damage_reduction_duration%秒。触发禽戏时暗影萨满会变为无敌，持续%invuln_duration%秒。额外产生%chicken_illusions%个不可控的小鸡，持续%ally_voodoo_duration%秒。另外还能使暗影萨满在变形期间可以使用物品。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 27,
+    "hero_name": "shadow_shaman",
+    "ability_name": "shadow_shaman_urnaconda",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "向一个地点扔出一个蛇罐，对范围内所有敌人造成伤害，并产生一个巨蛇守卫，守卫的生命值和攻击力为平常群蛇守卫的%megaward_multiplier_tooltip%倍，持续%ward_duration%秒。"
+  },
+  {
+    "hero_id": 27,
+    "hero_name": "shadow_shaman",
+    "ability_name": "shadow_shaman_mass_serpent_ward",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "shadow_shaman_urnaconda"
+    },
+    "original_text": "可以使用巨蟒之瓮技能制造一个巨蛇守卫。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 28,
+    "hero_name": "slardar",
+    "ability_name": "slardar_slithereen_crush",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "提升鱼人碎击水洼的作用范围和持续时间。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 28,
+    "hero_name": "slardar",
+    "ability_name": "slardar_slithereen_crush",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "鱼人碎击会对受到作用的单位施加短时间的侵蚀雾霭。",
+    "resolved_text": "鱼人碎击会对受到作用的单位施加短时间的侵蚀雾霭。"
+  },
+  {
+    "hero_id": 28,
+    "hero_name": "slardar",
+    "ability_name": "slardar_seaborn_sentinel",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "在水洼、水迹或河道中获得额外生命恢复、护甲，还有<font color='#b99012'>状态抗性</font>。水洼/水迹的作用范围提升%scepter_puddle_radius_tooltip%%%，水洼的持续时间提升%scepter_puddle_duration_increase_tooltip%秒。",
+    "resolved_text": "在水洼、水迹或河道中获得额外生命恢复、护甲，还有状态抗性。水洼/水迹的作用范围提升75%，水洼的持续时间提升5秒。"
+  },
+  {
+    "hero_id": 29,
+    "hero_name": "tidehunter",
+    "ability_name": "tidehunter_gush",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "巨浪变成点地施放的波形技能，可以作用于直线上的单位。降低冷却时间。",
+    "resolved_text": "巨浪变成点地施放的波形技能，可以作用于直线上的单位。降低冷却时间。"
+  },
+  {
+    "hero_id": 29,
+    "hero_name": "tidehunter",
+    "ability_name": "tidehunter_dead_in_the_water",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "潮汐猎人将一只重锚栓到一名敌方英雄身上。被栓到锚上的英雄处于被束缚状态。尝试移动到距离巨锚%chain_length%距离外会导致英雄的移动速度降低至%max_movement_speed%，而且会一直拽着长锚。巨锚承受%attacks_to_destroy%次英雄攻击后会被摧毁。"
+  },
+  {
+    "hero_id": 30,
+    "hero_name": "witch_doctor",
+    "ability_name": "witch_doctor_voodoo_switcheroo",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "巫医暂时变成死亡守卫，死亡守卫的攻击速度有所降低。这段时间内自己为隐藏状态。"
+  },
+  {
+    "hero_id": 30,
+    "hero_name": "witch_doctor",
+    "ability_name": "witch_doctor_death_ward",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "死亡守卫的攻击会向附近英雄弹射。",
+    "resolved_text": "死亡守卫的攻击会向附近英雄弹射。"
+  },
+  {
+    "hero_id": 31,
+    "hero_name": "lich",
+    "ability_name": "lich_sinister_gaze",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "阴邪凝视变成范围型技能，对目标区域%aoe_scepter%范围内所有单位生效。在阴邪凝视的持续施法期间可以施放其他技能。",
+    "resolved_text": "阴邪凝视变成范围型技能，对目标区域400范围内所有单位生效。在阴邪凝视的持续施法期间可以施放其他技能。"
+  },
+  {
+    "hero_id": 31,
+    "hero_name": "lich",
+    "ability_name": "lich_ice_spire",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "在目标地点创造一根寒冰尖柱，减缓范围内敌人的移动速度。可以承受%max_hero_attacks%次英雄攻击或%max_creep_attacks%次非英雄攻击，并且被摧毁时会在附近产生一个寒霜爆发的效果。<br><br>连环霜冻可以对尖柱施放，并且范围内没有其他敌人时可以弹跳至冰柱上，同时对尖柱造成1点英雄攻击。<br><br>巫妖可以对其施放冰霜魔盾。冰霜魔盾每次造成伤害时会<font color='#07d738'>治疗</font>尖柱，使其回复1次英雄攻击次数。"
+  },
+  {
+    "hero_id": 32,
+    "hero_name": "riki",
+    "ability_name": "riki_smoke_screen",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "烟幕中的敌人护甲降低%armor_reduction%点，而且无法成为他们友军的目标。",
+    "resolved_text": "烟幕中的敌人护甲降低5点，而且无法成为他们友军的目标。"
+  },
+  {
+    "hero_id": 32,
+    "hero_name": "riki",
+    "ability_name": "riki_tricks_of_the_trade",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升施法距离至%AbilityCastRange%。可以对友方单位施放，持续时间内藏在他们体内。藏在友方单位体内时，他会拥有%scepter_movespeed%%%移动速度加成，同时绝杀秘技的持续时间提升%scepter_bonus_duration%秒，并且额外发动%scepter_bonus_attacks%次攻击。",
+    "resolved_text": "提升施法距离至500。可以对友方单位施放，持续时间内藏在他们体内。藏在友方单位体内时，他会拥有15%移动速度加成，同时绝杀秘技的持续时间提升1秒，并且额外发动2次攻击。"
+  },
+  {
+    "hero_id": 33,
+    "hero_name": "enigma",
+    "ability_name": "enigma_malefice",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "憎恶的<font color='#2dd5e4'>眩晕</font>时间增加%shard_bonus_stun_duration_tooltip%秒，并且每次<font color='#2dd5e4'>眩晕</font>都会在目标身旁产生一个虚灵体。这些虚灵体不会再次分裂。",
+    "resolved_text": "憎恶的眩晕时间增加0.3秒，并且每次眩晕都会在目标身旁产生一个虚灵体。这些虚灵体不会再次分裂。"
+  },
+  {
+    "hero_id": 33,
+    "hero_name": "enigma",
+    "ability_name": "enigma_black_hole",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "黑洞额外造成等同于单位%scepter_pct_damage%%%最大生命值的每秒伤害，并且产生一个%scepter_radius%范围，没有打断效果的牵引效果。牵引速度为%scepter_drag_speed%。",
+    "resolved_text": "黑洞额外造成等同于单位4%最大生命值的每秒伤害，并且产生一个1000范围，没有打断效果的牵引效果。牵引速度为150。"
+  },
+  {
+    "hero_id": 34,
+    "hero_name": "tinker",
+    "ability_name": "tinker_laser",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "修补匠的激光升级成缩小射线，使主目标的模型大小、当前生命值和最大生命值减少%scepter_reduction_pct%%%（可以叠加）。",
+    "resolved_text": "修补匠的激光升级成缩小射线，使主目标的模型大小、当前生命值和最大生命值减少13%（可以叠加）。"
+  },
+  {
+    "hero_id": 34,
+    "hero_name": "tinker",
+    "ability_name": "tinker_march_of_the_machines",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "机械行军在穿过友方英雄时会施加不可叠加的持续<font color='#07d738'>治疗</font>效果。",
+    "resolved_text": "机械行军在穿过友方英雄时会施加不可叠加的持续治疗效果。"
+  },
+  {
+    "hero_id": 34,
+    "hero_name": "tinker",
+    "ability_name": "tinker_deploy_turrets",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "炮塔发射导弹的速度加快%missile_attack_rate_tooltip%%%。",
+    "resolved_text": "炮塔发射导弹的速度加快20%。"
+  },
+  {
+    "hero_id": 34,
+    "hero_name": "tinker",
+    "ability_name": "tinker_warp_grenade",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "向一个敌人扔出一枚光弹，造成伤害，将其向远离修补匠的方向传送并且<font color='#cae96d'>缠绕</font>，同时降低施法和攻击距离，持续%debuff_duration%秒。<br><br>目标距离修补匠越近，传送距离越大。"
+  },
+  {
+    "hero_id": 35,
+    "hero_name": "sniper",
+    "ability_name": "sniper_concussive_grenade",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "向目标区域扔出一枚手雷，对敌人造成伤害并将他们和狙击手一同击退。受到作用的敌人被击退后还会被<font color='#afb912'>缴械</font>和减速。"
+  },
+  {
+    "hero_id": 35,
+    "hero_name": "sniper",
+    "ability_name": "sniper_concussive_grenade",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_shard == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "is_granted": true
+    },
+    "original_text": "降低冷却时间，提升伤害并允许技能也能击退狙击手。",
+    "resolved_text": "向目标区域扔出一枚手雷，对敌人造成伤害并将他们和狙击手一同击退。受到作用的敌人被击退后还会被缴械和减速。"
+  },
+  {
+    "hero_id": 35,
+    "hero_name": "sniper",
+    "ability_name": "sniper_assassinate",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "暗杀释放得更快，并且敌方目标的<font color='#2dd5e4'>眩晕</font>时间更久。",
+    "resolved_text": "暗杀释放得更快，并且敌方目标的眩晕时间更久。"
+  },
+  {
+    "hero_id": 36,
+    "hero_name": "necrolyte",
+    "ability_name": "necrolyte_heartstopper_aura",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "竭心光环的生命流失伤害提升，数值为瘟疫法师当前生命恢复的%heal_regen_to_damage%%%。",
+    "resolved_text": "竭心光环的生命流失伤害提升，数值为瘟疫法师当前生命恢复的50%。"
+  },
+  {
+    "hero_id": 36,
+    "hero_name": "necrolyte",
+    "ability_name": "necrolyte_death_seeker",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "瘟疫法师变成一个大死亡脉冲，向目标单位的地点移动。到达该地点后，死亡脉冲会扩散至附近敌人和友军。"
+  },
+  {
+    "hero_id": 37,
+    "hero_name": "warlock",
+    "ability_name": "warlock_shadow_word",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [
+      "cast_aoe",
+      "additional_targets",
+      "secondary_reduction"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "提升作用范围。现在暗言术会施加给%cast_aoe%范围内%additional_targets%个额外单位，以英雄优先。额外单位的<font color='#07d738'>治疗</font>和伤害量减少%secondary_reduction%%%。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 37,
+    "hero_name": "warlock",
+    "ability_name": "warlock_upheaval",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "持续施法时每%imps_interval%秒术士会召唤一个魔童，持续%minor_imp_duration%秒，魔童死亡时会爆炸，对周围所有敌人造成伤害。",
+    "resolved_text": "持续施法时每2秒术士会召唤一个魔童，持续15秒，魔童死亡时会爆炸，对周围所有敌人造成伤害。"
+  },
+  {
+    "hero_id": 37,
+    "hero_name": "warlock",
+    "ability_name": "warlock_eldritch_summoning",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升小魔童的生命值和爆炸伤害。",
+    "resolved_text": "提升小魔童的生命值和爆炸伤害。"
+  },
+  {
+    "hero_id": 37,
+    "hero_name": "warlock",
+    "ability_name": "warlock_rain_of_chaos",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "召唤%number_of_golems_scepter%个地狱火。",
+    "resolved_text": "召唤2个地狱火。"
+  },
+  {
+    "hero_id": 38,
+    "hero_name": "beastmaster",
+    "ability_name": "beastmaster_wild_axes",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "兽王对敌方英雄的攻击还会施加相应等级的野性之斧负面状态。",
+    "resolved_text": "兽王对敌方英雄的攻击还会施加相应等级的野性之斧负面状态。"
+  },
+  {
+    "hero_id": 38,
+    "hero_name": "beastmaster",
+    "ability_name": "beastmaster_summon_raptor",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "战鹰的持续时间提升%bonus_duration%秒，并且额外召唤一只战鹰。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 38,
+    "hero_name": "beastmaster",
+    "ability_name": "beastmaster_drums_of_slom",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "兽王或周围他控制的单位攻击敌人都会使他敲下战鼓，对附近单位造成伤害，并且<font color='#07d738'>治疗</font>自身和他控制的单位，数值为造成伤害的一定百分比。每次攻击都会降低敲鼓的间隔，%max_stacks%次攻击后降低至最短%min_drum_hit_interval%秒敲击一次。如果没有发动攻击，敲鼓间隔会逐渐变长。<br><br>使用原始咆哮时自动增加%primal_roar_stacks%层敲鼓叠加效果。"
+  },
+  {
+    "hero_id": 39,
+    "hero_name": "queenofpain",
+    "ability_name": "queenofpain_shadow_strike",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "暗影突袭变为%aoe_radius%范围型技能。暗影突袭效果结束后或重新施加给敌方英雄时，目标将放出痛苦尖叫，伤害附近所有敌人。",
+    "resolved_text": "暗影突袭变为300范围型技能。暗影突袭效果结束后或重新施加给敌方英雄时，目标将放出痛苦尖叫，伤害附近所有敌人。"
+  },
+  {
+    "hero_id": 39,
+    "hero_name": "queenofpain",
+    "ability_name": "queenofpain_blink",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "在痛苦女王的闪烁起点和落地点各释放一次音爆。在%shard_aoe%范围内造成%shard_damage%点伤害，并<font color='#6db6e9'>沉默</font>%shard_duration%秒。",
+    "resolved_text": "在痛苦女王的闪烁起点和落地点各释放一次音爆。在300范围内造成125点伤害，并沉默1.75秒。"
+  },
+  {
+    "hero_id": 40,
+    "hero_name": "venomancer",
+    "ability_name": "venomancer_venomous_gale",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "施法距离和弹道速度提升%shard_travel_tooltip%%%。瘴气只要击中每个敌方英雄就会在他们周围制造%num_created_wards_tooltip%个瘟疫守卫。",
+    "resolved_text": "施法距离和弹道速度提升25%。瘴气只要击中每个敌方英雄就会在他们周围制造2个瘟疫守卫。"
+  },
+  {
+    "hero_id": 40,
+    "hero_name": "venomancer",
+    "ability_name": "venomancer_poison_sting",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [
+      "debuff_dmg"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "Whenever Poison Sting is applied, it deals extra damage equal to %debuff_dmg%%% of the attacker's base damage for every debuff the enemy has from Venomancer or a unit he controls.",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 40,
+    "hero_name": "venomancer",
+    "ability_name": "venomancer_noxious_plague",
+    "kind": "scepter",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间减少%bonus_AbilityCooldown%秒。感染的单位拥有的魔法抗性会降低。来自英雄目标的额外扩散会造成全额的击中伤害。",
+    "resolved_text": "冷却时间减少35秒。感染的单位拥有的魔法抗性会降低。来自英雄目标的额外扩散会造成全额的击中伤害。"
+  },
+  {
+    "hero_id": 41,
+    "hero_name": "faceless_void",
+    "ability_name": "faceless_void_time_walk",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "在落地点对所有单位施加一次时间锁定。",
+    "resolved_text": "在落地点对所有单位施加一次时间锁定。"
+  },
+  {
+    "hero_id": 41,
+    "hero_name": "faceless_void",
+    "ability_name": "faceless_void_time_dilation",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升每层叠加的减速。向虚空假面提供叠加效果，可以提升他的攻击和移动速度。叠加层数等于施放时施加给敌人的时间膨胀叠加层数的总和，效果会在持续时间内线性衰减。",
+    "resolved_text": "提升每层叠加的减速。向虚空假面提供叠加效果，可以提升他的攻击和移动速度。叠加层数等于施放时施加给敌人的时间膨胀叠加层数的总和，效果会在持续时间内线性衰减。"
+  },
+  {
+    "hero_id": 41,
+    "hero_name": "faceless_void",
+    "ability_name": "faceless_void_time_walk_reverse",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "时间漫游落地后1.5秒内可使用。施放时，自身将逆转时间漫游，回到上一个施放地点。不会影响生命值或触发神杖效果。"
+  },
+  {
+    "hero_id": 42,
+    "hero_name": "skeleton_king",
+    "ability_name": "skeleton_king_mortal_strike",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "本命一击会诅咒目标，使其在%curse_delay%秒延迟后再次受到%curse_damage_pct%%%原攻击伤害的<font color=\"#d8ae53\">纯粹</font>伤害。吸血灵魂的吸血效果对诅咒伤害有效。",
+    "resolved_text": "本命一击会诅咒目标，使其在3秒延迟后再次受到75%原攻击伤害的纯粹伤害。吸血灵魂的吸血效果对诅咒伤害有效。"
+  },
+  {
+    "hero_id": 42,
+    "hero_name": "skeleton_king",
+    "ability_name": "skeleton_king_vampiric_spirit",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "吸血灵魂变为光环，使友方英雄被击杀时也能变为冥魂。延长冥魂的持续时间。",
+    "resolved_text": "吸血灵魂变为光环，使友方英雄被击杀时也能变为冥魂。延长冥魂的持续时间。"
+  },
+  {
+    "hero_id": 42,
+    "hero_name": "skeleton_king",
+    "ability_name": "skeleton_king_reincarnation",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "减少冷却时间。",
+    "resolved_text": "减少冷却时间。"
+  },
+  {
+    "hero_id": 43,
+    "hero_name": "death_prophet",
+    "ability_name": "death_prophet_spirit_siphon",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "吸魂巫术的能量点数提升%shard_bonus_charges%点，敌人连续%shard_consecutive_siphon_duration%秒受到吸魂巫术作用后会被<font color='#1eddb7'>恐惧</font>%shard_fear_duration%秒。",
+    "resolved_text": "吸魂巫术的能量点数提升1点，敌人连续3秒受到吸魂巫术作用后会被恐惧1秒。"
+  },
+  {
+    "hero_id": 43,
+    "hero_name": "death_prophet",
+    "ability_name": "death_prophet_exorcism",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "敌人受到死亡先知的技能作用，或被死亡先知攻击时，会有一只恶灵飞出攻击敌人，造成高于平常的伤害，再返回使自身回复生命。",
+    "resolved_text": "敌人受到死亡先知的技能作用，或被死亡先知攻击时，会有一只恶灵飞出攻击敌人，造成高于平常的伤害，再返回使自身回复生命。"
+  },
+  {
+    "hero_id": 44,
+    "hero_name": "phantom_assassin",
+    "ability_name": "phantom_assassin_blur",
+    "kind": "shard",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间减少%bonus_AbilityCooldown%秒。只要幻影刺客击杀英雄，她的技能冷却时间都会加快%cooldown_refund_pct%%%最高冷却时间。",
+    "resolved_text": "冷却时间减少10秒。只要幻影刺客击杀英雄，她的技能冷却时间都会加快60%最高冷却时间。"
+  },
+  {
+    "hero_id": 44,
+    "hero_name": "phantom_assassin",
+    "ability_name": "phantom_assassin_fan_of_knives",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "幻影刺客对附近范围内敌人放出尖利的刀刃，击中时造成每名受害者最大生命值一定百分比的伤害并施加<font color='#dd621e'>破坏</font>效果。"
+  },
+  {
+    "hero_id": 45,
+    "hero_name": "pugna",
+    "ability_name": "pugna_nether_ward",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "施法距离提升至%AbilityCastRange%。",
+    "resolved_text": "施法距离提升至375。"
+  },
+  {
+    "hero_id": 45,
+    "hero_name": "pugna",
+    "ability_name": "pugna_life_drain",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间减少%abilitycooldown%秒。以敌方英雄为目标时，帕格纳每秒降低他们%spell_amp_drain_rate%%%技能伤害输出，最高可达到%spell_amp_drain_max%%%，并且自身的技能伤害输出提升，最高可达到%max_spell_amp_drain_pct%%%。魔晶升级下对幽冥守卫施放时降低和提升的速率为%spell_amp_drain_rate_ward%%%。负面效果持续%spell_amp_drain_duration%秒。",
+    "resolved_text": "冷却时间减少50秒。以敌方英雄为目标时，帕格纳每秒降低他们8%技能伤害输出，最高可达到75%，并且自身的技能伤害输出提升，最高可达到100%。魔晶升级下对幽冥守卫施放时降低和提升的速率为4%。负面效果持续8秒。"
+  },
+  {
+    "hero_id": 45,
+    "hero_name": "pugna",
+    "ability_name": "pugna_life_drain",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "生命汲取可以对幽冥守卫施放，使生命汲取可以折射至守卫附近%abilitycastrange%范围内所有敌方英雄，造成%shard_damage_pct_from_ward%%%效果。守卫被摧毁后效果将会中断。",
+    "resolved_text": "生命汲取可以对幽冥守卫施放，使生命汲取可以折射至守卫附近700范围内所有敌方英雄，造成75%效果。守卫被摧毁后效果将会中断。"
+  },
+  {
+    "hero_id": 46,
+    "hero_name": "templar_assassin",
+    "ability_name": "templar_assassin_refraction",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "攻击力加成提升。被控制时可以施放折光。",
+    "resolved_text": "攻击力加成提升。被控制时可以施放折光。"
+  },
+  {
+    "hero_id": 46,
+    "hero_name": "templar_assassin",
+    "ability_name": "templar_assassin_trap_teleport",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "持续施法 - 圣堂刺客经过%abilitychanneltime%秒持续施法后可以传送至任意灵能陷阱，到达时引爆灵能陷阱，陷阱总是最大效果，并且立刻造成%extra_damage%点额外伤害。灵能投射在持续施法时不会脱离隐匿效果。"
+  },
+  {
+    "hero_id": 46,
+    "hero_name": "templar_assassin",
+    "ability_name": "templar_assassin_psionic_trap",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "现在陷阱引爆后还会<font color='#6db6e9'>沉默</font>受到作用的敌人。",
+    "resolved_text": "现在陷阱引爆后还会沉默受到作用的敌人。"
+  },
+  {
+    "hero_id": 47,
+    "hero_name": "viper",
+    "ability_name": "viper_poison_attack",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升最大叠加次数，毒性攻击可以降低护甲，并且可以作用于建筑，造成的伤害有所降低。",
+    "resolved_text": "提升最大叠加次数，毒性攻击可以降低护甲，并且可以作用于建筑，造成的伤害有所降低。"
+  },
+  {
+    "hero_id": 47,
+    "hero_name": "viper",
+    "ability_name": "viper_corrosive_skin",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "腐蚀皮肤会对距离冥界亚龙%effect_multiplier_distance%范围内的敌人施加%effect_multiplier%倍攻击速度降低效果。当冥界亚龙处于幽冥剧毒中，腐蚀皮肤的魔法抗性和每秒伤害会逐渐提升，在%nethertoxin_bonus_pct_max_duration_tooltip%秒后，达到最高的%nethertoxin_bonus_pct%%%提升。",
+    "resolved_text": "腐蚀皮肤会对距离冥界亚龙500范围内的敌人施加4倍攻击速度降低效果。当冥界亚龙处于幽冥剧毒中，腐蚀皮肤的魔法抗性和每秒伤害会逐渐提升，在4秒后，达到最高的50%提升。"
+  },
+  {
+    "hero_id": 47,
+    "hero_name": "viper",
+    "ability_name": "viper_nose_dive",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "冥界亚龙冲向地面，释放幽冥剧毒并且%corrosive_radius%范围内所有敌人均被溅上持续%effect_duration%秒的腐蚀皮肤酸液。"
+  },
+  {
+    "hero_id": 48,
+    "hero_name": "luna",
+    "ability_name": "luna_lucent_beam",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "每次一名敌方英雄被月光击中时，露娜都会获得一个攻击力加成的状态效果。月蚀的月光提供%damage_buff_from_eclipse_pct%%%数值。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 48,
+    "hero_name": "luna",
+    "ability_name": "luna_lunar_orbit",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升伤害降低效果。开启时，露娜获得%bonus_movement_speed%%%移动速度加成。",
+    "resolved_text": "提升伤害降低效果。开启时，露娜获得20%移动速度加成。"
+  },
+  {
+    "hero_id": 48,
+    "hero_name": "luna",
+    "ability_name": "luna_eclipse",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "露娜可以对友方单位或自身施放月蚀，使月蚀的效果跟随目标，或者对一片区域施放。增加月光数量，减少月蚀持续时间，并且移除单体打击次数上限，月光的产生间隔缩短一半。",
+    "resolved_text": "露娜可以对友方单位或自身施放月蚀，使月蚀的效果跟随目标，或者对一片区域施放。增加月光数量，减少月蚀持续时间，并且移除单体打击次数上限，月光的产生间隔缩短一半。"
+  },
+  {
+    "hero_id": 49,
+    "hero_name": "dragon_knight",
+    "ability_name": "dragon_knight_fireball",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "点燃一片区域，对其中的敌人持续造成伤害，伤害效果还会粘滞。近战形态下施放距离较近。"
+  },
+  {
+    "hero_id": 49,
+    "hero_name": "dragon_knight",
+    "ability_name": "dragon_knight_elder_dragon_form",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "使古龙形态的当前等级提升1级。增加的4级黑龙拥有自由移动，魔法抗性加成和其他更高的加成效果。",
+    "resolved_text": "使古龙形态的当前等级提升1级。增加的4级黑龙拥有自由移动，魔法抗性加成和其他更高的加成效果。"
+  },
+  {
+    "hero_id": 50,
+    "hero_name": "dazzle",
+    "ability_name": "dazzle_shadow_wave",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "暗影波现在也可对敌人施放，在友军和敌人之间都可以弹跳。弹跳至敌人时，他们会受到伤害，并且<font color='#07d738'>治疗</font>附近友军，数值为%scepter_heal_pct%%%平常治疗和伤害量。戴泽还会对暗影波弹跳到的每个敌人发动一次攻击。",
+    "resolved_text": "暗影波现在也可对敌人施放，在友军和敌人之间都可以弹跳。弹跳至敌人时，他们会受到伤害，并且治疗附近友军，数值为100%平常治疗和伤害量。戴泽还会对暗影波弹跳到的每个敌人发动一次攻击。"
+  },
+  {
+    "hero_id": 50,
+    "hero_name": "dazzle",
+    "ability_name": "dazzle_innate_weave",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "对友军施加编织时，每层编织效果治疗%ally_heal%点。",
+    "resolved_text": "对友军施加编织时，每层编织效果治疗60点。"
+  },
+  {
+    "hero_id": 50,
+    "hero_name": "dazzle",
+    "ability_name": "dazzle_nothl_projection",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "虚无投影可以在戴泽被控制时施放。他在虚无之境时治疗效果得到增强。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 51,
+    "hero_name": "rattletrap",
+    "ability_name": "rattletrap_overclocking",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "使发条技师的所有技能变得强力：<br><br><b>弹幕冲击</b>：作用范围提升，并且可以作用于范围内所有敌人。<br><b>能量齿轮</b>：成型范围提升，并且发条技师靠近能量齿轮时护甲提升。<br><b>照明火箭</b>：伤害、视野和减速时间提升，并且发射时向目标两侧各额外发射一枚。<br><b>发射钩爪</b>：<font color='#2dd5e4'>眩晕</font>范围和时间均有提升。<br><b>喷气背包</b>：移动得更快。<br><br>持续时间结束后发条技师的移动和攻击速度降到最低。"
+  },
+  {
+    "hero_id": 51,
+    "hero_name": "rattletrap",
+    "ability_name": "rattletrap_jetpack",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "发条技师开动喷气背包，获得飞行移动状态，飞行视野和移动速度加成。发条技师的转身速率大幅降低，并且无法攻击。在加成状态的持续时间内可以开启和关闭喷气背包。"
+  },
+  {
+    "hero_id": 52,
+    "hero_name": "leshrac",
+    "ability_name": "leshrac_split_earth",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "撕裂大地在相同地点再重复%shard_max_count%次，重复间隔为%shard_secondary_delay%秒。每次作用范围增加%shard_radius_increase%。撕裂大地的重复地点对双方队伍可见。",
+    "resolved_text": "撕裂大地在相同地点再重复2次，重复间隔为5秒。每次作用范围增加45。撕裂大地的重复地点对双方队伍可见。"
+  },
+  {
+    "hero_id": 52,
+    "hero_name": "leshrac",
+    "ability_name": "leshrac_greater_lightning_storm",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "使拉席克和范围内所有敌人变为<font color='#57e550'>虚无</font>状态，他们无法攻击，并且承受的魔法伤害增加，移动速度被减缓。拉席克的移动速度得到提升，而不是减缓。拉席克受到的魔法伤害不会增加。"
+  },
+  {
+    "hero_id": 53,
+    "hero_name": "furion",
+    "ability_name": "furion_curse_of_the_forest",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "对%range%范围内所有敌方英雄施加诅咒，使他们在迷雾中显形，根据%radius%范围内树木的数量对他们造成减速和持续伤害。在此情况下树人也被视为树木。"
+  },
+  {
+    "hero_id": 53,
+    "hero_name": "furion",
+    "ability_name": "furion_wrath_of_nature",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "<font color='#cae96d'>缠绕</font>所有击中的敌人。持续时间根据弹跳次序从%scepter_min_entangle_duration%秒开始增加，弹跳数达到上限时为%scepter_max_entangle_duration%秒。",
+    "resolved_text": "缠绕所有击中的敌人。持续时间根据弹跳次序从1.5秒开始增加，弹跳数达到上限时为3秒。"
+  },
+  {
+    "hero_id": 54,
+    "hero_name": "life_stealer",
+    "ability_name": "life_stealer_infest",
+    "kind": "scepter",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升施法距离并且冷却时间降低至%bonus_AbilityCooldown%秒。感染可以对敌方英雄施放，持续时间较短，并在他们体内发动攻击，同时提升噬魂鬼的恢复速率。",
+    "resolved_text": "提升施法距离并且冷却时间降低至20秒。感染可以对敌方英雄施放，持续时间较短，并在他们体内发动攻击，同时提升噬魂鬼的恢复速率。"
+  },
+  {
+    "hero_id": 54,
+    "hero_name": "life_stealer",
+    "ability_name": "life_stealer_infest",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "吞噬感染的中立生物会使敌人沾满鲜血，根据宿主的剩余生命值造成持续伤害。",
+    "resolved_text": "吞噬感染的中立生物会使敌人沾满鲜血，根据宿主的剩余生命值造成持续伤害。"
+  },
+  {
+    "hero_id": 55,
+    "hero_name": "dark_seer",
+    "ability_name": "dark_seer_surge",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "奔腾单位的身后留下一道路径，作用范围为%trail_radius%，持续%trail_duration%秒，对附近的敌人造成%trail_move_slow%%%减速，并且每秒造成%trail_damage%点伤害，伤害间隔为%trail_damage_interval%秒。可以设为<font color=\"#FF0000\">多样施法</font>（右键点击技能栏图标），禁止留下路径。",
+    "resolved_text": "奔腾单位的身后留下一道路径，作用范围为150，持续7秒，对附近的敌人造成35%减速，并且每秒造成40点伤害，伤害间隔为0.5秒。可以设为多样施法（右键点击技能栏图标），禁止留下路径。"
+  },
+  {
+    "hero_id": 55,
+    "hero_name": "dark_seer",
+    "ability_name": "dark_seer_normal_punch",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "被动技能。使黑暗贤者下次对英雄的攻击具有克敌机先效果，可以打出目标的复制体，并且根据过去%recent_duration%秒内黑暗贤者的移动距离造成伤害和<font color='#2dd5e4'>眩晕</font>。移动%max_distance%距离以上将造成最大威力。"
+  },
+  {
+    "hero_id": 56,
+    "hero_name": "clinkz",
+    "ability_name": "clinkz_burning_barrage",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "持续施法 - 克林克兹持续施法，朝目标方向射出多支灼热的箭矢，击中所有敌人，造成克林克兹攻击伤害的一定百分比并施加攻击特效。"
+  },
+  {
+    "hero_id": 56,
+    "hero_name": "clinkz",
+    "ability_name": "clinkz_burning_army",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "在目标地点召唤一列烈焰骷髅弓手。"
+  },
+  {
+    "hero_id": 57,
+    "hero_name": "omniknight",
+    "ability_name": "omniknight_purification",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "%recast_delay%秒延迟后目标会再次受到%recast_effectiveness_pct%%%威力的洗礼。",
+    "resolved_text": "3秒延迟后目标会再次受到65%威力的洗礼。"
+  },
+  {
+    "hero_id": 57,
+    "hero_name": "omniknight",
+    "ability_name": "omniknight_guardian_angel",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "守护天使的作用范围为全地图，影响建筑并增强生命回复。",
+    "resolved_text": "守护天使的作用范围为全地图，影响建筑并增强生命回复。"
+  },
+  {
+    "hero_id": 58,
+    "hero_name": "enchantress",
+    "ability_name": "enchantress_enchant",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "魅惑魔女可以同时控制多个非英雄单位。",
+    "resolved_text": "魅惑魔女可以同时控制多个非英雄单位。"
+  },
+  {
+    "hero_id": 58,
+    "hero_name": "enchantress",
+    "ability_name": "enchantress_bunny_hop",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "向后跳跃，躲避多种飞行过程中的攻击和技能弹道，并向魅惑魔女的攻击距离+%bonus_attack_range%范围内最远的%attack_targets%个敌方单位发动一次附有推进的攻击。"
+  },
+  {
+    "hero_id": 58,
+    "hero_name": "enchantress",
+    "ability_name": "enchantress_little_friends",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "魅惑魔女<font color='#cae96d'>缠绕</font>一个敌方单位。目标附近所有敌方、友方和中立非英雄单位会攻击魅惑魔女选定的目标，并且具有攻击速度和移动速度加成，持续%duration%秒。"
+  },
+  {
+    "hero_id": 59,
+    "hero_name": "huskar",
+    "ability_name": "huskar_burning_spear",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [
+      "multishot_targets"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "沸血之矛会对哈斯卡攻击距离内随机敌人额外发射%multishot_targets%支长矛。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 59,
+    "hero_name": "huskar",
+    "ability_name": "huskar_berserkers_blood",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "哈斯卡可以消耗一定生命来主动开启狂战士之血，炙疗哈斯卡。进行驱散，然后在一定延迟后回复消耗的生命，并且每驱散一个负面状态，他就会额外回复生命。\n\n驱散类型：弱驱散",
+    "resolved_text": "哈斯卡可以消耗一定生命来主动开启狂战士之血，炙疗哈斯卡。进行驱散，然后在一定延迟后回复消耗的生命，并且每驱散一个负面状态，他就会额外回复生命。\n\n驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 59,
+    "hero_name": "huskar",
+    "ability_name": "huskar_life_break",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "强迫敌方目标攻击哈斯卡，并提升施法距离。",
+    "resolved_text": "强迫敌方目标攻击哈斯卡，并提升施法距离。"
+  },
+  {
+    "hero_id": 60,
+    "hero_name": "night_stalker",
+    "ability_name": "night_stalker_void",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "虚空现在影响目标范围内所有单位。",
+    "resolved_text": "虚空现在影响目标范围内所有单位。"
+  },
+  {
+    "hero_id": 60,
+    "hero_name": "night_stalker",
+    "ability_name": "night_stalker_hunter_in_the_night",
+    "kind": "scepter",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "移动速度加成提升%bonus_bonus_movement_speed_pct_night%%%，攻击速度加成提升%bonus_bonus_attack_speed_night%。击杀敌方英雄会重置所有基础技能的冷却时间。",
+    "resolved_text": "移动速度加成提升15%，攻击速度加成提升50。击杀敌方英雄会重置所有基础技能的冷却时间。"
+  },
+  {
+    "hero_id": 60,
+    "hero_name": "night_stalker",
+    "ability_name": "night_stalker_hunter_in_the_night",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "可以主动对一个普通单位施放暗夜猎影，将其秒杀并恢复暗夜魔王最大生命和魔法的一定百分比。在白天无法对远古生物施放。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 61,
+    "hero_name": "broodmother",
+    "ability_name": "broodmother_insatiable_hunger",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "开启极度饥渴后，攻击力加成每%shard_damage_tick_interval%秒提升%shard_damage_per_tick%%%。",
+    "resolved_text": "开启极度饥渴后，攻击力加成每1秒提升4%。"
+  },
+  {
+    "hero_id": 61,
+    "hero_name": "broodmother",
+    "ability_name": "broodmother_sticky_snare",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "育母蜘蛛可以制造出最多%count%个触碰已有蛛网的<font color='#d7ccc7'>隐形</font>网线。敌方英雄穿过网线将会触发陷阱，被<font color='#cae96d'>缠绕</font>，在战争迷雾中显形，并持续受到伤害。网线一开始被触发后，多名英雄还可以在同根网线上被绊倒，直到网线被摧毁。只要有人触发陷阱，育母蜘蛛的队友就会在小地图上发现。"
+  },
+  {
+    "hero_id": 62,
+    "hero_name": "bounty_hunter",
+    "ability_name": "bounty_hunter_shuriken_toss",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升施法距离并且击中时施加忍术。",
+    "resolved_text": "提升施法距离并且击中时施加忍术。"
+  },
+  {
+    "hero_id": 62,
+    "hero_name": "bounty_hunter",
+    "ability_name": "bounty_hunter_wind_walk_ally",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "对友军目标施加暗影步及其所有加成效果。友方单位的渐隐时间是%fade_time%秒。施放时不会使赏金猎人脱离隐身状态。"
+  },
+  {
+    "hero_id": 63,
+    "hero_name": "weaver",
+    "ability_name": "weaver_shukuchi",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "缩地在造成伤害的敌人身上留下一个标记，持续%geminate_attack_mark_duration%秒。编织者脱离缩地状态%shukuchi_attack_delay%秒后，附近%shukuchi_attack_mark_radius%范围内拥有印记的敌人都会被连击的第二次攻击击中。",
+    "resolved_text": "缩地在造成伤害的敌人身上留下一个标记，持续4.6秒。编织者脱离缩地状态0.2秒后，附近1200范围内拥有印记的敌人都会被连击的第二次攻击击中。"
+  },
+  {
+    "hero_id": 63,
+    "hero_name": "weaver",
+    "ability_name": "weaver_geminate_attack",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "连击还会击中虫群附着目标%shard_beetle_search_range%范围内的单位。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 63,
+    "hero_name": "weaver",
+    "ability_name": "weaver_time_lapse",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "时光倒流可以对%abilitycastrange%施法距离内的友方英雄施放。",
+    "resolved_text": "时光倒流可以对500施法距离内的友方英雄施放。"
+  },
+  {
+    "hero_id": 64,
+    "hero_name": "jakiro",
+    "ability_name": "jakiro_liquid_fire",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "杰奇洛的液态火没有魔法消耗，并且不再和液态冰共用冷却时间。",
+    "resolved_text": "杰奇洛的液态火没有魔法消耗，并且不再和液态冰共用冷却时间。"
+  },
+  {
+    "hero_id": 64,
+    "hero_name": "jakiro",
+    "ability_name": "jakiro_liquid_ice",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "杰奇洛的液态冰没有魔法消耗，并且不再和液态火共用冷却时间。",
+    "resolved_text": "杰奇洛的液态冰没有魔法消耗，并且不再和液态火共用冷却时间。"
+  },
+  {
+    "hero_id": 64,
+    "hero_name": "jakiro",
+    "ability_name": "jakiro_macropyre",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升烈焰焚身的持续时间，并且变为纯粹伤害。杰奇洛会在烈焰焚身边缘放出两道冰墙，对试图穿过的所有敌人减速%ice_edge_movement_slow%%%。",
+    "resolved_text": "提升烈焰焚身的持续时间，并且变为纯粹伤害。杰奇洛会在烈焰焚身边缘放出两道冰墙，对试图穿过的所有敌人减速60%。"
+  },
+  {
+    "hero_id": 65,
+    "hero_name": "batrider",
+    "ability_name": "batrider_sticky_napalm",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "粘性燃油不再具有叠加上限。<br><br>粘性燃油会对建筑造成伤害。",
+    "resolved_text": "粘性燃油不再具有叠加上限。\n\n粘性燃油会对建筑造成伤害。"
+  },
+  {
+    "hero_id": 65,
+    "hero_name": "batrider",
+    "ability_name": "batrider_flaming_lasso",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "燃烧枷锁除了抓取目标外，还能抓取目标附近%grab_radius_scepter%范围内最近的友方英雄。第二目标将与第一目标相连。",
+    "resolved_text": "燃烧枷锁除了抓取目标外，还能抓取目标附近650范围内最近的友方英雄。第二目标将与第一目标相连。"
+  },
+  {
+    "hero_id": 66,
+    "hero_name": "chen",
+    "ability_name": "chen_holy_persuasion",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "神圣劝化可以对远古中立生物施放。根据上帝之手等级可以控制最多1/2/3个远古生物。使中立生物的部分技能额外升1级。",
+    "resolved_text": "神圣劝化可以对远古中立生物施放。根据上帝之手等级可以控制最多1/2/3个远古生物。使中立生物的部分技能额外升1级。"
+  },
+  {
+    "hero_id": 66,
+    "hero_name": "chen",
+    "ability_name": "chen_hand_of_god",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "上帝之手的冷却时间降低至%AbilityCooldown%秒，并且变为持续施法型技能，持续最多%AbilityChannelTime%秒。初始治疗会在持续施法起始时发生，持续施法期间其他附近友方单位变为<font color='#d76907'>减益免疫</font>状态，拥有%debuff_immune_resist%%%魔法抗性，而且持续治疗的威力提升%nearby_hot_boost%%%。",
+    "resolved_text": "上帝之手的冷却时间降低至40秒，并且变为持续施法型技能，持续最多6秒。初始治疗会在持续施法起始时发生，持续施法期间其他附近友方单位变为减益免疫状态，拥有60%魔法抗性，而且持续治疗的威力提升200%。"
+  },
+  {
+    "hero_id": 67,
+    "hero_name": "spectre",
+    "ability_name": "spectre_dispersion",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "折射可以主动施放，吸收和反弹的伤害比例提升%activation_bonus_pct%%%，持续%activation_duration%秒。冷却时间为%activation_cooldown%秒。魔法消耗为%activation_manacost%点。",
+    "resolved_text": "折射可以主动施放，吸收和反弹的伤害比例提升50%，持续5秒。冷却时间为25秒。魔法消耗为50点。"
+  },
+  {
+    "hero_id": 67,
+    "hero_name": "spectre",
+    "ability_name": "spectre_haunt",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "幽鬼第一次对鬼影重重的幻象使用空降时，目标附近%fear_aoe%范围内的敌人会被<font color='#1eddb7'>恐惧</font>，朝远离幽鬼的方向奔跑%fear_duration%秒，并且移动速度降低%fear_movespeed_slow%%%。<br><br>冷却时间减少%scepter_cooldown_reduction_tooltip%秒。",
+    "resolved_text": "幽鬼第一次对鬼影重重的幻象使用空降时，目标附近400范围内的敌人会被恐惧，朝远离幽鬼的方向奔跑2秒，并且移动速度降低50%。\n\n冷却时间减少20秒。"
+  },
+  {
+    "hero_id": 68,
+    "hero_name": "ancient_apparition",
+    "ability_name": "ancient_apparition_chilling_touch",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "移除了冷却时间。",
+    "resolved_text": "移除了冷却时间。"
+  },
+  {
+    "hero_id": 68,
+    "hero_name": "ancient_apparition",
+    "ability_name": "ancient_apparition_bone_chill",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "基础力量降低提升%tooltip_scepter_bonus%。",
+    "resolved_text": "基础力量降低提升0.8。"
+  },
+  {
+    "hero_id": 68,
+    "hero_name": "ancient_apparition",
+    "ability_name": "ancient_apparition_ice_blast",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冻结击中的敌人，持续时间为当前等级寒霜之足<font color='#2dd5e4'>眩晕</font>时间的%cold_feet_stun_duration_pct%%%。",
+    "resolved_text": "冻结击中的敌人，持续时间为当前等级寒霜之足眩晕时间的50%。"
+  },
+  {
+    "hero_id": 69,
+    "hero_name": "doom_bringer",
+    "ability_name": "doom_bringer_devour",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "吞噬拥有%AbilityCharges%点能量点数，能以远古生物为目标。获得的野怪技能拥有%bonus_aoe_pct%%%额外作用范围和%bonus_spell_amp_pct%%%额外技能增强。",
+    "resolved_text": "吞噬拥有2点能量点数，能以远古生物为目标。获得的野怪技能拥有15%额外作用范围和40%额外技能增强。"
+  },
+  {
+    "hero_id": 69,
+    "hero_name": "doom_bringer",
+    "ability_name": "doom_bringer_doom",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "末日对敌人施加<font color='#dd621e'>破坏</font>效果。末日作用下目标%scepter_aura_radius%范围内友军也会受到末日的作用。可以对自身施放末日，使末日作用于末日使者周围的敌人。",
+    "resolved_text": "末日对敌人施加破坏效果。末日作用下目标350范围内友军也会受到末日的作用。可以对自身施放末日，使末日作用于末日使者周围的敌人。"
+  },
+  {
+    "hero_id": 70,
+    "hero_name": "ursa",
+    "ability_name": "ursa_earthshock",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "震撼大地对击中的敌人施加%fury_swipe_stacks_on_hit%层怒意狂击。",
+    "resolved_text": "震撼大地对击中的敌人施加3层怒意狂击。"
+  },
+  {
+    "hero_id": 70,
+    "hero_name": "ursa",
+    "ability_name": "ursa_enrage",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "减少冷却时间，而且熊战士可以在被控制的状态下使用激怒。",
+    "resolved_text": "减少冷却时间，而且熊战士可以在被控制的状态下使用激怒。"
+  },
+  {
+    "hero_id": 71,
+    "hero_name": "spirit_breaker",
+    "ability_name": "spirit_breaker_charge_of_darkness",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "spirit_breaker_planar_pocket"
+    },
+    "original_text": "暗影冲刺的移动速度加成提升%bonus_movement_speed%。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 71,
+    "hero_name": "spirit_breaker",
+    "ability_name": "spirit_breaker_greater_bash",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "击退效果提升。如果击退的敌人又撞到了一个敌人，这个敌人也会被重击（非英雄单位只受到%cascading_bashes_creep_penalty%%%伤害），并且原目标再次受到%cascading_bashes_damage_multiplier%%%的巨力重击伤害。",
+    "resolved_text": "击退效果提升。如果击退的敌人又撞到了一个敌人，这个敌人也会被重击（非英雄单位只受到20%伤害），并且原目标再次受到25%的巨力重击伤害。"
+  },
+  {
+    "hero_id": 71,
+    "hero_name": "spirit_breaker",
+    "ability_name": "spirit_breaker_planar_pocket",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "巴拉森获得魔法抗性，并扭曲选定英雄附近的现实，使敌方英雄施放的任意指向性技能转向裂魂人。可以对友方和敌方英雄施放，但是只有裂魂人的敌人施放的技能才会转向。"
+  },
+  {
+    "hero_id": 71,
+    "hero_name": "spirit_breaker",
+    "ability_name": "spirit_breaker_nether_strike",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "大幅提升击退效果。",
+    "resolved_text": "大幅提升击退效果。"
+  },
+  {
+    "hero_id": 72,
+    "hero_name": "gyrocopter",
+    "ability_name": "gyrocopter_homing_missile",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "追踪导弹现在从施放%shard_delay%秒后开始不断发射%shard_radius%作用范围的火箭弹幕。火箭弹幕优先以追踪导弹的目标为目标。",
+    "resolved_text": "追踪导弹现在从施放1秒后开始不断发射700作用范围的火箭弹幕。火箭弹幕优先以追踪导弹的目标为目标。"
+  },
+  {
+    "hero_id": 72,
+    "hero_name": "gyrocopter",
+    "ability_name": "gyrocopter_side_gunner_spawn_ability",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "矮人直升机获得侧翼机枪，每%sidegunner_fire_rate%秒对矮人直升机附近%AbilityCastRange%范围内的敌方单位发动攻击。优先攻击范围内最远的单位。"
+  },
+  {
+    "hero_id": 73,
+    "hero_name": "alchemist",
+    "ability_name": "alchemist_berserk_potion",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "炼金术士向友军目标扔出一瓶药剂，施加弱驱散效果，并提供攻击速度、移动速度和生命恢复。<br><br>驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 73,
+    "hero_name": "alchemist",
+    "ability_name": "alchemist_goblins_greed",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "炼金术士熔铸阿哈利姆神杖并让一位友方英雄获得所有神杖升级效果。炼金术士每送出一把神杖都将获得%scepter_bonus_damage%点攻击力加成，贪魔的贪婪的基础和最高金钱增加%bonus_gold_per_scepter%。",
+    "resolved_text": "炼金术士熔铸阿哈利姆神杖并让一位友方英雄获得所有神杖升级效果。炼金术士每送出一把神杖都将获得15点攻击力加成，贪魔的贪婪的基础和最高金钱增加3。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_quas",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提供%scepter_bonus_levels%级当前和最高等级。",
+    "resolved_text": "提供1级当前和最高等级。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_wex",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提供%scepter_bonus_levels%级当前和最高等级。",
+    "resolved_text": "提供1级当前和最高等级。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_exort",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提供%scepter_bonus_levels%级当前和最高等级。",
+    "resolved_text": "提供1级当前和最高等级。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_ghost_walk",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "现在幽灵漫步还会对范围内的敌方英雄施加寒冰之墙的每秒伤害。",
+    "resolved_text": "现在幽灵漫步还会对范围内的敌方英雄施加寒冰之墙的每秒伤害。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_tornado",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "强袭飓风会沿其路径产生气旋。气旋在飓风的持续时间内会一直持续，并且飓风消失后还会基于<font color='#7998b5'>冰</font>的等级额外持续数秒。气旋每%twister_tick_rate%秒在%twister_radius%范围内基于<font color='#d671a9'>雷</font>的等级造成伤害。（对非英雄单位造成半额伤害。）",
+    "resolved_text": "强袭飓风会沿其路径产生气旋。气旋在飓风的持续时间内会一直持续，并且飓风消失后还会基于冰的等级额外持续数秒。气旋每0.25秒在150范围内基于雷的等级造成伤害。（对非英雄单位造成半额伤害。）"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_emp",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升电磁脉冲燃烧魔法的伤害系数，并且将敌方单位以每秒%drag_speed%距离的速度向电磁脉冲的中心牵引。",
+    "resolved_text": "提升电磁脉冲燃烧魔法的伤害系数，并且将敌方单位以每秒125距离的速度向电磁脉冲的中心牵引。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_sun_strike",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "双击阳炎冲击会发动毁天灭地。施放后阳炎冲击的冷却时间为%cataclysm_cooldown%秒。每个敌方英雄附近%cataclysm_min_range%-%cataclysm_max_range%范围内产生%cataclysm_count%个可见的阳炎冲击，每个都具有%cataclysm_damage_pct%%%伤害。",
+    "resolved_text": "双击阳炎冲击会发动毁天灭地。施放后阳炎冲击的冷却时间为90秒。每个敌方英雄附近90-180范围内产生2个可见的阳炎冲击，每个都具有75%伤害。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_sun_strike",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "阳炎冲击对敌方英雄造成伤害时，该地点会产生当前等级的熔炉精灵。",
+    "resolved_text": "阳炎冲击对敌方英雄造成伤害时，该地点会产生当前等级的熔炉精灵。"
+  },
+  {
+    "hero_id": 74,
+    "hero_name": "invoker",
+    "ability_name": "invoker_ice_wall",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "寒冰之墙变成浮冰，以矢量为目标。经过短暂延迟后，浮冰出现再产生一道%wall_width%宽度的寒冰之墙。在浮冰内停留超过%root_delay%秒的敌方英雄会基于<font color='#7998b5'>冰</font>的等级被<font color='#cae96d'>缠绕</font>并受到魔法伤害。",
+    "resolved_text": "寒冰之墙变成浮冰，以矢量为目标。经过短暂延迟后，浮冰出现再产生一道45宽度的寒冰之墙。在浮冰内停留超过2.5秒的敌方英雄会基于冰的等级被缠绕并受到魔法伤害。"
+  },
+  {
+    "hero_id": 75,
+    "hero_name": "silencer",
+    "ability_name": "silencer_glaives_of_wisdom",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "使智慧之刃向%bounce_range% 范围内的随机敌人弹射%bounce_count%次，并提升智力窃取。",
+    "resolved_text": "使智慧之刃向450 范围内的随机敌人弹射1次，并提升智力窃取。"
+  },
+  {
+    "hero_id": 75,
+    "hero_name": "silencer",
+    "ability_name": "silencer_brain_drain",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "提升每次击杀窃取的智力值。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 75,
+    "hero_name": "silencer",
+    "ability_name": "silencer_global_silence",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "全领域静默在全领域静默的持续时间内对英雄施加奥术诅咒。",
+    "resolved_text": "全领域静默在全领域静默的持续时间内对英雄施加奥术诅咒。"
+  },
+  {
+    "hero_id": 76,
+    "hero_name": "obsidian_destroyer",
+    "ability_name": "obsidian_destroyer_arcane_orb",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [
+      "bounce_damage_reduction"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "奥术天球额外弹跳至一个目标，造成的伤害降低%bounce_damage_reduction%%%。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 76,
+    "hero_name": "obsidian_destroyer",
+    "ability_name": "obsidian_destroyer_astral_imprisonment",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "星体禁锢现在会造成范围伤害。另外友军在星体禁锢期间能以%allied_movement_speed_pct%%%移动速度进行移动（他们为可见状态，但无法成为目标，也不能执行其他任何动作）。",
+    "resolved_text": "星体禁锢现在会造成范围伤害。另外友军在星体禁锢期间能以70%移动速度进行移动（他们为可见状态，但无法成为目标，也不能执行其他任何动作）。"
+  },
+  {
+    "hero_id": 76,
+    "hero_name": "obsidian_destroyer",
+    "ability_name": "obsidian_destroyer_objurgation",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升最大魔法值转为<font color='#b97812'>护盾</font>的比例。阻止让殁境神蚀者的血量低于%automatic_trigger_threshold%%%的伤害。阻止生效时，殁境神蚀者获得一次强驱散，和不可驱散的责难效果。这个效果每%automatic_trigger_cd%秒只能触发一次。",
+    "resolved_text": "提升最大魔法值转为护盾的比例。阻止让殁境神蚀者的血量低于20%的伤害。阻止生效时，殁境神蚀者获得一次强驱散，和不可驱散的责难效果。这个效果每80秒只能触发一次。"
+  },
+  {
+    "hero_id": 77,
+    "hero_name": "lycan",
+    "ability_name": "lycan_summon_wolves",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "召唤的精灵狼的数量提升。所有召唤的精灵狼获得健步如飞技能，这个主动技能使精灵狼获得<font color='#9019e3'>相位移动</font>，闪避，移动速度和攻击速度。",
+    "resolved_text": "召唤的精灵狼的数量提升。所有召唤的精灵狼获得健步如飞技能，这个主动技能使精灵狼获得相位移动，闪避，移动速度和攻击速度。"
+  },
+  {
+    "hero_id": 77,
+    "hero_name": "lycan",
+    "ability_name": "lycan_wolf_bite",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "狼人撕咬友方英雄或类英雄单位，使其获得变身效果。自身和目标都获得%lifesteal_percent%%%吸血效果，并且双方距离只要不超过%lifesteal_range%就能共用吸血效果。"
+  },
+  {
+    "hero_id": 78,
+    "hero_name": "brewmaster",
+    "ability_name": "brewmaster_liquid_courage",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "向队友丢出一杯烈酒，或自己一饮而尽，获得壮胆酒的最大效果，并且还会获得每秒%max_hp_regen%%%最大生命值的回复。<br><br>持续%drink_duration%秒。",
+    "resolved_text": "向队友丢出一杯烈酒，或自己一饮而尽，获得壮胆酒的最大效果，并且还会获得每秒3%最大生命值的回复。\n\n持续5秒。"
+  },
+  {
+    "hero_id": 78,
+    "hero_name": "brewmaster",
+    "ability_name": "brewmaster_primal_split",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "元素分离获得%scepter_bonus_levels%级最高和当前等级，强化元素战士和他们的技能。<br><br>元素分离可以提前结束，而且元素分离开始时元素战士是浸酒状态。",
+    "resolved_text": "元素分离获得1级最高和当前等级，强化元素战士和他们的技能。\n\n元素分离可以提前结束，而且元素分离开始时元素战士是浸酒状态。"
+  },
+  {
+    "hero_id": 79,
+    "hero_name": "shadow_demon",
+    "ability_name": "shadow_demon_demonic_cleanse",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "净愈目标友方单位，在持续时间内移除负面效果。在持续时间结束时该单位受到<font color='#07d738'>治疗</font>效果。崩裂禁锢中的单位依然可以受到邪恶净愈的效果。<br><br>驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 79,
+    "hero_name": "shadow_demon",
+    "ability_name": "shadow_demon_demonic_purge",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "邪恶净化具有<font color='#dd621e'>破坏</font>效果，并获得%max_charges%点能量点数。",
+    "resolved_text": "邪恶净化具有破坏效果，并获得2点能量点数。"
+  },
+  {
+    "hero_id": 80,
+    "hero_name": "lone_druid",
+    "ability_name": "lone_druid_entangle",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "缠绕之根会对区域内敌方英雄施加%hits_required%层叠加效果，并且作用范围提升。触发缠绕的敌人不再受到保护，可以继续获得新的叠加层数。",
+    "resolved_text": "缠绕之根会对区域内敌方英雄施加5层叠加效果，并且作用范围提升。触发缠绕的敌人不再受到保护，可以继续获得新的叠加层数。"
+  },
+  {
+    "hero_id": 80,
+    "hero_name": "lone_druid",
+    "ability_name": "lone_druid_spirit_link",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "独行德鲁伊切断与熊灵的链接，并与目标友方英雄建立链接，与他们共享灵魂链接的加成效果，持续%duration%秒。护甲共享和攻击速度加成的效果均提升%active_bonus%%%。友军造成的伤害会治疗独行德鲁伊，反之亦然。<br><br>熊灵在变形期间会被恐惧，除非熊灵也拥有阿哈利姆神杖。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 80,
+    "hero_name": "lone_druid",
+    "ability_name": "lone_druid_savage_roar",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "施加弱驱散效果，并对施法者附近范围内友军提供移动速度和攻击速度加成。施法效果会在独行德鲁伊和熊灵之间复制，不论双方是否可以施法。<br><br>驱散类型：弱驱散",
+    "resolved_text": "施加弱驱散效果，并对施法者附近范围内友军提供移动速度和攻击速度加成。施法效果会在独行德鲁伊和熊灵之间复制，不论双方是否可以施法。\n\n驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 81,
+    "hero_name": "chaos_knight",
+    "ability_name": "chaos_knight_chaos_bolt",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "混乱之箭会制造一个混沌之军的幻象来攻击目标。这个幻象造成的伤害减少%illusion_damage_reduction_pct%%%。",
+    "resolved_text": "混乱之箭会制造一个混沌之军的幻象来攻击目标。这个幻象造成的伤害减少15%。"
+  },
+  {
+    "hero_id": 81,
+    "hero_name": "chaos_knight",
+    "ability_name": "chaos_knight_reality_rift",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "实相裂隙可以对自身或幻象1200范围内的任意敌方英雄施放。自身英雄和所有幻象会集合，并传送至敌方目标处。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 81,
+    "hero_name": "chaos_knight",
+    "ability_name": "chaos_knight_phantasm",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "增加被动效果。混沌骑士产生幻象时都会有%bonus_illusion_chance%%%几率额外产生一个在其控制下的幻象。<br><br>施放混沌之军时，会产生全地图上所有友方英雄的一个幻象。",
+    "resolved_text": "增加被动效果。混沌骑士产生幻象时都会有50%几率额外产生一个在其控制下的幻象。\n\n施放混沌之军时，会产生全地图上所有友方英雄的一个幻象。"
+  },
+  {
+    "hero_id": 82,
+    "hero_name": "meepo",
+    "ability_name": "meepo_petrify",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "挖掘进入地下，对自身施加驱散效果，无敌且不能作为目标，持续%duration%秒。持续时间内回复最大生命值的%hp_restore%%%。被缠绕时无法施放。<br><br>驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 82,
+    "hero_name": "meepo",
+    "ability_name": "meepo_megameepo",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "主米波将%radius%范围内其他米波放到自己的肩膀上。在这个形态下，他会获得其他米波%stats_pct%%%的属性，并且可以把他们扔向敌人，造成伤害和减速。\n\n生效时地之束缚会产生额外的网，身上每只米波都会使忽悠造成额外%poof_damage_factor%%%伤害。"
+  },
+  {
+    "hero_id": 82,
+    "hero_name": "meepo",
+    "ability_name": "meepo_megameepo_fling",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "在超大米波形态下，米波将最上端的米波向%AbilityCastRange%范围内目标扔出，造成伤害和减速。"
+  },
+  {
+    "hero_id": 83,
+    "hero_name": "treant",
+    "ability_name": "treant_living_armor",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "treant_eyes_in_the_forest"
+    },
+    "original_text": "提升活体护甲的伤害格挡量。树精卫士现在还会被动获得活体护甲的加成效果，%passive_reset_cd%秒内未受到伤害后伤害格挡量会重置。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 83,
+    "hero_name": "treant",
+    "ability_name": "treant_eyes_in_the_forest",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "树精卫士对目标树木灌注魔力。注魔后树木将拥有周围的顺畅视野。树眼持续%duration%秒，为<font color='#d7ccc7'>隐形</font>状态，但是寄生的树木被摧毁或者树眼直接被攻击后都会被摧毁。"
+  },
+  {
+    "hero_id": 83,
+    "hero_name": "treant",
+    "ability_name": "treant_overgrowth",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间降低至%AbilityCooldown%秒。施放疯狂生长时，树精卫士从土壤中汲取力量，他的身体急剧增大，持续%bloom_duration%秒。变大后他会获得<font color='#9019e3'>相位移动</font>状态，移动速度为固定%movement_speed%，%strength_bonus%%%力量加成，并且拥有在%splash_radius%范围内造成%splash_pct%%%攻击伤害的溅射攻击。",
+    "resolved_text": "冷却时间降低至25秒。施放疯狂生长时，树精卫士从土壤中汲取力量，他的身体急剧增大，持续16秒。变大后他会获得相位移动状态，移动速度为固定345，100%力量加成，并且拥有在300范围内造成60%攻击伤害的溅射攻击。"
+  },
+  {
+    "hero_id": 84,
+    "hero_name": "ogre_magi",
+    "ability_name": "ogre_magi_fireblast",
+    "kind": "scepter",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "很精通的火焰爆轰，冷却时间减少%bonus_AbilityCooldown%秒，施法速度提升%bonus_cast_speed%%%。",
+    "resolved_text": "很精通的火焰爆轰，冷却时间减少1秒，施法速度提升25%。"
+  },
+  {
+    "hero_id": 84,
+    "hero_name": "ogre_magi",
+    "ability_name": "ogre_magi_unrefined_fireblast",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "操控一波火焰轰击一个敌方单位，造成%base_damage% + %str_multiplier%倍食人魔力量的伤害并使目标<font color='#2dd5e4'>眩晕</font>。魔法消耗为食人魔魔法师当前魔法的%scepter_mana%%%。"
+  },
+  {
+    "hero_id": 84,
+    "hero_name": "ogre_magi",
+    "ability_name": "ogre_magi_smash",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "创造一个围绕友军目标的护盾，吸收接下来%attacks%次来自敌方英雄攻击的一定百分比伤害。吸收伤害后向攻击者发射火球。可以对防御塔施放。"
+  },
+  {
+    "hero_id": 85,
+    "hero_name": "undying",
+    "ability_name": "undying_decay",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升力量窃取。",
+    "resolved_text": "提升力量窃取。"
+  },
+  {
+    "hero_id": 85,
+    "hero_name": "undying",
+    "ability_name": "undying_tombstone",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "墓碑可以对友方英雄施放，让他们躲进墓碑。进入墓碑的英雄%tombstone_bunker_cd%秒内无法离开，离开后同样的时间内无法再次进入。如果英雄在内时墓碑被摧毁，该英雄会被<font color='#2dd5e4'>眩晕</font>%tombstone_stun_penalty%秒。",
+    "resolved_text": "墓碑可以对友方英雄施放，让他们躲进墓碑。进入墓碑的英雄2秒内无法离开，离开后同样的时间内无法再次进入。如果英雄在内时墓碑被摧毁，该英雄会被眩晕2秒。"
+  },
+  {
+    "hero_id": 86,
+    "hero_name": "rubick",
+    "ability_name": "rubick_telekinesis",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "可以对自身或友军施放隔空取物。投掷距离增加至%max_land_distance%，投掷延迟降低至%shard_teammate_throw_delay%秒。",
+    "resolved_text": "可以对自身或友军施放隔空取物。投掷距离增加至225，投掷延迟降低至0.5秒。"
+  },
+  {
+    "hero_id": 86,
+    "hero_name": "rubick",
+    "ability_name": "rubick_spell_steal",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "可窃取的技能提升至2个。提升施法距离，并且窃取的技能会升级成神杖版本。",
+    "resolved_text": "可窃取的技能提升至2个。提升施法距离，并且窃取的技能会升级成神杖版本。"
+  },
+  {
+    "hero_id": 86,
+    "hero_name": "rubick",
+    "ability_name": "rubick_spell_steal",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "窃取的技能升级为相应的魔晶版本。",
+    "resolved_text": "窃取的技能升级为相应的魔晶版本。"
+  },
+  {
+    "hero_id": 87,
+    "hero_name": "disruptor",
+    "ability_name": "disruptor_thunder_strike",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "disruptor_kinetic_fence"
+    },
+    "original_text": "提升风雷之击的施法距离和打击次数。还可以对地施放，使风雷之击先潜伏最多%shard_ground_delay%秒，并附着到第一个进入作用范围的敌人身上。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 87,
+    "hero_name": "disruptor",
+    "ability_name": "disruptor_kinetic_field",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "disruptor_kinetic_fence"
+    },
+    "original_text": "Both shapes have an independent cooldown.",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 87,
+    "hero_name": "disruptor",
+    "ability_name": "disruptor_kinetic_fence",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "在短暂的构造时间后，创造一面敌人无法通过的动能墙壁。"
+  },
+  {
+    "hero_id": 87,
+    "hero_name": "disruptor",
+    "ability_name": "disruptor_static_storm",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "<font color='#c3e1db'>锁闭</font>物品。",
+    "resolved_text": "锁闭物品。"
+  },
+  {
+    "hero_id": 88,
+    "hero_name": "nyx_assassin",
+    "ability_name": "nyx_assassin_burrow",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "司夜刺客经过短时间的掘地后钻入地下。钻地后尖刺外壳一施放就会直接<font color='#2dd5e4'>眩晕</font>附近所有敌人，神智爆裂和穿刺的施法距离提升，穿刺的冷却时间减少。钻地后司夜刺客固定在原地，无法攻击，并且是<font color='#d7ccc7'>隐身</font>状态。同时司夜刺客受到的所有伤害都会降低。"
+  },
+  {
+    "hero_id": 88,
+    "hero_name": "nyx_assassin",
+    "ability_name": "nyx_assassin_vendetta",
+    "kind": "shard",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间减少%bonus_AbilityCooldown%秒。在复仇的最初%free_pathing_duration%秒内，司夜刺客为极速状态，并且移动无视地形。",
+    "resolved_text": "冷却时间减少10秒。在复仇的最初15秒内，司夜刺客为极速状态，并且移动无视地形。"
+  },
+  {
+    "hero_id": 89,
+    "hero_name": "naga_siren",
+    "ability_name": "naga_siren_ensnare",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升施法距离和弹道速度。诱捕可以对<font color='#d76907'>减益免疫</font>单位施放并且生效。诱捕会施加<font color='#dd621e'>破坏</font>效果。",
+    "resolved_text": "提升施法距离和弹道速度。诱捕可以对减益免疫单位施放并且生效。诱捕会施加破坏效果。"
+  },
+  {
+    "hero_id": 89,
+    "hero_name": "naga_siren",
+    "ability_name": "naga_siren_song_of_the_siren",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "海妖之歌范围内友军每秒会恢复一定百分比的生命和魔法。",
+    "resolved_text": "海妖之歌范围内友军每秒会恢复一定百分比的生命和魔法。"
+  },
+  {
+    "hero_id": 90,
+    "hero_name": "keeper_of_the_light",
+    "ability_name": "keeper_of_the_light_radiant_bind",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "获得%AbilityCharges%点能量点数。",
+    "resolved_text": "获得2点能量点数。"
+  },
+  {
+    "hero_id": 90,
+    "hero_name": "keeper_of_the_light",
+    "ability_name": "keeper_of_the_light_will_o_wisp",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "在目标区域召唤幻火。幻火交替闪亮和闪灭。闪亮时蛊惑敌人靠近，并造成伤害。"
+  },
+  {
+    "hero_id": 90,
+    "hero_name": "keeper_of_the_light",
+    "ability_name": "keeper_of_the_light_spirit_form",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升冲击波的<font color='#07d738'>治疗</font>效果。",
+    "resolved_text": "提升冲击波的治疗效果。"
+  },
+  {
+    "hero_id": 91,
+    "hero_name": "wisp",
+    "ability_name": "wisp_tether",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "羁绊会对触碰到的敌人造成伤害。艾欧会回复%damage_to_heal%%%造成伤害。",
+    "resolved_text": "羁绊会对触碰到的敌人造成伤害。艾欧会回复50%造成伤害。"
+  },
+  {
+    "hero_id": 91,
+    "hero_name": "wisp",
+    "ability_name": "wisp_spirits",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "每秒被动产生幽魂围绕艾欧，直至数量上限。幽魂撞到英雄会将其短暂减速。可以主动施放来引爆幽魂。",
+    "resolved_text": "每秒被动产生幽魂围绕艾欧，直至数量上限。幽魂撞到英雄会将其短暂减速。可以主动施放来引爆幽魂。"
+  },
+  {
+    "hero_id": 92,
+    "hero_name": "visage",
+    "ability_name": "visage_gravekeepers_cloak",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "获得主动效果，维萨吉可以化作石像形态，对身边<span class=\"GameplayVariable\">375</span>范围内的敌人造成<span class=\"GameplayVariable\">0.8/1.0/1.2</span>秒<font color='#2dd5e4'>眩晕</font>，同时造成<span class=\"GameplayVariable\">60/100/140</span>点伤害，获得<span class=\"GameplayVariable\">6</span>秒无敌状态。最多恢复%shard_hp_restoration_pct%%%生命值。",
+    "resolved_text": "获得主动效果，维萨吉可以化作石像形态，对身边375范围内的敌人造成0.8/1.0/1.2秒眩晕，同时造成60/100/140点伤害，获得6秒无敌状态。最多恢复25%生命值。"
+  },
+  {
+    "hero_id": 92,
+    "hero_name": "visage",
+    "ability_name": "visage_silent_as_the_grave",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "移动速度、额外攻击力和持续时间提升。维萨吉和佣兽在持续时间内为<font color='#d7ccc7'>隐身</font>状态，直到失去飞行移动状态。",
+    "resolved_text": "移动速度、额外攻击力和持续时间提升。维萨吉和佣兽在持续时间内为隐身状态，直到失去飞行移动状态。"
+  },
+  {
+    "hero_id": 93,
+    "hero_name": "slark",
+    "ability_name": "slark_pounce",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "变为充能型技能，并且提升距离。",
+    "resolved_text": "变为充能型技能，并且提升距离。"
+  },
+  {
+    "hero_id": 93,
+    "hero_name": "slark",
+    "ability_name": "slark_depth_shroud",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "在目标地点创造一团云雾。作用范围内所有友军为隐藏状态，受到暗影之舞的作用。"
+  },
+  {
+    "hero_id": 94,
+    "hero_name": "medusa",
+    "ability_name": "medusa_split_shot",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "使分裂箭的次级攻击也能继承攻击特效，并且目标数量提升。",
+    "resolved_text": "使分裂箭的次级攻击也能继承攻击特效，并且目标数量提升。"
+  },
+  {
+    "hero_id": 94,
+    "hero_name": "medusa",
+    "ability_name": "medusa_cold_blooded",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "美杜莎受到指向性技能作用后会对该敌人放出单体的秘术异蛇，把他们变成石头，持续%stone_form_scepter_base_tooltip%秒。"
+  },
+  {
+    "hero_id": 95,
+    "hero_name": "troll_warlord",
+    "ability_name": "troll_warlord_whirling_axes_ranged",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "旋风飞斧（远程）可以驱散敌人。降低冷却时间和魔法消耗。<br><br>驱散类型：弱驱散",
+    "resolved_text": "旋风飞斧（远程）可以驱散敌人。降低冷却时间和魔法消耗。\n\n驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 95,
+    "hero_name": "troll_warlord",
+    "ability_name": "troll_warlord_whirling_axes_melee",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "旋风飞斧（近战）可以驱散自己。降低冷却时间和魔法消耗。<br><br>驱散类型：弱驱散",
+    "resolved_text": "旋风飞斧（近战）可以驱散自己。降低冷却时间和魔法消耗。\n\n驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 95,
+    "hero_name": "troll_warlord",
+    "ability_name": "troll_warlord_fervor",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "巨魔战将在攻击敌方单位时拥有%base_chance%%% + 热血战魂叠加次数*%extra_attack_chance_per_stack%%%的几率对远程攻击距离 + %range_buffer%范围内任意单位发动一次额外的远程攻击。",
+    "resolved_text": "巨魔战将在攻击敌方单位时拥有16% + 热血战魂叠加次数*3%的几率对远程攻击距离 + 175范围内任意单位发动一次额外的远程攻击。"
+  },
+  {
+    "hero_id": 96,
+    "hero_name": "centaur",
+    "ability_name": "centaur_double_edge",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "双刃剑可以对敌人造成减速，并且每击中一名英雄都会暂时提升半人马战行者的力量值。每次叠加都会刷新持续时间，最多叠加%shard_max_stacks%次。",
+    "resolved_text": "双刃剑可以对敌人造成减速，并且每击中一名英雄都会暂时提升半人马战行者的力量值。每次叠加都会刷新持续时间，最多叠加5次。"
+  },
+  {
+    "hero_id": 96,
+    "hero_name": "centaur",
+    "ability_name": "centaur_work_horse",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "半人马战行者套上一辆便车。开启后半人马战行者获得当前等级奔袭冲撞的加成效果，而且可以对友方目标施放便车。"
+  },
+  {
+    "hero_id": 97,
+    "hero_name": "magnataur",
+    "ability_name": "magnataur_skewer",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升距离，并且使敌人穿过树木和高台时造成额外伤害。",
+    "resolved_text": "提升距离，并且使敌人穿过树木和高台时造成额外伤害。"
+  },
+  {
+    "hero_id": 97,
+    "hero_name": "magnataur",
+    "ability_name": "magnataur_horn_toss",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "马格纳斯顶起前方的敌人，将其甩在身后。敌人受到伤害，滞空%air_duration%秒并处于<font color='#2dd5e4'>眩晕</font>状态，而且落地后还会眩晕一段时间。"
+  },
+  {
+    "hero_id": 98,
+    "hero_name": "shredder",
+    "ability_name": "shredder_reactive_armor",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "活性护甲可以主动施放，获得最大叠加次数和%initial_shield%点生命的<font color='#b97812'>护盾</font>。<font color='#b97812'>护盾</font>的恢复速度为每秒%shield_per_sec% + 伐木机%radius%范围内每名敌方英雄都会增加%shield_per_sec_per_enemy%，最高为%max_shield%。%duration%秒后伐木机会对%explosion_radius%范围内每个英雄造成伤害，数值为%base_explosion% + <font color='#b97812'>护盾</font>剩余生命，而且失去全部<font color='#b97812'>护盾</font>。",
+    "resolved_text": "活性护甲可以主动施放，获得最大叠加次数和150点生命的护盾。护盾的恢复速度为每秒100 + 伐木机450范围内每名敌方英雄都会增加75，最高为800。8秒后伐木机会对450范围内每个英雄造成伤害，数值为200 + 护盾剩余生命，而且失去全部护盾。"
+  },
+  {
+    "hero_id": 98,
+    "hero_name": "shredder",
+    "ability_name": "shredder_flamethrower",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "伐木机向面朝的方向放出一道火焰。施加一个负面效果，造成每秒伤害，并减缓敌人的移动速度。对建筑造成的伤害有所减少。"
+  },
+  {
+    "hero_id": 99,
+    "hero_name": "bristleback",
+    "ability_name": "bristleback_bristleback",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "钢毛后背增加主动效果。钢背兽将背部转向目标方向，%activation_delay%秒后以%activation_spray_interval%秒间隔朝背部前方的锥形范围强行连续喷出%activation_num_quill_sprays%次刺针扫射。钢背兽在这段时间内面朝方向被锁定，被缴械，并且移动速度减缓%activation_movement_speed_pct%%%。",
+    "resolved_text": "钢毛后背增加主动效果。钢背兽将背部转向目标方向，0.5秒后以0.4秒间隔朝背部前方的锥形范围强行连续喷出5次刺针扫射。钢背兽在这段时间内面朝方向被锁定，被缴械，并且移动速度减缓-40%。"
+  },
+  {
+    "hero_id": 99,
+    "hero_name": "bristleback",
+    "ability_name": "bristleback_hairball",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "向目标地点咳出一团满是刺针的毛团。毛团会在该地点爆开，范围内的敌人都将受到多个鼻液叠加效果和单次刺针扫射的作用。"
+  },
+  {
+    "hero_id": 100,
+    "hero_name": "tusk",
+    "ability_name": "tusk_drinking_buddies",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "巨牙海民伸出手来触碰友方单位，拉近彼此。触碰后巨牙海民和他的友军获得移动速度和护甲加成。"
+  },
+  {
+    "hero_id": 100,
+    "hero_name": "tusk",
+    "ability_name": "tusk_walrus_kick",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "将最近的敌方单位向目标方向踢上一脚，对其造成<font color='#2dd5e4'>眩晕</font>，伤害和减速。另外对落地区域%search_radius%范围内所有英雄造成伤害。飞踢非英雄单位会使冷却时间减少%creep_cooldown_reduction_pct%%%。"
+  },
+  {
+    "hero_id": 101,
+    "hero_name": "skywrath_mage",
+    "ability_name": "skywrath_mage_arcane_bolt",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "天怒法师施放奥法鹰隼时，会产生%total_bolt_count%个鹰隼，其中一个飞往原目标，而另外的两个飞往原目标附近%extra_bolt_search_radius%范围内随机敌人。以英雄为首要目标。",
+    "resolved_text": "天怒法师施放奥法鹰隼时，会产生2个鹰隼，其中一个飞往原目标，而另外的两个飞往原目标附近500范围内随机敌人。以英雄为首要目标。"
+  },
+  {
+    "hero_id": 101,
+    "hero_name": "skywrath_mage",
+    "ability_name": "skywrath_mage_concussive_shot",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "天怒法师施放震荡光弹时，会随机对原目标附近%scepter_radius%范围内另一个敌人施放相同的技能。以英雄为首要目标。",
+    "resolved_text": "天怒法师施放震荡光弹时，会随机对原目标附近500范围内另一个敌人施放相同的技能。以英雄为首要目标。"
+  },
+  {
+    "hero_id": 101,
+    "hero_name": "skywrath_mage",
+    "ability_name": "skywrath_mage_ancient_seal",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "天怒法师施放上古封印时，会随机对原目标附近%scepter_radius%范围内另一个敌人施放相同的技能。以英雄为首要目标。",
+    "resolved_text": "天怒法师施放上古封印时，会随机对原目标附近500范围内另一个敌人施放相同的技能。以英雄为首要目标。"
+  },
+  {
+    "hero_id": 101,
+    "hero_name": "skywrath_mage",
+    "ability_name": "skywrath_mage_mystic_flare",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "天怒法师施放神秘之耀时，原目标附近%scepter_radius%范围内另一个敌人的位置上也会产生一个神秘之耀。以英雄为首要目标。",
+    "resolved_text": "天怒法师施放神秘之耀时，原目标附近500范围内另一个敌人的位置上也会产生一个神秘之耀。以英雄为首要目标。"
+  },
+  {
+    "hero_id": 102,
+    "hero_name": "abaddon",
+    "ability_name": "abaddon_aphotic_shield",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "会对附近敌人造成吸收伤害的%absorb_to_damage%%%。",
+    "resolved_text": "会对附近敌人造成吸收伤害的75%。"
+  },
+  {
+    "hero_id": 102,
+    "hero_name": "abaddon",
+    "ability_name": "abaddon_borrowed_time",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升持续时间。启动回光返照后，亚巴顿附近迷雾缠绕的施法距离内友方英雄受到的伤害超过%ally_threshold_scepter%点时亚巴顿就会自动对其施放迷雾缠绕。",
+    "resolved_text": "提升持续时间。启动回光返照后，亚巴顿附近迷雾缠绕的施法距离内友方英雄受到的伤害超过550点时亚巴顿就会自动对其施放迷雾缠绕。"
+  },
+  {
+    "hero_id": 103,
+    "hero_name": "elder_titan",
+    "ability_name": "elder_titan_echo_stomp",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "减少冷却时间。回音重踏可以设为<font color=\"#FF0000\">多样施法</font>（右键点击技能栏图标）状态，使上古巨神完成重踏后会取代灵体游魂。",
+    "resolved_text": "减少冷却时间。回音重踏可以设为多样施法（右键点击技能栏图标）状态，使上古巨神完成重踏后会取代灵体游魂。"
+  },
+  {
+    "hero_id": 103,
+    "hero_name": "elder_titan",
+    "ability_name": "elder_titan_ancestral_spirit",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "游魂每碰到一名英雄就能使上古巨神在游魂回归后获得%scepter_magic_immune_per_hero%秒<font color='#d76907'>减益免疫</font>状态和%immunity_resist%%%魔法抗性提升。",
+    "resolved_text": "游魂每碰到一名英雄就能使上古巨神在游魂回归后获得2秒减益免疫状态和50%魔法抗性提升。"
+  },
+  {
+    "hero_id": 103,
+    "hero_name": "elder_titan",
+    "ability_name": "elder_titan_natural_order",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [
+      "tick_rate",
+      "armor_per_tick",
+      "magic_resistance_per_tick",
+      "max_stacks"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "敌方英雄在自然秩序效果下每停留%tick_rate%秒，他们的护甲就会降低%armor_per_tick%点，魔法抗性降低%magic_resistance_per_tick%%%。叠加效果最多可叠加%max_stacks%次。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 104,
+    "hero_name": "legion_commander",
+    "ability_name": "legion_commander_overwhelming_odds",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "压倒性优势的范围更大，会根据对敌方英雄造成的伤害提供<font color='#b97812'>全伤害护盾</font>。",
+    "resolved_text": "压倒性优势的范围更大，会根据对敌方英雄造成的伤害提供全伤害护盾。"
+  },
+  {
+    "hero_id": 104,
+    "hero_name": "legion_commander",
+    "ability_name": "legion_commander_press_the_attack",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升移动速度，变为%radius%范围型技能，而且使用时总是会作用于军团指挥官。",
+    "resolved_text": "提升移动速度，变为500范围型技能，而且使用时总是会作用于军团指挥官。"
+  },
+  {
+    "hero_id": 104,
+    "hero_name": "legion_commander",
+    "ability_name": "legion_commander_duel",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "如果军团指挥官在决斗中获胜，会在她周围自动触发强攻。",
+    "resolved_text": "如果军团指挥官在决斗中获胜，会在她周围自动触发强攻。"
+  },
+  {
+    "hero_id": 105,
+    "hero_name": "techies",
+    "ability_name": "techies_mutually_assured_destruction",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "同归于尽变为主动技能。提升最大魔法值的伤害系数。工程师放置同归于尽木桶后，可以使用子技能手动引爆。同一时间主动技能只能放下一个同归于尽木桶。",
+    "resolved_text": "同归于尽变为主动技能。提升最大魔法值的伤害系数。工程师放置同归于尽木桶后，可以使用子技能手动引爆。同一时间主动技能只能放下一个同归于尽木桶。"
+  },
+  {
+    "hero_id": 105,
+    "hero_name": "techies",
+    "ability_name": "techies_minefield_sign",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "在指定地点放置警示牌，使作用范围内的感应地雷为无敌状态，并且造成的伤害增加%bonus_mine_damage_pct%%%。同一时间只能存在一个标识。持续%lifetime%秒。<br><br>敌方英雄进入标识的%trigger_radius%范围内时标识附近整个%aura_radius%范围变成一片雷区，持续%minefield_duration%秒。敌方单位在区域内移动都会受到伤害。雷区持续时间结束后标识会被摧毁。"
+  },
+  {
+    "hero_id": 106,
+    "hero_name": "ember_spirit",
+    "ability_name": "ember_spirit_immolation",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "使残焰获得献祭心，并且每秒伤害和作用范围提升。",
+    "resolved_text": "使残焰获得献祭心，并且每秒伤害和作用范围提升。"
+  },
+  {
+    "hero_id": 106,
+    "hero_name": "ember_spirit",
+    "ability_name": "ember_spirit_fire_remnant",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升施法距离、初始残焰速度和最大能量点数。",
+    "resolved_text": "提升施法距离、初始残焰速度和最大能量点数。"
+  },
+  {
+    "hero_id": 106,
+    "hero_name": "ember_spirit",
+    "ability_name": "ember_spirit_fire_remnant",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "灰烬之灵附近范围内有敌方英雄阵亡时，恢复一点残焰能量点数。另外，灰烬之灵阵亡时会在原地留下一个残焰。",
+    "resolved_text": "灰烬之灵附近范围内有敌方英雄阵亡时，恢复一点残焰能量点数。另外，灰烬之灵阵亡时会在原地留下一个残焰。"
+  },
+  {
+    "hero_id": 107,
+    "hero_name": "earth_spirit",
+    "ability_name": "earth_spirit_geomagnetic_grip",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间减少至%AbilityCooldown%秒，对友方单位的施法距离和牵引速度提升。",
+    "resolved_text": "冷却时间减少至3秒，对友方单位的施法距离和牵引速度提升。"
+  },
+  {
+    "hero_id": 107,
+    "hero_name": "earth_spirit",
+    "ability_name": "earth_spirit_petrify",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "大地之灵对一名英雄施法，使其暂时获得残岩的属性。经过短时间后残岩就会碎裂，释放出英雄，并对周围单位造成伤害。<br><br>可以对残岩施放。对残岩施放时冷却时间为5秒。<br>对友方英雄施放时施法距离更远。"
+  },
+  {
+    "hero_id": 108,
+    "hero_name": "abyssal_underlord",
+    "ability_name": "abyssal_underlord_firestorm",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "火焰风暴可以对友军施放。施放后火焰风暴会跟随该英雄。火焰风暴的波数增加，伤害触发间隔/持续时间更短。",
+    "resolved_text": "火焰风暴可以对友军施放。施放后火焰风暴会跟随该英雄。火焰风暴的波数增加，伤害触发间隔/持续时间更短。"
+  },
+  {
+    "hero_id": 108,
+    "hero_name": "abyssal_underlord",
+    "ability_name": "abyssal_underlord_dark_portal",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "在传送门两端各召唤一个怨念深渊。减少冷却时间。",
+    "resolved_text": "在传送门两端各召唤一个怨念深渊。减少冷却时间。"
+  },
+  {
+    "hero_id": 109,
+    "hero_name": "terrorblade",
+    "ability_name": "terrorblade_demon_zeal",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "施放需消耗恐怖利刃当前生命值的一部分，为恐怖利刃和他附近的幻象提供生命恢复、移动和攻击速度加成。不会影响倒影的幻象。魔化状态下无法施放，而且施放魔化会移除狂魔效果。"
+  },
+  {
+    "hero_id": 109,
+    "hero_name": "terrorblade",
+    "ability_name": "terrorblade_terror_wave",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "放出一道能量波，朝所有方向向外行进，击中敌方英雄将使其<font color='#1eddb7'>恐惧</font>并造成伤害，同时恐怖利刃短时间内获得魔化状态。"
+  },
+  {
+    "hero_id": 110,
+    "hero_name": "phoenix",
+    "ability_name": "phoenix_fire_spirits",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "烈火精灵变成被动充能技能。具有7秒充能时间。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 110,
+    "hero_name": "phoenix",
+    "ability_name": "phoenix_sun_ray",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "超新星期间可以施放烈日炙烤。",
+    "resolved_text": "超新星期间可以施放烈日炙烤。"
+  },
+  {
+    "hero_id": 110,
+    "hero_name": "phoenix",
+    "ability_name": "phoenix_supernova",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "摧毁超新星所需的攻击次数增加，凤凰可以对友方英雄施放超新星，使双方共同变为恒星进行重生。",
+    "resolved_text": "摧毁超新星所需的攻击次数增加，凤凰可以对友方英雄施放超新星，使双方共同变为恒星进行重生。"
+  },
+  {
+    "hero_id": 111,
+    "hero_name": "oracle",
+    "ability_name": "oracle_rain_of_destiny",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "在目标范围内降下大雨。站在该区域的敌人受到每秒伤害，并且治疗增强被削弱。区域内友军被<font color='#07d738'>治疗</font>，并且具有治疗增强效果。"
+  },
+  {
+    "hero_id": 112,
+    "hero_name": "winter_wyvern",
+    "ability_name": "winter_wyvern_arctic_burn",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "严寒烧灼变成开关型技能，开启后每秒消耗一定量魔法。提升寒冬飞龙的移动速度。",
+    "resolved_text": "严寒烧灼变成开关型技能，开启后每秒消耗一定量魔法。提升寒冬飞龙的移动速度。"
+  },
+  {
+    "hero_id": 112,
+    "hero_name": "winter_wyvern",
+    "ability_name": "winter_wyvern_cold_embrace",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间减少%shard_cooldown_reduction%秒。友方单位从冰茧解冻后获得额外攻击力。",
+    "resolved_text": "冷却时间减少4秒。友方单位从冰茧解冻后获得额外攻击力。"
+  },
+  {
+    "hero_id": 113,
+    "hero_name": "arc_warden",
+    "ability_name": "arc_warden_flux",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "目标落单时乱流具有<font color='#6db6e9'>沉默</font>效果，造成更高伤害，而且持续时间更长。",
+    "resolved_text": "目标落单时乱流具有沉默效果，造成更高伤害，而且持续时间更长。"
+  },
+  {
+    "hero_id": 113,
+    "hero_name": "arc_warden",
+    "ability_name": "arc_warden_tempest_double",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "风暴双雄产生时带有奥术、隐身和极速神符的效果，持续%rune_duration%秒。<br><br>不会触发神符灌注。",
+    "resolved_text": "风暴双雄产生时带有奥术、隐身和极速神符的效果，持续12秒。\n\n不会触发神符灌注。"
+  },
+  {
+    "hero_id": 114,
+    "hero_name": "monkey_king",
+    "ability_name": "monkey_king_boundless_strike",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "棒击大地对沿途和末端的敌人施加乾坤之跃，威力为最长持续施法时间的%spring_channel_pct%%%。棒击大地设为<font color=\"#FF0000\">多样施法</font>（右键点击技能栏图标）后，齐天大圣还会跳跃至金箍棒的另一端。",
+    "resolved_text": "棒击大地对沿途和末端的敌人施加乾坤之跃，威力为最长持续施法时间的35%。棒击大地设为多样施法（右键点击技能栏图标）后，齐天大圣还会跳跃至金箍棒的另一端。"
+  },
+  {
+    "hero_id": 114,
+    "hero_name": "monkey_king",
+    "ability_name": "monkey_king_wukongs_command",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "每隔一段时间在齐天大圣附近产生一个猴子猴孙。隐身或上树时不会产生。只有齐天大圣在附近时猴子猴孙才会攻击建筑。猴子猴孙现在独立获得如意棒法的效果。",
+    "resolved_text": "每隔一段时间在齐天大圣附近产生一个猴子猴孙。隐身或上树时不会产生。只有齐天大圣在附近时猴子猴孙才会攻击建筑。猴子猴孙现在独立获得如意棒法的效果。"
+  },
+  {
+    "hero_id": 119,
+    "hero_name": "dark_willow",
+    "ability_name": "dark_willow_shadow_realm",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "发动普通攻击不再使邪影芳灵脱离暗影之境。持续时间内每次攻击都带有额外伤害。",
+    "resolved_text": "发动普通攻击不再使邪影芳灵脱离暗影之境。持续时间内每次攻击都带有额外伤害。"
+  },
+  {
+    "hero_id": 119,
+    "hero_name": "dark_willow",
+    "ability_name": "dark_willow_cursed_crown",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "诅咒王冠在倒计时结束时会围绕目标在%shard_spawn_radius%范围内产生%shard_bramble_amount%朵荆棘。即使效果被驱散也会触发。诅咒王冠的冷却时间减少1.5秒。",
+    "resolved_text": "诅咒王冠在倒计时结束时会围绕目标在175范围内产生4朵荆棘。即使效果被驱散也会触发。诅咒王冠的冷却时间减少1.5秒。"
+  },
+  {
+    "hero_id": 120,
+    "hero_name": "pangolier",
+    "ability_name": "pangolier_shield_crash",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "甲盾冲击将围绕英雄每90度施放一个刺击2次的虚张声势，造成%scepter_damage_outgoing_tooltip%%%伤害。",
+    "resolved_text": "甲盾冲击将围绕英雄每90度施放一个刺击2次的虚张声势，造成75%伤害。"
+  },
+  {
+    "hero_id": 120,
+    "hero_name": "pangolier",
+    "ability_name": "pangolier_rollup",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "石鳞剑士将自身卷成保护性的圆球，获得<font color='#d76907'>减益免疫</font>状态，拥有%magic_resistance%%%魔法抗性加成，并且可以转身。可以在地雷滚滚期间施放，暂停滚动。可以在卷土重来期间施放地雷滚滚和甲盾冲击。若敌人在此期间发动攻击，将滚离攻击者，对途中的敌人施加地雷滚滚的伤害/<font color='#2dd5e4'>眩晕</font>。"
+  },
+  {
+    "hero_id": 121,
+    "hero_name": "grimstroke",
+    "ability_name": "grimstroke_spirit_walk",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "墨涌在施放时会驱散友方单位。墨涌造成的伤害增加%shard_bonus_damage_pct%%%，并且<font color='#07d738'>治疗</font>目标，治疗量为墨涌造成伤害的%shard_heal_pct%%%。<br><br>驱散类型：弱驱散",
+    "resolved_text": "墨涌在施放时会驱散友方单位。墨涌造成的伤害增加40%，并且治疗目标，治疗量为墨涌造成伤害的40%。\n\n驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 121,
+    "hero_name": "grimstroke",
+    "ability_name": "grimstroke_dark_portrait",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "制造目标敌方英雄的墨色幻象。幻象为<font color='#d76907'>减益免疫</font>状态，拥有%immunity_resist%%%魔法抗性，移动速度和继承攻击力超过本体。"
+  },
+  {
+    "hero_id": 123,
+    "hero_name": "hoodwink",
+    "ability_name": "hoodwink_decoy",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "森海飞霞变为<font color='#d7ccc7'>隐身</font>，提升移动速度，并且产生一个引诱敌人的幻象，幻象会瞄准最近的敌方英雄开始蓄力准备发射伤害较低的一箭穿心。如果幻象被攻击或被指向性技能击中，幻象将被摧毁并且攻击者将受到较弱的野地奇袭效果。"
+  },
+  {
+    "hero_id": 123,
+    "hero_name": "hoodwink",
+    "ability_name": "hoodwink_hunters_boomerang",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "掷出一把沿弧线飞行的回旋镖。击中后会飞回至森海飞霞。回旋镖对沿途击中的敌人都会造成伤害，并且施加一个负面效果，使受到作用的敌人被减速，承受的技能伤害增加。"
+  },
+  {
+    "hero_id": 123,
+    "hero_name": "hoodwink",
+    "ability_name": "hoodwink_sharpshooter",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升箭矢速度和减速效果。",
+    "resolved_text": "提升箭矢速度和减速效果。"
+  },
+  {
+    "hero_id": 126,
+    "hero_name": "void_spirit",
+    "ability_name": "void_spirit_aether_remnant",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "额外产生一道观察路径，会围绕残阴旋转。残阴现在会提供真实视域，不再对非英雄单位触发，而是每秒在两道路径上造成%creep_damage_pct%%%伤害。不会使守卫显形。",
+    "resolved_text": "额外产生一道观察路径，会围绕残阴旋转。残阴现在会提供真实视域，不再对非英雄单位触发，而是每秒在两道路径上造成50%伤害。不会使守卫显形。"
+  },
+  {
+    "hero_id": 126,
+    "hero_name": "void_spirit",
+    "ability_name": "void_spirit_resonant_pulse",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "共鸣脉冲可以<font color='#6db6e9'>沉默</font>敌人，并获得%max_charges%点能量点数。",
+    "resolved_text": "共鸣脉冲可以沉默敌人，并获得2点能量点数。"
+  },
+  {
+    "hero_id": 128,
+    "hero_name": "snapfire",
+    "ability_name": "snapfire_firesnap_cookie",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "龙炎饼干变得更具威力，<font color='#07d738'>治疗</font>目标，并且朝着陆地点发射一个%shard_damage_multiplier_tooltip%%%冲击伤害的蜥蜴绝吻。",
+    "resolved_text": "龙炎饼干变得更具威力，治疗目标，并且朝着陆地点发射一个40%冲击伤害的蜥蜴绝吻。"
+  },
+  {
+    "hero_id": 128,
+    "hero_name": "snapfire",
+    "ability_name": "snapfire_gobble_up",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "小莫迪吞下一个小兵或一名友方英雄，再朝敌人吐出。单位停留在他肚子里最多可达%max_time_in_belly%秒。"
+  },
+  {
+    "hero_id": 128,
+    "hero_name": "snapfire",
+    "ability_name": "snapfire_spit_creep",
+    "kind": "scepter",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": true,
+      "granted_by_shard": false
+    },
+    "original_text": "小莫迪吐出他肚子里的单位，对大片区域造成冲击伤害和<font color='#2dd5e4'>眩晕</font>。留下的火痰根据蜥蜴绝吻的当前等级还将持续造成减速和伤害。喷吐没有最小发射距离。"
+  },
+  {
+    "hero_id": 129,
+    "hero_name": "mars",
+    "ability_name": "mars_spear",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "战神迅矛可以刺中最多%max_impale_targets%名英雄，并留下一道火焰路径，持续造成伤害并减缓移动速度。",
+    "resolved_text": "战神迅矛可以刺中最多1名英雄，并留下一道火焰路径，持续造成伤害并减缓移动速度。"
+  },
+  {
+    "hero_id": 129,
+    "hero_name": "mars",
+    "ability_name": "mars_bulwark",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [
+      "soldier_count"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "开启护身甲盾后在玛尔斯的两侧共产生%soldier_count%名无敌的士兵。士兵会随着玛尔斯前进，继承全额攻击力和攻击特效并拥有攻击力加成，附带击退和减速效果。敌人在同一时间只会被1名士兵攻击。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 129,
+    "hero_name": "mars",
+    "ability_name": "mars_arena_of_blood",
+    "kind": "scepter",
+    "status": "resolved_by_alias",
+    "resolution": "All keys resolved via alias prefix/formula mapping",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "冷却时间降低%bonus_AbilityCooldown%秒，持续时间提升。如果敌人在竞技场内阵亡，玛尔斯和竞技场内所有友军都会回复%arena_kill_buff_heal_pct%%%最大生命和魔法，并且获得%arena_kill_buff_damage_pct%%%攻击力加成，持续%arena_kill_buff_duration%秒。这个效果可以叠加。",
+    "resolved_text": "冷却时间降低10秒，持续时间提升。如果敌人在竞技场内阵亡，玛尔斯和竞技场内所有友军都会回复35%最大生命和魔法，并且获得35%攻击力加成，持续20秒。这个效果可以叠加。"
+  },
+  {
+    "hero_id": 131,
+    "hero_name": "ringmaster",
+    "ability_name": "ringmaster_the_box",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "逃生技拥有%max_charges%点能量点数。逃生箱打开时会朝所有方向放出尖刀戏匕首，并且范围内所有敌人受到伤害。",
+    "resolved_text": "逃生技拥有2点能量点数。逃生箱打开时会朝所有方向放出尖刀戏匕首，并且范围内所有敌人受到伤害。"
+  },
+  {
+    "hero_id": 131,
+    "hero_name": "ringmaster",
+    "ability_name": "ringmaster_spotlight",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "百戏大王用%spotlight_count%束聚光灯照亮一片区域。灯光下的敌人有几率丢失攻击，<font color='#d7ccc7'>隐身</font>状态下也会显形。被光束击中的幻象会逐渐消散，每秒失去一定百分比的最大生命值。这些效果在灯束离开后会粘滞%linger_duration%秒。"
+  },
+  {
+    "hero_id": 135,
+    "hero_name": "dawnbreaker",
+    "ability_name": "dawnbreaker_fire_wreath",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "破晓辰星在星破天惊期间获得<font color='#d76907'>减益免疫</font>，%immunity_resist%%%魔法抗性加成和自由移动状态。破晓辰星会被减速%shard_movement_penalty%%%，移速最低为%movement_speed%。",
+    "resolved_text": "破晓辰星在星破天惊期间获得减益免疫，50%魔法抗性加成和自由移动状态。破晓辰星会被减速35%，移速最低为215。"
+  },
+  {
+    "hero_id": 135,
+    "hero_name": "dawnbreaker",
+    "ability_name": "dawnbreaker_luminosity",
+    "kind": "scepter",
+    "status": "stale_template",
+    "resolution": "ability_has_scepter=false, obsolete template skipped",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": false,
+      "granted_sibling_name": null
+    },
+    "original_text": "Dawnbreaker gets <span class=\"GameplayVariable\">2</span> Luminosity attacks every time she powers up.",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 135,
+    "hero_name": "dawnbreaker",
+    "ability_name": "dawnbreaker_break_of_dawn",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "辰星破晓提供治疗增强，数值等于当前攻击力提升。",
+    "resolved_text": "辰星破晓提供治疗增强，数值等于当前攻击力提升。"
+  },
+  {
+    "hero_id": 135,
+    "hero_name": "dawnbreaker",
+    "ability_name": "dawnbreaker_solar_guardian",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "天光现世的光环在破晓辰星落地后会跟随%scepter_aura_duration%秒。",
+    "resolved_text": "天光现世的光环在破晓辰星落地后会跟随2秒。"
+  },
+  {
+    "hero_id": 136,
+    "hero_name": "marci",
+    "ability_name": "marci_companion_run",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "提升伤害。回身踢可以对敌人施放，并且玛西施放后自身也会获得加速效果。",
+    "resolved_text": "提升伤害。回身踢可以对敌人施放，并且玛西施放后自身也会获得加速效果。"
+  },
+  {
+    "hero_id": 136,
+    "hero_name": "marci",
+    "ability_name": "marci_unleash",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "怒拳破的冷却时间减少%scepter_cooldown_reduction%秒，并且施放时对玛西施加弱驱散。怒拳破生效期间，玛西的所有技能在施放时都会施放脉冲。玛西的所有怒拳破脉冲都会<font color='#6db6e9'>沉默</font>敌人，持续%pulse_silence_duration%秒。<br><br>驱散类型：弱驱散",
+    "resolved_text": "怒拳破的冷却时间减少10秒，并且施放时对玛西施加弱驱散。怒拳破生效期间，玛西的所有技能在施放时都会施放脉冲。玛西的所有怒拳破脉冲都会沉默敌人，持续1秒。\n\n驱散类型：弱驱散"
+  },
+  {
+    "hero_id": 137,
+    "hero_name": "primal_beast",
+    "ability_name": "primal_beast_uproar",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "獸开启咤时，以自身为圆心施放出%projectile_waves%波弹道，每波每层咤的叠加效果有%projectiles_per_stack%个弹道。弹道造成伤害并对击中的敌人施加<font color='#dd621e'>破坏</font>效果。经过短暂延迟后每个弹道会分裂成两个。",
+    "resolved_text": "獸开启咤时，以自身为圆心施放出3波弹道，每波每层咤的叠加效果有2个弹道。弹道造成伤害并对击中的敌人施加破坏效果。经过短暂延迟后每个弹道会分裂成两个。"
+  },
+  {
+    "hero_id": 137,
+    "hero_name": "primal_beast",
+    "ability_name": "primal_beast_rock_throw",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "獸向目标地点扔出一块岩石，对敌人造成<font color='#2dd5e4'>眩晕</font>和伤害。岩石无法扔向獸身边的最小范围内。岩石落地后会分裂成3块碎石，落在初始目标地点的后方。<br><br>砸每击中一名英雄都会增加咤的一层叠加效果。"
+  },
+  {
+    "hero_id": 138,
+    "hero_name": "muerta",
+    "ability_name": "muerta_dead_shot",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "弹无虚发的伤害提升。弹无虚发的作用范围在弹跳后会扩大，并且跳弹恐惧敌人时会穿过敌方英雄。",
+    "resolved_text": "弹无虚发的伤害提升。弹无虚发的作用范围在弹跳后会扩大，并且跳弹恐惧敌人时会穿过敌方英雄。"
+  },
+  {
+    "hero_id": 138,
+    "hero_name": "muerta",
+    "ability_name": "muerta_spectral_slug",
+    "kind": "shard",
+    "status": "granted_ability",
+    "resolution": "ability_is_granted_by_* == true, treated as standalone ability",
+    "missing_keys": [],
+    "evidence": {
+      "granted_by_scepter": false,
+      "granted_by_shard": true
+    },
+    "original_text": "琼英碧灵对一个敌人射出一颗幽灵子弹，造成伤害，将其击退并将其变为<font color='#57e550'>虚无</font>状态，持续%duration%秒——使他们对物理伤害免疫，并且无法攻击。目标被减速，并且承受的魔法伤害增加%bonus_spell_damage_pct%%%。敌人不会被击出琼英碧灵的攻击距离。"
+  },
+  {
+    "hero_id": 138,
+    "hero_name": "muerta",
+    "ability_name": "muerta_pierce_the_veil",
+    "kind": "shard",
+    "status": "stale_template",
+    "resolution": "ability_has_shard=false, obsolete template skipped",
+    "missing_keys": [
+      "spell_lifesteal",
+      "spell_amp_steal"
+    ],
+    "evidence": {
+      "has_flag": false,
+      "has_granted_sibling": true,
+      "granted_sibling_name": "muerta_spectral_slug"
+    },
+    "original_text": "琼英碧灵在越界的持续时间内获得%spell_lifesteal%%%技能吸血。<br>越界生效时每次击杀敌方英雄或有敌方英雄在附近阵亡时琼英碧灵都会永久获得%spell_amp_steal%%%技能增强。永久加成具有追溯效果。",
+    "resolved_text": ""
+  },
+  {
+    "hero_id": 145,
+    "hero_name": "kez",
+    "ability_name": "kez_kazurai_katana",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "刺中后凯能从当次攻击吸血%lifesteal_pct%%%。如果从背后刺中目标，目标会被<font color='#2dd5e4'>眩晕</font>。提升最大爆发叠加数值。",
+    "resolved_text": "刺中后凯能从当次攻击吸血100%。如果从背后刺中目标，目标会被眩晕。提升最大爆发叠加数值。"
+  },
+  {
+    "hero_id": 145,
+    "hero_name": "kez",
+    "ability_name": "kez_switch_weapons",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "在使用流派变换后%scepter_cooldown_timer%秒内施放的第一个技能不会使相对的武器技能进入冷却，或者已进入冷却的技能会结束冷却。<br><br>施放任何武器的技能都会重置流派变换的冷却时间。",
+    "resolved_text": "在使用流派变换后3秒内施放的第一个技能不会使相对的武器技能进入冷却，或者已进入冷却的技能会结束冷却。\n\n施放任何武器的技能都会重置流派变换的冷却时间。"
+  },
+  {
+    "hero_id": 145,
+    "hero_name": "kez",
+    "ability_name": "kez_shodo_sai",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "招架会产生更强的印记，造成额外眩晕和致命一击伤害。",
+    "resolved_text": "招架会产生更强的印记，造成额外眩晕和致命一击伤害。"
+  },
+  {
+    "hero_id": 155,
+    "hero_name": "largo",
+    "ability_name": "largo_encore",
+    "kind": "shard",
+    "status": "valid",
+    "resolution": "ability_has_shard=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "只要朗戈对友方英雄施加单位目标技能的增益效果，他也会获得该增益。<br><br>只要朗戈对自身施加，该增益也会施加给指向性技能的施法距离内最近的友方英雄。",
+    "resolved_text": "只要朗戈对友方英雄施加单位目标技能的增益效果，他也会获得该增益。\n\n只要朗戈对自身施加，该增益也会施加给指向性技能的施法距离内最近的友方英雄。"
+  },
+  {
+    "hero_id": 155,
+    "hero_name": "largo",
+    "ability_name": "largo_amphibian_rhapsody",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "朗戈在每次节拍时可以弹奏两首乐曲。",
+    "resolved_text": "朗戈在每次节拍时可以弹奏两首乐曲。"
+  },
+  {
+    "hero_id": 155,
+    "hero_name": "largo",
+    "ability_name": "largo_song_fight_song",
+    "kind": "scepter",
+    "status": "valid",
+    "resolution": "ability_has_scepter=true, all special_values matched perfectly",
+    "missing_keys": [],
+    "evidence": {
+      "has_flag": true
+    },
+    "original_text": "这首乐曲用于两首共弹时每层律动都会额外造成%damage_per_stack%点魔法伤害。",
+    "resolved_text": "这首乐曲用于两首共弹时每层律动都会额外造成6 / 10 / 14点魔法伤害。"
+  }
+]

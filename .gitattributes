@@ -1,8 +1,9 @@
-* text=auto
+* text=auto eol=crlf
 
 *.cs text eol=crlf
 *.csproj text eol=crlf
 *.props text eol=crlf
+*.targets text eol=crlf
 *.sln text eol=crlf
 *.xaml text eol=crlf
 *.xml text eol=crlf
@@ -26,4 +27,9 @@
 *.dll binary
 *.zip binary
 *.onnx binary
+*.bin binary
+*.pri binary
+*.xbf binary
+*.pdb binary
 *.pyc binary
+

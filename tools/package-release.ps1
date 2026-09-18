@@ -1,145 +1,135 @@
-# AegisCoach 发布打包脚本 (便携版分层结构：最外层 exe + 内部 lib 运行库)
+﻿# AegisCoach 发布打包脚本 (免安装独立单文件客户端 exe，零注册表写入)
 param (
     [switch]$NoBuild = $false,
-    [switch]$Zip = $false
+    [switch]$Zip = $false,
+    [switch]$IncludeAi = $false
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
-$nativeProject = Join-Path $repoRoot 'native\AegisCoach.Native\AegisCoach.Native.csproj'
-$launcherProject = Join-Path $repoRoot 'tools\AegisCoach.Launcher\AegisCoach.Launcher.csproj'
 $releaseDir = Join-Path $repoRoot 'release'
 $releasePublish = Join-Path $releaseDir 'publish'
-$releaseLib = Join-Path $releasePublish 'lib'
-$tempZipPath = Join-Path $releaseDir 'AegisCoach-release.zip'
-$finalZipPath = Join-Path $releaseDir 'AegisCoach-发布版.zip'
+$finalZipPath = Join-Path $releaseDir 'AegisCoach-免安装便携版.zip'
 
-if (-not $NoBuild) {
-    Write-Host '==> 正在编译主程序 AegisCoach.Native (Release 优化配置)...' -ForegroundColor Cyan
-    & dotnet publish $nativeProject --configuration Release --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64 -p:SelfContained=false -p:PublishSingleFile=false
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host '==> Release 未还原资产，回退至 Debug 优化发布...' -ForegroundColor Yellow
-        & dotnet publish $nativeProject --configuration Debug --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64 -p:SelfContained=false -p:PublishSingleFile=false
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "主程序 dotnet publish 失败，退出码 $LASTEXITCODE"
-        }
-    }
+Write-Host '==========================================================' -ForegroundColor Cyan
+Write-Host '   神盾教练 (AegisCoach) - 客户端免安装便携版一键打包' -ForegroundColor Cyan
+Write-Host '==========================================================' -ForegroundColor Cyan
 
-    Write-Host '==> 正在编译便携单文件启动器 AegisCoach.Launcher...' -ForegroundColor Cyan
-    & dotnet publish $launcherProject --configuration Release -r win-x64 --self-contained false -p:PublishSingleFile=true
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "启动器 dotnet publish 失败，退出码 $LASTEXITCODE"
-    }
-}
+Write-Host '==> [1/4] 正在规范化全仓换行符 (Windows CRLF)...' -ForegroundColor Cyan
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'tools\Normalize-LineEndings.ps1')
 
-$publishRelease = Join-Path $repoRoot 'native\AegisCoach.Native\bin\x64\Release\net10.0-windows10.0.19041.0\win-x64\publish'
-$publishDebug = Join-Path $repoRoot 'native\AegisCoach.Native\bin\x64\Debug\net10.0-windows10.0.19041.0\win-x64\publish'
-$publishSrc = if (Test-Path $publishRelease) { $publishRelease } elseif (Test-Path $publishDebug) { $publishDebug } else { (Get-ChildItem (Join-Path $repoRoot 'native\AegisCoach.Native\bin\x64\*\*\win-x64\publish') -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName) }
-$launcherSrc = Join-Path $repoRoot 'tools\AegisCoach.Launcher\bin\Release\net10.0\win-x64\publish\神盾教练.exe'
-
-if (-not (Test-Path $publishSrc)) {
-    Write-Error "主程序发布输出目录不存在: $publishSrc"
-}
-if (-not (Test-Path $launcherSrc)) {
-    Write-Error "启动器发布输出文件不存在: $launcherSrc"
-}
-
-# 清理旧发布目录中散落的根目录 DLL/文件，重新构建便携目录树
+# 确保输出目录就绪
 if (Test-Path $releasePublish) {
     Remove-Item $releasePublish -Recurse -Force -ErrorAction SilentlyContinue
 }
-New-Item -ItemType Directory -Path $releaseLib -Force | Out-Null
+New-Item -ItemType Directory -Path $releasePublish -Force | Out-Null
 
-Write-Host "==> 正在同步主程序运行库到 release/publish/lib..." -ForegroundColor Cyan
-& robocopy $publishSrc $releaseLib /MIR /R:1 /W:1 /NP /NFL /NDL | Out-Null
+$clientExe = $null
 
-Write-Host '==> 正在进行客户端瘦身优化（剥离无用硬件插件、未用子系统、多余语言包与 PDB 符号）...' -ForegroundColor Cyan
-$unusedLibs = @(
-    'openvino_intel_gpu_plugin.dll',
-    'openvino_tensorflow_frontend.dll',
-    'openvino_tensorflow_lite_frontend.dll',
-    'openvino_pytorch_frontend.dll',
-    'openvino_paddle_frontend.dll',
-    'Microsoft.Windows.Search.dll',
-    'Microsoft.Windows.Search.Projection.dll',
-    'Microsoft.Web.WebView2.Core.dll',
-    'Microsoft.Web.WebView2.Core.Projection.dll',
-    'WebView2Loader.dll'
-)
-foreach ($lib in $unusedLibs) {
-    $targetLib = Join-Path $releaseLib $lib
-    if (Test-Path $targetLib) {
-        Remove-Item $targetLib -Force
-        Write-Host "    已移除无用依赖库: $lib" -ForegroundColor DarkGray
+if (-not $NoBuild) {
+    Write-Host '==> [2/4] 正在构建前端电竞 HUD 静态资产 (Vite + Vue 3 + TypeScript)...' -ForegroundColor Cyan
+    Set-Location (Join-Path $repoRoot 'frontend')
+    & pnpm build
+    if ($LASTEXITCODE -ne 0) {
+        Set-Location $repoRoot
+        Write-Error "前端构建失败，退出码: $LASTEXITCODE"
+    }
+    Set-Location $repoRoot
+
+    Write-Host '==> [3/4] 正在编译免安装独立客户端 exe (Wails + Go 零 C++ 依赖)...' -ForegroundColor Cyan
+
+    $goCandidates = @(
+        "D:\develop\go\go1.27.1\bin\go.exe",
+        "D:\develop\go\go1.26.2\bin\go.exe",
+        "$env:ProgramFiles\Go\bin\go.exe"
+    )
+    $goExe = $null
+    foreach ($candidate in $goCandidates) {
+        if (Test-Path $candidate) {
+            $goExe = $candidate
+            break
+        }
+    }
+    if (-not $goExe) {
+        $goCmd = Get-Command go -ErrorAction SilentlyContinue
+        if ($goCmd) { $goExe = $goCmd.Source }
+    }
+
+    $wailsCandidates = @(
+        "$env:USERPROFILE\go\bin\wails.exe",
+        "$env:GOPATH\bin\wails.exe"
+    )
+    $wailsExe = $null
+    foreach ($candidate in $wailsCandidates) {
+        if (Test-Path $candidate) {
+            $wailsExe = $candidate
+            break
+        }
+    }
+    if (-not $wailsExe) {
+        $wailsCmd = Get-Command wails -ErrorAction SilentlyContinue
+        if ($wailsCmd) { $wailsExe = $wailsCmd.Source }
+    }
+
+    if ($goExe) {
+        Write-Host "    发现 Go 极速便携构建器: $goExe" -ForegroundColor Green
+        Push-Location $repoRoot
+        $env:GOPROXY = "https://goproxy.cn,direct"
+        $goDir = [System.IO.Path]::GetDirectoryName($goExe)
+        $env:PATH = "$goDir;$env:USERPROFILE\go\bin;$env:PATH"
+        & $goExe mod tidy
+
+        $outputExe = Join-Path $releasePublish '神盾教练.exe'
+        Write-Host "    正在生成单文件可执行程序: $outputExe ..." -ForegroundColor Cyan
+
+        if ($wailsExe) {
+            Write-Host "    使用 Wails 官方 CLI 进行完整桌面打包: $wailsExe" -ForegroundColor Green
+            & $wailsExe build -clean -s -compiler "$goExe" -o "神盾教练.exe"
+            $wailsOut = Join-Path $repoRoot 'build\bin\神盾教练.exe'
+            if (Test-Path $wailsOut) {
+                Copy-Item $wailsOut $outputExe -Force
+                Remove-Item (Join-Path $repoRoot 'build\bin') -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if (-not (Test-Path $outputExe)) {
+            Write-Host "    回退使用 Go 原生带生产标签编译 (-tags desktop,production)..." -ForegroundColor Yellow
+            & $goExe build -tags "desktop,production" -ldflags="-H windowsgui -s -w" -o $outputExe
+        }
+        Pop-Location
+
+        if (Test-Path $outputExe) {
+            $clientExe = $outputExe
+            $exeSizeMb = [math]::Round(((Get-Item $outputExe).Length / 1MB), 2)
+            Write-Host "    单文件客户端编译成功！体积: $exeSizeMb MB" -ForegroundColor Green
+        }
+    }
+} else {
+    $existingExe = Join-Path $releasePublish '神盾教练.exe'
+    if (Test-Path $existingExe) {
+        $clientExe = $existingExe
     }
 }
 
-# 剔除未使用的多语言 MUI 目录（仅保留 zh-CN 与 en-us，清除 ca-Es-VALENCIA 等残留）
-Get-ChildItem $releaseLib -Directory | Where-Object { $_.Name -notin @('zh-CN', 'en-us', 'Assets', 'Themes', 'Views', 'Microsoft.UI.Xaml') -and (Test-Path (Join-Path $_.FullName '*.mui')) } | ForEach-Object {
-    Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "    已移除冗余语言目录: $($_.Name)" -ForegroundColor DarkGray
-}
+Write-Host '==> [4/4] 正在汇总整理便携运行套件...' -ForegroundColor Cyan
 
-# 剔除未引用的 2MB 高清原图与重复图标
-$redundantAssets = @(
-    Join-Path $releaseLib 'Assets\Icons\app.png',
-    Join-Path $releaseLib 'Assets\Icons\app.ico'
-)
-foreach ($asset in $redundantAssets) {
-    if (Test-Path $asset) {
-        Remove-Item $asset -Force
-        Write-Host "    已移除冗余静态资产: $(Split-Path $asset -Leaf)" -ForegroundColor DarkGray
-    }
-}
+# 复制便携说明与 GSI 配置文件
+Copy-Item (Join-Path $repoRoot 'tools\assets\使用说明.txt') $releasePublish -Force
+Copy-Item (Join-Path $repoRoot 'tools\assets\gamestate_integration_aegis.cfg') $releasePublish -Force
 
-Get-ChildItem $releaseLib -Filter '*.pdb' | Remove-Item -Force
-
-# 将 lib 内部的核心程序标记为隐藏，让普通用户打开 lib 目录时只看到纯粹的库与资源，避免双重 exe 混淆
-$internalExe = Join-Path $releaseLib '神盾教练.exe'
-if (Test-Path $internalExe) {
-    Set-ItemProperty -Path $internalExe -Name Attributes -Value ([System.IO.FileAttributes]::Hidden)
-    Write-Host "    已将 lib 内部核心程序标记为隐藏" -ForegroundColor DarkGray
-}
-
-Write-Host "==> 正在安装便携版外层启动入口..." -ForegroundColor Cyan
-$rootExe = Join-Path $releasePublish '神盾教练.exe'
-Copy-Item -Path $launcherSrc -Destination $rootExe -Force
-
-$readmePath = Join-Path $releasePublish '便携版说明.txt'
-@"
-神盾教练 - 便携绿色版
-======================================
-【启动方式】
-直接双击最外层的“神盾教练.exe”即可运行。
-
-【文件说明】
-- 神盾教练.exe : 便携启动入口（位于最外层，干净清爽）
-- lib\        : 核心程序组件、资源与全部依赖运行库（请勿移动或删除）
-"@ | Set-Content -Path $readmePath -Encoding UTF8
-
-$exeItem = Get-Item $rootExe
-$exeKb = [Math]::Round($exeItem.Length / 1KB, 1)
-$libFiles = (Get-ChildItem $releaseLib -Recurse -File).Count
-Write-Host "==> 便携版外层入口: $rootExe ($exeKb KB，直接双击运行)" -ForegroundColor Green
-Write-Host "==> 内部库组件目录: $releaseLib ($libFiles 个组件全部收归 lib 目录)" -ForegroundColor Green
 
 if ($Zip) {
-    Write-Host '==> 正在生成发布压缩包...' -ForegroundColor Cyan
-    if (Test-Path $tempZipPath) { Remove-Item $tempZipPath -Force }
-    if (Test-Path $finalZipPath) { Remove-Item $finalZipPath -Force }
-
-    & tar.exe -a -cf $tempZipPath -C $releasePublish .
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "tar 压缩失败，退出码 $LASTEXITCODE"
+    Write-Host "==> 正在压缩生成免安装便携分发包: $finalZipPath ..." -ForegroundColor Cyan
+    if (Test-Path $finalZipPath) {
+        Remove-Item $finalZipPath -Force
     }
+    Compress-Archive -Path "$releasePublish\*" -DestinationPath $finalZipPath -Force
+    $zipSizeMb = [math]::Round(((Get-Item $finalZipPath).Length / 1MB), 2)
+    Write-Host "==> 打包完成！便携 ZIP 压缩包大小: $zipSizeMb MB" -ForegroundColor Green
+}
 
-    [System.IO.File]::Move($tempZipPath, $finalZipPath)
-    $zipItem = Get-Item $finalZipPath
-    $sizeMb = [Math]::Round($zipItem.Length / 1MB, 2)
-    Write-Host "==> 分发压缩包完成: $($zipItem.FullName) ($sizeMb MB)" -ForegroundColor Green
-} else {
-    if (Test-Path $tempZipPath) { Remove-Item $tempZipPath -Force }
-    if (Test-Path $finalZipPath) { Remove-Item $finalZipPath -Force }
-    Write-Host "==> 发布打包完成：已生成独立免安装可执行程序（符合便携版设置，默认不生成 zip）" -ForegroundColor Green
+Write-Host "==> 发布打包圆满完成！输出路径: $releasePublish" -ForegroundColor Green
+if ($clientExe) {
+    Write-Host "    主程序位置: $clientExe" -ForegroundColor Green
 }
