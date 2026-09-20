@@ -1,135 +1,104 @@
-﻿# AegisCoach 发布打包脚本 (免安装独立单文件客户端 exe，零注册表写入)
+# 神盾教练 (AegisCoach) - Wails v3 原生免安装客户端一键打包
 param (
-    [switch]$NoBuild = $false,
-    [switch]$Zip = $false,
-    [switch]$IncludeAi = $false
+    [switch]$NoBuild = $false
 )
 
 $ErrorActionPreference = 'Stop'
-
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $releaseDir = Join-Path $repoRoot 'release'
-$releasePublish = Join-Path $releaseDir 'publish'
-$finalZipPath = Join-Path $releaseDir 'AegisCoach-免安装便携版.zip'
 
 Write-Host '==========================================================' -ForegroundColor Cyan
-Write-Host '   神盾教练 (AegisCoach) - 客户端免安装便携版一键打包' -ForegroundColor Cyan
+Write-Host '   神盾教练 (AegisCoach) - 客户端免安装便携版打包 (Wails v3)' -ForegroundColor Cyan
 Write-Host '==========================================================' -ForegroundColor Cyan
 
-Write-Host '==> [1/4] 正在规范化全仓换行符 (Windows CRLF)...' -ForegroundColor Cyan
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'tools\Normalize-LineEndings.ps1')
+# 终止运行中的旧进程
+Get-Process -Name "神盾教练" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 150
 
-# 确保输出目录就绪
-if (Test-Path $releasePublish) {
-    Remove-Item $releasePublish -Recurse -Force -ErrorAction SilentlyContinue
+# 准备 release 目录
+if (-not (Test-Path $releaseDir)) {
+    New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 }
-New-Item -ItemType Directory -Path $releasePublish -Force | Out-Null
 
-$clientExe = $null
+$outputExe = Join-Path $releaseDir '神盾教练.exe'
 
 if (-not $NoBuild) {
-    Write-Host '==> [2/4] 正在构建前端电竞 HUD 静态资产 (Vite + Vue 3 + TypeScript)...' -ForegroundColor Cyan
-    Set-Location (Join-Path $repoRoot 'frontend')
-    & pnpm build
-    if ($LASTEXITCODE -ne 0) {
-        Set-Location $repoRoot
-        Write-Error "前端构建失败，退出码: $LASTEXITCODE"
+    Write-Host '==> [1/3] 正在构建前端电竞 HUD 静态资产 (Vite + Vue 3)...' -ForegroundColor Cyan
+    Push-Location (Join-Path $repoRoot 'frontend')
+    try {
+        & pnpm build
+        if ($LASTEXITCODE -ne 0) { throw "前端构建失败" }
+    } finally {
+        Pop-Location
     }
-    Set-Location $repoRoot
 
-    Write-Host '==> [3/4] 正在编译免安装独立客户端 exe (Wails + Go 零 C++ 依赖)...' -ForegroundColor Cyan
+    Write-Host '==> [2/3] 正在生成 Windows 专属图标与高 DPI 资产并编译...' -ForegroundColor Cyan
+    Push-Location $repoRoot
 
-    $goCandidates = @(
-        "D:\develop\go\go1.27.1\bin\go.exe",
-        "D:\develop\go\go1.26.2\bin\go.exe",
-        "$env:ProgramFiles\Go\bin\go.exe"
-    )
+    # 智能定位 go.exe 可执行程序 (防止 -NoProfile 环境缺失 PATH)
     $goExe = $null
-    foreach ($candidate in $goCandidates) {
-        if (Test-Path $candidate) {
-            $goExe = $candidate
-            break
-        }
+    $goCandidates = @(
+        "C:\Program Files\Go\bin\go.exe",
+        "C:\Go\bin\go.exe",
+        "$env:GOROOT\bin\go.exe",
+        "$env:LOCALAPPDATA\Programs\Go\bin\go.exe",
+        "D:\develop\go\bin\go.exe"
+    )
+    foreach ($c in $goCandidates) {
+        if ($c -and (Test-Path $c)) { $goExe = $c; break }
     }
     if (-not $goExe) {
-        $goCmd = Get-Command go -ErrorAction SilentlyContinue
-        if ($goCmd) { $goExe = $goCmd.Source }
+        $cmd = Get-Command go -ErrorAction SilentlyContinue
+        if ($cmd) { $goExe = $cmd.Source }
+    }
+    if (-not $goExe) {
+        throw "未能在系统中找到 go.exe，请确认已安装 Go"
     }
 
-    $wailsCandidates = @(
-        "$env:USERPROFILE\go\bin\wails.exe",
-        "$env:GOPATH\bin\wails.exe"
+    # 确保 go 所在目录加入当前 session 的 PATH，避免子命令依赖缺失
+    $goBinDir = Split-Path $goExe -Parent
+    if ($env:PATH -notlike "*$goBinDir*") {
+        $env:PATH = "$goBinDir;$env:PATH"
+    }
+
+    $wails3Candidates = @(
+        "$env:USERPROFILE\go\bin\wails3.exe",
+        "D:\develop\go\gopath\bin\wails3.exe"
     )
-    $wailsExe = $null
-    foreach ($candidate in $wailsCandidates) {
-        if (Test-Path $candidate) {
-            $wailsExe = $candidate
-            break
-        }
+    $wails3Exe = $null
+    foreach ($c in $wails3Candidates) {
+        if (Test-Path $c) { $wails3Exe = $c; break }
     }
-    if (-not $wailsExe) {
-        $wailsCmd = Get-Command wails -ErrorAction SilentlyContinue
-        if ($wailsCmd) { $wailsExe = $wailsCmd.Source }
+    if (-not $wails3Exe) {
+        $cmd = Get-Command wails3 -ErrorAction SilentlyContinue
+        if ($cmd) { $wails3Exe = $cmd.Source }
     }
 
-    if ($goExe) {
-        Write-Host "    发现 Go 极速便携构建器: $goExe" -ForegroundColor Green
-        Push-Location $repoRoot
-        $env:GOPROXY = "https://goproxy.cn,direct"
-        $goDir = [System.IO.Path]::GetDirectoryName($goExe)
-        $env:PATH = "$goDir;$env:USERPROFILE\go\bin;$env:PATH"
-        & $goExe mod tidy
+    $sysoFile = Join-Path $repoRoot 'rsrc_windows_amd64.syso'
+    $iconFile = Join-Path $repoRoot 'build\windows\icon.ico'
+    $manifestFile = Join-Path $repoRoot 'build\windows\wails.exe.manifest'
+    $infoFile = Join-Path $repoRoot 'build\windows\info.json'
 
-        $outputExe = Join-Path $releasePublish '神盾教练.exe'
-        Write-Host "    正在生成单文件可执行程序: $outputExe ..." -ForegroundColor Cyan
+    if ($wails3Exe -and (Test-Path $iconFile) -and (Test-Path $manifestFile) -and (Test-Path $infoFile)) {
+        & $wails3Exe generate syso -arch amd64 -icon $iconFile -manifest $manifestFile -info $infoFile -out $sysoFile
+    }
 
-        if ($wailsExe) {
-            Write-Host "    使用 Wails 官方 CLI 进行完整桌面打包: $wailsExe" -ForegroundColor Green
-            & $wailsExe build -clean -s -compiler "$goExe" -o "神盾教练.exe"
-            $wailsOut = Join-Path $repoRoot 'build\bin\神盾教练.exe'
-            if (Test-Path $wailsOut) {
-                Copy-Item $wailsOut $outputExe -Force
-                Remove-Item (Join-Path $repoRoot 'build\bin') -Recurse -Force -ErrorAction SilentlyContinue
-            }
-        }
-
-        if (-not (Test-Path $outputExe)) {
-            Write-Host "    回退使用 Go 原生带生产标签编译 (-tags desktop,production)..." -ForegroundColor Yellow
-            & $goExe build -tags "desktop,production" -ldflags="-H windowsgui -s -w" -o $outputExe
-        }
+    try {
+        & $goExe build -tags "desktop,production" -ldflags="-H windowsgui -s -w" -o $outputExe
+        if ($LASTEXITCODE -ne 0) { throw "Go 客户端编译失败" }
+    } finally {
+        if (Test-Path $sysoFile) { Remove-Item $sysoFile -Force -ErrorAction SilentlyContinue }
         Pop-Location
+    }
 
-        if (Test-Path $outputExe) {
-            $clientExe = $outputExe
-            $exeSizeMb = [math]::Round(((Get-Item $outputExe).Length / 1MB), 2)
-            Write-Host "    单文件客户端编译成功！体积: $exeSizeMb MB" -ForegroundColor Green
-        }
-    }
-} else {
-    $existingExe = Join-Path $releasePublish '神盾教练.exe'
-    if (Test-Path $existingExe) {
-        $clientExe = $existingExe
-    }
+    $exeSizeMb = [math]::Round(((Get-Item $outputExe).Length / 1MB), 2)
+    Write-Host "    单文件客户端编译成功！体积: $exeSizeMb MB" -ForegroundColor Green
 }
 
-Write-Host '==> [4/4] 正在汇总整理便携运行套件...' -ForegroundColor Cyan
-
-# 复制便携说明与 GSI 配置文件
-Copy-Item (Join-Path $repoRoot 'tools\assets\使用说明.txt') $releasePublish -Force
-Copy-Item (Join-Path $repoRoot 'tools\assets\gamestate_integration_aegis.cfg') $releasePublish -Force
-
-
-if ($Zip) {
-    Write-Host "==> 正在压缩生成免安装便携分发包: $finalZipPath ..." -ForegroundColor Cyan
-    if (Test-Path $finalZipPath) {
-        Remove-Item $finalZipPath -Force
-    }
-    Compress-Archive -Path "$releasePublish\*" -DestinationPath $finalZipPath -Force
-    $zipSizeMb = [math]::Round(((Get-Item $finalZipPath).Length / 1MB), 2)
-    Write-Host "==> 打包完成！便携 ZIP 压缩包大小: $zipSizeMb MB" -ForegroundColor Green
+Write-Host '==> [3/3] 正在汇总便携套件与配置文件...' -ForegroundColor Cyan
+$assetsDir = Join-Path $repoRoot 'tools\assets'
+if (Test-Path $assetsDir) {
+    Get-ChildItem -Path $assetsDir -File | Copy-Item -Destination $releaseDir -Force
 }
 
-Write-Host "==> 发布打包圆满完成！输出路径: $releasePublish" -ForegroundColor Green
-if ($clientExe) {
-    Write-Host "    主程序位置: $clientExe" -ForegroundColor Green
-}
+Write-Host "==> 发布打包圆满完成！输出位置: $outputExe" -ForegroundColor Green

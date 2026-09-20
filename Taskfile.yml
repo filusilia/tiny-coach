@@ -1,0 +1,31 @@
+version: '3'
+
+vars:
+  APP_NAME: "神盾教练.exe"
+
+tasks:
+  default:
+    deps:
+      - task: build
+
+  frontend:build:
+    summary: 构建前端静态资产
+    dir: frontend
+    cmds:
+      - pnpm build
+
+  generate:syso:
+    summary: 生成 Windows 专属资源 (高清图标与高 DPI 清单)
+    platforms:
+      - windows
+    cmds:
+      - wails3 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out rsrc_windows_amd64.syso
+
+  build:
+    summary: 编译可执行程序
+    deps:
+      - task: frontend:build
+      - task: generate:syso
+    cmds:
+      - go build -tags "desktop,production" -ldflags="-H windowsgui -s -w" -o release/{{.APP_NAME}}
+      - cmd /c "if exist rsrc_windows_amd64.syso del /f /q rsrc_windows_amd64.syso"

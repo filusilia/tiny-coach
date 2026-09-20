@@ -193,7 +193,7 @@ export const SHOP_ITEMS = new Set<string>([
   'item_wraith_band',
   'item_yasha',
   'item_yasha_and_kaya',
-]);
+])
 
 // 现行中立物品列表及其阶级 (Tier 1 ~ 5)
 export const NEUTRAL_ITEMS: Record<string, number> = {
@@ -246,7 +246,7 @@ export const NEUTRAL_ITEMS: Record<string, number> = {
   item_stormcrafter: 3,
   item_unrelenting_eye: 3,
   item_weighted_dice: 1,
-};
+}
 
 // 特殊肉山/升级物品
 export const SPECIAL_ITEMS = new Set<string>([
@@ -257,34 +257,34 @@ export const SPECIAL_ITEMS = new Set<string>([
   'item_travel_boots_2',
   'item_ultimate_scepter_2',
   'item_ultimate_scepter_roshan',
-]);
+])
 
 export function normalizeItemKey(name: string): string {
-  if (name.startsWith('item_')) return name;
-  return `item_${name}`;
+  if (name.startsWith('item_')) return name
+  return `item_${name}`
 }
 
 /**
  * 校验物品是否为 7.41e 现行有效物品 (剔除所有已废弃物品)
  */
 export function isCurrentItem(name: string): boolean {
-  const key = normalizeItemKey(name);
-  return SHOP_ITEMS.has(key) || key in NEUTRAL_ITEMS || SPECIAL_ITEMS.has(key);
+  const key = normalizeItemKey(name)
+  return SHOP_ITEMS.has(key) || key in NEUTRAL_ITEMS || SPECIAL_ITEMS.has(key)
 }
 
 export function isShopItem(name: string): boolean {
-  const key = normalizeItemKey(name);
-  return SHOP_ITEMS.has(key);
+  const key = normalizeItemKey(name)
+  return SHOP_ITEMS.has(key)
 }
 
 export function isNeutralItem(name: string): boolean {
-  const key = normalizeItemKey(name);
-  return key in NEUTRAL_ITEMS;
+  const key = normalizeItemKey(name)
+  return key in NEUTRAL_ITEMS
 }
 
 export function getNeutralTier(name: string): number {
-  const key = normalizeItemKey(name);
-  return NEUTRAL_ITEMS[key] ?? 0;
+  const key = normalizeItemKey(name)
+  return NEUTRAL_ITEMS[key] ?? 0
 }
 
 // 官方 10 大分类字典映射
@@ -500,14 +500,14 @@ const CATEGORY_MAP: Record<string, string> = {
   item_refresher_shard: '神器',
   item_travel_boots: '神器',
   item_moon_shard: '神器',
-};
+}
 
 /**
  * 获取物品的官方商店子分类
  */
 export function getItemCategory(name: string): string {
-  const key = normalizeItemKey(name);
-  if (isNeutralItem(key)) return '中立物品';
-  if (SPECIAL_ITEMS.has(key)) return '肉山特殊';
-  return CATEGORY_MAP[key] || '军备';
+  const key = normalizeItemKey(name)
+  if (isNeutralItem(key)) return '中立物品'
+  if (SPECIAL_ITEMS.has(key)) return '肉山特殊'
+  return CATEGORY_MAP[key] || '军备'
 }

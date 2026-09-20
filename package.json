@@ -6,11 +6,17 @@
   "scripts": {
     "dev": "pnpm --filter frontend dev",
     "build": "pnpm --filter frontend build",
+    "package": "pwsh -NoProfile -File ./tools/package-release.ps1",
     "preview": "pnpm --filter frontend preview",
     "verify-notes": "node scripts/verify-agent-notes.cjs",
     "archive-note": "npx tsx scripts/archive-agent-note.ts"
   },
   "devDependencies": {
-    "@types/node": "^26.6.1"
+    "@types/node": "^26.6.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

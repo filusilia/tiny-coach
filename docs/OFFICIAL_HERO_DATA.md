@@ -58,13 +58,11 @@
 注意：当前页面尚未单独显示每条技能的快照日期，离线资料不保证最新；force 刷新失败仍报错，不伪装成功。
 
 ```powershell
-# 顺序限速、重试、完整校验后原子替换快照（需要联网，使用 PowerShell 7）
-pwsh -NoProfile -File .\tools\Sync-OfficialHeroes.ps1
-# 运行真实 DTO / 解析器回归与全英雄字段审计
-dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj --no-restore
+# 运行真实数据解析回归与全英雄字段审计（官方快照内置于 frontend/public/assets/data/heroes-details-official.json）
+node scripts/generate-hero-text-audit.cjs
 ```
 
-审计输出：`tools/GsiSmoke/bin/Debug/net10.0/hero-text-audit.json`。刷新快照后应复查缺项变化，不应把“中文提示通过”解释为“官网数据全部补齐”。
+审计输出：`hero-text-audit.json` 与 `frontend/public/assets/data/hero-text-audit.json`。刷新快照后应复查缺项变化，不应把“中文提示通过”解释为“官网数据全部补齐”。
 
 ## 神杖/魔晶升级有效性判断机制与历史遗留模板鉴别
 
@@ -157,7 +155,7 @@ dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj --no-restore
 
 通过执行自动化冒烟测试与审计脚本：
 ```powershell
-dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj --no-restore
+node scripts/generate-hero-text-audit.cjs
 ```
 
 **实测全量审计输出：**
@@ -170,9 +168,9 @@ dotnet run --project tools\GsiSmoke\AegisCoach.Smoke.csproj --no-restore
 - 已移除技能废弃天赋跳过 (`removed_abilities`)：**1** 项（小娜迦捕捞天赋）
 - 别名策略自动解析 (`resolved_by_alias`)：**3** 项（前缀剥离、公式合成、天赋反查各 1 项）
 - 数据源专用词汇放行与快照覆盖 (`resolved_by_snapshot`)：**1** 项（卡尔 EMP 放行 Eul）
-- 审计报告文件：`tools/GsiSmoke/bin/Debug/net10.0/hero-text-audit.json`（严格规范 `status`、`resolution`、`missing_keys`、`evidence` 4 个标准字段）
+- 审计报告文件：`hero-text-audit.json` 与 `frontend/public/assets/data/hero-text-audit.json`（严格规范 `status`、`resolution`、`missing_keys`、`evidence` 4 个标准字段）
 
 ## 菜单图标
 
-`Themes/NavigationIcons.xaml` 提供原创 24 单位矢量资源：头盔（英雄）、晶石（物品）、神盾（教练）、卷轴（分析）、符文齿轮（设置）。20px 显示时继承导航颜色及选中状态，无外部图标字体依赖。保留文字标签、内置设置导航语义与 TitleBar 拖拽区。编译验证不替代实际窗口视觉验收。
+导航采用 `@lucide/vue` 官方现代矢量图标结合 Dota 2 官方原生图标：盾牌（教练）、剑刃/头盔（英雄）、晶石（物品）、卷轴（分析）、齿轮（设置）。显示时继承导航颜色及选中状态，统一电竞暗黑视觉风格。保留文字标签、内置设置导航语义与沉浸式暗黑窗口设计。
 

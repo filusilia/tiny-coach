@@ -1,0 +1,89 @@
+<!-- Dota2 暗铜高光金渐变 (边框内饰) -->
+<linearGradient id="dotaAccent" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3" />
+    <stop offset="50%" stop-color="#c9974c" />
+    <stop offset="100%" stop-color="#4e320f" />
+</linearGradient>
+
+        <!-- Dota2 熔岩赤红发光 (标志性 Logo 色) -->
+<radialGradient id="dotaRedGlow" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#e03b22" stop-opacity="0.8" />
+<stop offset="70%" stop-color="#7a140a" stop-opacity="0.2" />
+<stop offset="100%" stop-color="#000000" stop-opacity="0" />
+</radialGradient>
+
+        <!-- 阴影滤镜 -->
+<filter id="dotaShadow" x="-20%" y="-20%" width="140%" height="140%">
+<feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.9" />
+</filter>
+
+
+        <!-- 英雄头盔/面甲核心图形 (硬派金属锐角造型) -->
+        <!-- 头盔额顶冠饰 -->
+<path d="M100 48 L114 68 L100 64 L86 68 Z" fill="url(#dotaGold)" />
+        <!-- 头盔主轮廓 -->
+<path d="M100 58 L142 84 L132 136 L100 156 L68 136 L58 84 Z"
+      stroke="url(#dotaGold)" stroke-width="3" stroke-linejoin="bevel" fill="none" />
+        <!-- T型视觉开孔与眼缝 (冷冽战盔感) -->
+<path d="M78 96 L122 96 L118 108 L106 108 L106 138 L94 138 L94 108 L82 108 Z"
+      fill="url(#dotaGold)" />
+        <!-- 两侧面甲强化斜切线 -->
+<path d="M68 92 L88 126 M132 92 L112 126" stroke="url(#dotaGold)" stroke-width="2" stroke-linecap="round"/>
+
+
+        <!-- 宝物/圣物核心 (宝石多面棱台切面) -->
+<path d="M300 48 L342 78 L334 134 L300 156 L266 134 L258 78 Z"
+      stroke="url(#dotaGold)" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+        <!-- 内部切面骨架 -->
+<polygon points="300,72 326,86 322,124 300,140 278,124 274,86"
+         stroke="url(#dotaGold)" stroke-width="2" fill="none"/>
+<line x1="300" y1="48" x2="300" y2="72" stroke="url(#dotaGold)" stroke-width="2"/>
+<line x1="342" y1="78" x2="326" y2="86" stroke="url(#dotaGold)" stroke-width="2"/>
+<line x1="334" y1="134" x2="322" y2="124" stroke="url(#dotaGold)" stroke-width="2"/>
+<line x1="300" y1="156" x2="300" y2="140" stroke="url(#dotaGold)" stroke-width="2"/>
+<line x1="266" y1="134" x2="278" y2="124" stroke="url(#dotaGold)" stroke-width="2"/>
+<line x1="258" y1="78" x2="274" y2="86" stroke="url(#dotaGold)" stroke-width="2"/>
+        <!-- 核心能量点 -->
+<circle cx="300" cy="105" r="5" fill="#edd19a"/>
+
+
+        <!-- 战术眼球/洞察符文外框 -->
+<path d="M455 100 Q500 62 545 100 Q500 138 455 100 Z"
+      stroke="url(#dotaGold)" stroke-width="3" fill="none" stroke-linejoin="round" />
+        <!-- 聚焦准星圆环与瞳孔 -->
+<circle cx="500" cy="100" r="18" stroke="url(#dotaGold)" stroke-width="2.5" fill="none"/>
+<polygon points="500,91 508,100 500,109 492,100" fill="#edd19a" />
+        <!-- 指挥官战术刻度/十字标线标尺 (硬直切角) -->
+<line x1="500" y1="52" x2="500" y2="68" stroke="url(#dotaGold)" stroke-width="3"/>
+<line x1="500" y1="132" x2="500" y2="148" stroke="url(#dotaGold)" stroke-width="3"/>
+<line x1="440" y1="100" x2="452" y2="100" stroke="url(#dotaGold)" stroke-width="3"/>
+<line x1="548" y1="100" x2="560" y2="100" stroke="url(#dotaGold)" stroke-width="3"/>
+
+
+        <!-- 战后数据对决折线 (Dota地图河道斜对角线构图) -->
+        <!-- 阶梯柱状图与趋势折线结合 -->
+        <!-- 柱状数据条 (斜切顶角) -->
+<polygon points="660,138 672,138 672,118 660,123" fill="url(#dotaGold)" opacity="0.7"/>
+<polygon points="678,138 690,138 690,98 678,103" fill="url(#dotaGold)" opacity="0.85"/>
+<polygon points="696,138 708,138 708,82 696,87" fill="url(#dotaGold)"/>
+<polygon points="714,138 726,138 726,64 714,69" fill="#edd19a"/>
+
+        <!-- 分析基座标尺横线 -->
+<line x1="652" y1="140" x2="748" y2="140" stroke="url(#dotaGold)" stroke-width="3" stroke-linecap="square"/>
+
+        <!-- 战局击杀/经济曲线折线剪影 -->
+<polyline points="656,112 682,98 702,106 738,58"
+          stroke="#e03b22" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="738,58 725,62 734,71" fill="#e03b22" />
+
+
+        <!-- 官方原生扁平硬质齿轮构造 (6齿方榫、梯形粗犷倒角) -->
+<path d="M891 54 L909 54 L912 68 L927 74 L939 65 L952 78 L943 90 L949 105 L963 108 L963 126 L949 129 L943 144 L952 156 L939 169 L927 160 L912 166 L909 180 L891 180 L888 166 L873 160 L861 169 L848 156 L857 144 L851 129 L837 126 L837 108 L851 105 L857 90 L848 78 L861 65 L873 74 L888 68 Z"
+      stroke="url(#dotaGold)" stroke-width="3" stroke-linejoin="bevel" fill="none" transform="rotate(15 900 117)" />
+
+        <!-- 内部主轴套孔 (双层金属同心圆) -->
+<circle cx="900" cy="117" r="24" stroke="url(#dotaGold)" stroke-width="3" fill="none"/>
+<circle cx="900" cy="117" r="14" stroke="#edd19a" stroke-width="2" fill="none"/>
+
+        <!-- 核心轴心螺栓切槽 -->
+<polygon points="896,113 904,113 904,121 896,121" fill="#edd19a" />

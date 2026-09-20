@@ -6,14 +6,15 @@ end_of_line = crlf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-[*.cs]
-indent_style = space
+[*.go]
+indent_style = tab
 indent_size = 4
 
-[*.{csproj,props,targets,xaml,xml,json,md,ps1}]
+[*.{vue,ts,tsx,js,jsx,cjs,mjs,json,css,scss,html}]
 indent_style = space
 indent_size = 2
 
-[*.sln]
-indent_style = tab
+[*.{md,yaml,yml,ps1,cfg}]
+indent_style = space
+indent_size = 2
 

@@ -1,31 +1,84 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @config "../tailwind.config.js";
 
+@theme {
+  --color-dota-bg: #121824;
+  --color-dota-surface: #182232;
+  --color-dota-panel: #1e293b;
+  --color-dota-card: #25334a;
+  --color-dota-hover: #2d3d57;
+  --color-dota-border: #334155;
+  --color-dota-borderLight: #475569;
+  --color-dota-border-light: #475569;
+  --color-dota-gold: #e5c158;
+  --color-dota-goldLight: #f3d98b;
+  --color-dota-gold-light: #f3d98b;
+  --color-dota-cyan: #38bdf8;
+  --color-dota-red: #ef4444;
+  --color-dota-green: #10b981;
+  --color-dota-text: #f8fafc;
+  --color-dota-muted: #cbd5e1;
+  --color-dota-subtle: #94a3b8;
+}
+
 @layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: #334155;
+  }
+
+  html,
+  body,
+  #app {
+    background: transparent !important;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
   body {
-    background-color: #0B0E14;
-    color: #F1F5F9;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Roboto, "Helvetica Neue", sans-serif;
+    color: #f8fafc;
+    font-family:
+      'Microsoft YaHei UI',
+      -apple-system,
+      BlinkMacSystemFont,
+      'PingFang SC',
+      'Hiragino Sans GB',
+      'Microsoft YaHei',
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-size: 13px;
+    font-size: 14px;
     letter-spacing: 0.01em;
   }
 
-  /* 自定义极细滚动条 */
+  /* 全局沉浸式电竞滚动条 (加宽至 10px 提高拖拽与使用性) */
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: #334155 #182232;
+  }
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: #11151F;
+    background: #182232;
   }
   ::-webkit-scrollbar-thumb {
-    background: #2A3449;
-    border-radius: 3px;
+    background: #334155;
+    border-radius: 5px;
+    border: 2px solid #182232;
+    background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3B4863;
+    background: #475569;
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background: #64748b;
   }
 }

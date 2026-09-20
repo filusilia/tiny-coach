@@ -1,41 +1,274 @@
+<script setup lang="ts">
+import type { HeroStat } from '../types'
+import type {
+  OfficialAbility,
+  OfficialHero,
+} from '../utils/abilityTextResolver'
+import { ArrowLeft, ChevronDown, Clock, Droplet, Shield, ShoppingBag, Sparkles } from '@lucide/vue'
+import { computed, onMounted, ref } from 'vue'
+import { HERO_ALIASES } from '../data/aliases'
+import { getHeroGuideData } from '../data/heroGuides'
+import { HERO_CHINESE_NAMES } from '../data/heroNames'
+import { dataSyncService } from '../services/dataSyncService'
+import { useAppStore } from '../store'
+import {
+  isEffectiveScepterUpgrade,
+  isEffectiveShardUpgrade,
+  resolveAbilityText,
+  resolveTalentText,
+} from '../utils/abilityTextResolver'
+import { calculateLevel1Stats } from '../utils/heroStats'
+import { cleanHtml } from '../utils/htmlCleaner'
+
+const RANK_OPTIONS = [
+  { id: 8, label: '冠绝一世', icon: '/assets/icons/rank_icon_8.png' },
+  { id: 7, label: '超凡入圣', icon: '/assets/icons/rank_icon_7.png' },
+  { id: 6, label: '万古流芳', icon: '/assets/icons/rank_icon_6.png' },
+  { id: 5, label: '传奇', icon: '/assets/icons/rank_icon_5.png' },
+  { id: 4, label: '统帅', icon: '/assets/icons/rank_icon_4.png' },
+  { id: 3, label: '中军', icon: '/assets/icons/rank_icon_3.png' },
+  { id: 2, label: '卫士', icon: '/assets/icons/rank_icon_2.png' },
+  { id: 1, label: '先锋', icon: '/assets/icons/rank_icon_1.png' },
+]
+
+const ATTR_TABS = [
+  { id: 'all', label: '全部', icon: '/assets/icons/hero_universal.png' },
+  { id: 'str', label: '力量', icon: '/assets/icons/hero_strength.png' },
+  { id: 'agi', label: '敏捷', icon: '/assets/icons/hero_agility.png' },
+  { id: 'int', label: '智力', icon: '/assets/icons/hero_intelligence.png' },
+  { id: 'all_attr', label: '全才', icon: '/assets/icons/hero_universal.png' },
+]
+
+const ROLE_MAP: Record<string, string> = {
+  Carry: '核心',
+  Support: '辅助',
+  Nuker: '爆发',
+  Disabler: '控制',
+  Jungler: '打野',
+  Durable: '耐久',
+  Escape: '逃生',
+  Pusher: '推进',
+  Initiator: '先手',
+}
+
+function getRoleChineseName(role: string): string {
+  return ROLE_MAP[role] || role
+}
+
+const { state } = useAppStore()
+const heroes = ref<HeroStat[]>([])
+const officialDetails = ref<Record<number, OfficialHero>>({})
+const selectedAttr = ref<string>('all')
+const selectedRank = ref<number>(7)
+const isRankDropdownOpen = ref<boolean>(false)
+const sortMode = ref<'win_desc' | 'pick_desc' | 'id_asc'>('win_desc')
+const activeHero = ref<HeroStat | null>(null)
+const selectedAbilityName = ref<string | null>(null)
+const selectedShowcaseTab = ref<'ability' | 'talents'>('ability')
+const isBioExpanded = ref<boolean>(false)
+const loading = ref(true)
+
+const currentRankOption = computed(() => {
+  return RANK_OPTIONS.find(r => r.id === selectedRank.value) || RANK_OPTIONS[1]
+})
+
+function selectRank(rankId: number) {
+  selectedRank.value = rankId
+  isRankDropdownOpen.value = false
+}
+
+function getAttrIcon(attr: string): string {
+  switch (attr) {
+    case 'str': return '/assets/icons/hero_strength.png'
+    case 'agi': return '/assets/icons/hero_agility.png'
+    case 'int': return '/assets/icons/hero_intelligence.png'
+    case 'all':
+    default: return '/assets/icons/hero_universal.png'
+  }
+}
+
+function getHeroDisplayImg(hero: HeroStat): string {
+  const official = officialDetails.value[hero.id]
+  if (official && official.crops_img) {
+    return official.crops_img
+  }
+  return `https://cdn.cloudflare.steamstatic.com${hero.img}`
+}
+
+function openHeroDetail(hero: HeroStat) {
+  activeHero.value = hero
+  selectedAbilityName.value = null
+  selectedShowcaseTab.value = 'ability'
+  isBioExpanded.value = false
+  dataSyncService.markHeroAsSeen(hero.id)
+}
+
+function selectAbility(name: string) {
+  selectedAbilityName.value = name
+  selectedShowcaseTab.value = 'ability'
+}
+
+function selectTalents() {
+  selectedShowcaseTab.value = 'talents'
+}
+
+onMounted(async () => {
+  try {
+    const [statsRes, officialRes] = await Promise.all([
+      fetch('/assets/data/herostats.json'),
+      fetch('/assets/data/heroes-details-official.json'),
+    ])
+    const statsData: HeroStat[] = await statsRes.json()
+    const officialData = await officialRes.json()
+
+    // 100% 静态常数纠错兜底英雄中文名
+    const enriched = statsData.map(h => ({
+      ...h,
+      localized_name: HERO_CHINESE_NAMES[h.id] || h.localized_name,
+    }))
+    heroes.value = enriched
+
+    if (officialData?.heroes) {
+      const dict: Record<number, OfficialHero> = {}
+      officialData.heroes.forEach((h: OfficialHero) => {
+        dict[h.id] = h
+      })
+      officialDetails.value = dict
+    }
+  } catch (err) {
+    console.error('加载英雄数据失败', err)
+  } finally {
+    loading.value = false
+  }
+})
+
+function getWinRate(hero: HeroStat): string {
+  const rankKey = selectedRank.value
+  let pick = (hero as any)[`${rankKey}_pick`] || 0
+  let win = (hero as any)[`${rankKey}_win`] || 0
+  if (rankKey === 8 && pick === 0) {
+    pick = (hero as any)['7_pick'] || 0
+    win = (hero as any)['7_win'] || 0
+  }
+  if (pick <= 0) return '0.0'
+  return ((win / pick) * 100).toFixed(1)
+}
+
+function getPickCount(hero: HeroStat): number {
+  const rankKey = selectedRank.value
+  let pick = (hero as any)[`${rankKey}_pick`] || 0
+  if (rankKey === 8 && pick === 0) {
+    pick = (hero as any)['7_pick'] || 0
+  }
+  return pick
+}
+
+const filteredHeroes = computed(() => {
+  const list = heroes.value.filter((h) => {
+    if (selectedAttr.value === 'str' && h.primary_attr !== 'str') return false
+    if (selectedAttr.value === 'agi' && h.primary_attr !== 'agi') return false
+    if (selectedAttr.value === 'int' && h.primary_attr !== 'int') return false
+    if (selectedAttr.value === 'all_attr' && h.primary_attr !== 'all') return false
+
+    if (state.searchQuery.trim()) {
+      const q = state.searchQuery.toLowerCase().trim()
+      const nameMatch = h.localized_name.toLowerCase().includes(q) || h.name.toLowerCase().includes(q)
+      const aliases = HERO_ALIASES[String(h.id)] || []
+      const aliasMatch = aliases.some(a => a.toLowerCase().includes(q))
+      return nameMatch || aliasMatch
+    }
+    return true
+  })
+
+  return list.sort((a, b) => {
+    if (sortMode.value === 'win_desc') {
+      const aRate = parseFloat(getWinRate(a))
+      const bRate = parseFloat(getWinRate(b))
+      return bRate - aRate
+    }
+    if (sortMode.value === 'pick_desc') {
+      const aPick = getPickCount(a)
+      const bPick = getPickCount(b)
+      return bPick - aPick
+    }
+    return a.id - b.id
+  })
+})
+
+const activeDetails = computed(() => {
+  return activeHero.value ? officialDetails.value[activeHero.value.id] : null
+})
+
+const activeLevel1Stats = computed(() => {
+  return activeHero.value ? calculateLevel1Stats(activeHero.value) : null
+})
+
+// 先天技能 (放在天赋树旁边)
+const innateAbility = computed(() => {
+  const abilities = activeDetails.value?.abilities || []
+  return abilities.find(a => a.ability_is_innate || a.is_innate) || null
+})
+
+// 常规与升级技能列表 (排除纯先天，展示在右侧)
+const nonInnateAbilities = computed(() => {
+  const abilities = activeDetails.value?.abilities || []
+  return abilities.filter(a => !a.ability_is_innate && !a.is_innate)
+})
+
+// 当前选中的技能 (支持点击先天技能联动展示)
+const activeSelectedAbility = computed<OfficialAbility | null>(() => {
+  if (selectedAbilityName.value) {
+    if (innateAbility.value && selectedAbilityName.value === innateAbility.value.name) {
+      return innateAbility.value
+    }
+    const found = nonInnateAbilities.value.find(a => a.name === selectedAbilityName.value)
+    if (found) return found
+  }
+  return nonInnateAbilities.value[0] || innateAbility.value || null
+})
+
+// 英雄实战机制技巧与出装
+const heroGuide = computed(() => {
+  if (!activeHero.value) {
+    return { tips: [], builds: [] }
+  }
+  return getHeroGuideData(activeHero.value.id, activeHero.value.primary_attr)
+})
+</script>
+
 <template>
-  <div v-if="loading" class="flex-1 flex items-center justify-center text-dota-muted text-base bg-dota-bg">
-    <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-dota-gold mr-3" />
-    正在读取 127 英雄官方图鉴与技能数据库...
+  <div v-if="loading" class="text-dota-muted bg-dota-bg text-base flex flex-1 items-center justify-center">
+    <div class="border-dota-gold mr-3 border-b-2 border-t-2 rounded-full h-8 w-8 animate-spin" />
+    正在加载 127 英雄官方图鉴与技能数据库...
   </div>
 
-  <!-- 视图 2：单独英雄全屏官方风格详情视图 (对齐 https://www.dota2.com.cn/hero/xxx 官方布局) -->
-  <div v-else-if="activeHero" class="flex-1 flex flex-col overflow-hidden bg-dota-bg select-none">
-    <!-- 顶部导航条 -->
-    <div class="h-12 border-b border-dota-border px-6 flex items-center justify-between bg-dota-surface shrink-0 z-10 shadow-sm">
+  <!-- 视图 2：单独英雄全屏官方风格详情视图 (紧凑顶部 + 天赋树在左技能在右 + 遮罩图标 + 下方机制技巧与热门出装) -->
+  <div v-else-if="activeHero" class="bg-dota-bg flex flex-1 flex-col select-none overflow-hidden">
+    <!-- 顶部导航条 (紧凑化：无英雄编号、无英文代号) -->
+    <div class="border-dota-border bg-dota-surface px-5 border-b flex shrink-0 h-11 shadow-sm items-center justify-between z-10">
       <button
+        class="bg-dota-panel hover:bg-dota-hover border-dota-border text-dota-gold hover:text-dota-goldLight text-xs font-medium px-3 py-1 border rounded-lg flex cursor-pointer shadow-sm transition-all items-center space-x-2"
         @click="activeHero = null"
-        class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-dota-panel hover:bg-dota-hover border border-dota-border text-xs text-dota-gold hover:text-dota-goldLight transition-all cursor-pointer shadow-sm font-medium"
       >
-        <ArrowLeft class="w-4 h-4" />
+        <ArrowLeft class="h-3.5 w-3.5" />
         <span>返回英雄大图鉴</span>
       </button>
 
-      <div class="flex items-center space-x-4 text-xs">
-        <div class="flex items-center space-x-1.5 text-dota-subtle font-mono">
-          <span>英雄编号:</span>
-          <span class="text-dota-cyan font-bold">#{{ activeHero.id }}</span>
-        </div>
-        <div class="h-3 w-[1px] bg-dota-border" />
+      <div class="text-xs flex items-center space-x-4">
         <div class="flex items-center space-x-1.5">
           <img
             :src="activeHero.attack_type === 'Melee' ? '/assets/icons/melee.svg' : '/assets/icons/ranged.svg'"
             alt="攻击类型"
-            class="w-3.5 h-3.5 object-contain"
-          />
+            class="h-3.5 w-3.5 object-contain"
+          >
           <span class="text-dota-text font-medium">
             {{ activeHero.attack_type === 'Melee' ? '近战攻击' : '远程攻击' }}
           </span>
         </div>
-        <div class="h-3 w-[1px] bg-dota-border" />
-        <div class="flex items-center space-x-1 text-dota-gold">
-          <span class="text-dota-subtle">复杂度:</span>
-          <span class="font-mono font-bold tracking-wider">
+        <div class="bg-dota-border h-3 w-[1px]" />
+        <div class="text-dota-gold flex items-center space-x-1">
+          <span class="text-dota-subtle">上手难度:</span>
+          <span class="tracking-wider font-bold font-mono">
             {{ '◆'.repeat(activeDetails?.complexity || 1) }}{{ '◇'.repeat(Math.max(0, 3 - (activeDetails?.complexity || 1))) }}
           </span>
         </div>
@@ -43,367 +276,529 @@
     </div>
 
     <!-- 详情内容可滚动大画幅区 -->
-    <div class="flex-1 overflow-y-auto p-6 space-y-6">
-      <!-- 1. 英雄全景大横幅 (Hero Header Showcase) -->
-      <div class="relative rounded-2xl bg-gradient-to-r from-dota-panel via-dota-panel/90 to-dota-surface border border-dota-border overflow-hidden p-6 shadow-xl flex flex-col lg:flex-row items-start justify-between gap-6">
+    <div class="p-5 flex-1 overflow-y-auto space-y-5">
+      <!-- 1. 英雄资料顶部：缩小紧凑布局 (无编号/无英文/无HTML标签) -->
+      <div class="from-dota-panel via-dota-panel/90 to-dota-surface border-dota-border p-5 border rounded-2xl flex flex-col gap-5 shadow-xl items-start justify-between relative overflow-hidden bg-gradient-to-r lg:flex-row">
         <!-- 背景半透光效与立绘 -->
         <div
           v-if="activeHero.img"
-          class="absolute right-0 top-0 bottom-0 w-1/2 opacity-15 pointer-events-none bg-no-repeat bg-cover bg-right"
+          class="opacity-15 w-1/2 pointer-events-none bottom-0 right-0 top-0 absolute bg-cover bg-right bg-no-repeat"
           :style="{ backgroundImage: `url(https://cdn.cloudflare.steamstatic.com${activeHero.img})` }"
         />
 
-        <!-- 左侧：立绘头像、名称、英文代号、定位与生平 -->
-        <div class="relative z-10 flex items-start space-x-5 max-w-xl">
+        <!-- 左侧：紧凑立绘头像、中文名称、核心定位、纯中文介绍与折叠官方背景传记 -->
+        <div class="flex max-w-xl items-start relative z-10 space-x-4">
           <img
             :src="`https://cdn.cloudflare.steamstatic.com${activeHero.img}`"
             :alt="activeHero.localized_name"
-            class="w-28 h-18 object-cover rounded-xl shadow-2xl border-2 border-dota-border/80 shrink-0"
-          />
-          <div class="space-y-1.5">
-            <div class="flex items-baseline space-x-3">
-              <h1 class="text-3xl font-extrabold text-dota-gold tracking-wide">{{ activeHero.localized_name }}</h1>
-              <span class="text-xs text-dota-subtle font-mono uppercase tracking-widest">{{ activeHero.name.replace('npc_dota_hero_', '') }}</span>
-            </div>
-            
-            <div class="flex items-center space-x-2 text-xs text-dota-muted flex-wrap gap-y-1">
-              <span class="text-dota-gold font-medium">核心定位:</span>
-              <span>{{ activeHero.roles.join(' · ') }}</span>
+            class="border-dota-border/80 border-2 rounded-xl shrink-0 h-16 w-24 shadow-xl object-cover"
+          >
+          <div class="space-y-1">
+            <div class="flex items-center space-x-2.5">
+              <h1 class="text-dota-gold text-2xl tracking-wide font-extrabold">
+                {{ activeHero.localized_name }}
+              </h1>
+              <span
+                v-if="dataSyncService.isHeroNew(activeHero.id)"
+                class="text-[10px] text-slate-950 tracking-wider font-black px-2 py-0.5 border border-amber-300 rounded uppercase shadow animate-pulse from-amber-500 to-rose-500 bg-gradient-to-r"
+              >
+                官方更新
+              </span>
             </div>
 
-            <!-- 背景简述 -->
-            <p v-if="activeDetails?.hype_loc" class="text-xs text-dota-subtle leading-relaxed line-clamp-2 pt-1">
-              {{ activeDetails.hype_loc }}
+            <div class="text-dota-muted text-xs flex flex-wrap gap-y-1 items-center space-x-2">
+              <span class="text-dota-gold font-medium">核心定位:</span>
+              <span>{{ activeHero.roles.map(getRoleChineseName).join(' · ') }}</span>
+            </div>
+
+            <!-- 背景简述 (彻底清理 HTML 标签) -->
+            <p v-if="activeDetails?.hype_loc" class="text-dota-subtle text-xs leading-relaxed pt-0.5 line-clamp-2">
+              {{ cleanHtml(activeDetails.hype_loc) }}
             </p>
+
+            <!-- 官方背景传记故事 (移至英雄介绍中，默认折叠隐藏) -->
+            <div v-if="activeDetails?.bio_loc" class="pt-1">
+              <button
+                type="button"
+                class="text-dota-subtle hover:text-dota-gold text-xs flex cursor-pointer transition-colors items-center space-x-1"
+                @click="isBioExpanded = !isBioExpanded"
+              >
+                <ChevronDown class="h-3.5 w-3.5 transition-transform duration-200" :class="{ 'rotate-180': isBioExpanded }" />
+                <span>{{ isBioExpanded ? '收起官方背景故事' : '阅读官方背景传记故事...' }}</span>
+              </button>
+              <div v-show="isBioExpanded" class="border-dota-border/60 text-dota-muted text-xs leading-relaxed mt-2 p-3 border rounded-xl bg-black/50 max-h-52 whitespace-pre-line shadow-inner overflow-y-auto">
+                {{ cleanHtml(activeDetails.bio_loc) }}
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 右侧：官方三大核心属性卡片 + 生命魔法条 + 8格衍生属性网格 -->
-        <div class="relative z-10 flex flex-col space-y-3 w-full lg:w-auto shrink-0 font-sans">
+        <!-- 右侧：属性卡片 + 生命魔法条 + 8格衍生属性网格 -->
+        <div class="font-sans flex shrink-0 flex-col w-full relative z-10 space-y-2.5 lg:w-auto">
           <!-- 三大属性横排卡片 (力量、敏捷、智力) -->
-          <div class="grid grid-cols-3 gap-2 text-xs">
+          <div class="text-xs gap-2 grid grid-cols-3">
             <!-- 力量卡片 -->
             <div
-              :class="[
-                'p-2.5 rounded-xl border flex items-center space-x-2.5 transition-all',
+              class="p-2 border rounded-xl flex transition-all items-center space-x-2" :class="[
                 activeHero.primary_attr === 'str'
                   ? 'bg-red-950/40 border-dota-red/80 shadow-[0_0_12px_rgba(239,68,68,0.25)]'
-                  : 'bg-dota-surface/70 border-dota-border/60'
+                  : 'bg-dota-surface/70 border-dota-border/60',
               ]"
             >
-              <img src="/assets/icons/hero_strength.png" alt="力量" class="w-6 h-6 object-contain" />
+              <img src="/assets/icons/hero_strength.png" alt="力量" class="h-5 w-5 object-contain">
               <div>
-                <div class="text-[11px] text-dota-subtle font-medium flex items-center space-x-1">
+                <div class="text-dota-subtle text-[10px] font-medium flex items-center space-x-1">
                   <span>力量</span>
-                  <span v-if="activeHero.primary_attr === 'str'" class="text-[9px] px-1 rounded bg-dota-red/30 text-dota-red font-bold">主属性</span>
+                  <span v-if="activeHero.primary_attr === 'str'" class="bg-dota-red/30 text-dota-red text-[8px] font-bold px-1 rounded">主属性</span>
                 </div>
-                <div class="text-dota-text font-mono font-bold text-sm">
+                <div class="text-dota-text text-xs font-bold font-mono">
                   {{ activeDetails?.str_base || activeHero.base_str }}
-                  <span class="text-[11px] text-dota-subtle font-normal">+{{ activeDetails?.str_gain?.toFixed(1) || activeHero.str_gain?.toFixed(1) }}</span>
+                  <span class="text-dota-subtle text-[10px] font-normal">+{{ activeDetails?.str_gain?.toFixed(1) || activeHero.str_gain?.toFixed(1) }}</span>
                 </div>
               </div>
             </div>
 
             <!-- 敏捷卡片 -->
             <div
-              :class="[
-                'p-2.5 rounded-xl border flex items-center space-x-2.5 transition-all',
+              class="p-2 border rounded-xl flex transition-all items-center space-x-2" :class="[
                 activeHero.primary_attr === 'agi'
                   ? 'bg-emerald-950/40 border-dota-green/80 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-                  : 'bg-dota-surface/70 border-dota-border/60'
+                  : 'bg-dota-surface/70 border-dota-border/60',
               ]"
             >
-              <img src="/assets/icons/hero_agility.png" alt="敏捷" class="w-6 h-6 object-contain" />
+              <img src="/assets/icons/hero_agility.png" alt="敏捷" class="h-5 w-5 object-contain">
               <div>
-                <div class="text-[11px] text-dota-subtle font-medium flex items-center space-x-1">
+                <div class="text-dota-subtle text-[10px] font-medium flex items-center space-x-1">
                   <span>敏捷</span>
-                  <span v-if="activeHero.primary_attr === 'agi'" class="text-[9px] px-1 rounded bg-dota-green/30 text-dota-green font-bold">主属性</span>
+                  <span v-if="activeHero.primary_attr === 'agi'" class="bg-dota-green/30 text-dota-green text-[8px] font-bold px-1 rounded">主属性</span>
                 </div>
-                <div class="text-dota-text font-mono font-bold text-sm">
+                <div class="text-dota-text text-xs font-bold font-mono">
                   {{ activeDetails?.agi_base || activeHero.base_agi }}
-                  <span class="text-[11px] text-dota-subtle font-normal">+{{ activeDetails?.agi_gain?.toFixed(1) || activeHero.agi_gain?.toFixed(1) }}</span>
+                  <span class="text-dota-subtle text-[10px] font-normal">+{{ activeDetails?.agi_gain?.toFixed(1) || activeHero.agi_gain?.toFixed(1) }}</span>
                 </div>
               </div>
             </div>
 
             <!-- 智力卡片 -->
             <div
-              :class="[
-                'p-2.5 rounded-xl border flex items-center space-x-2.5 transition-all',
+              class="p-2 border rounded-xl flex transition-all items-center space-x-2" :class="[
                 activeHero.primary_attr === 'int'
                   ? 'bg-blue-950/40 border-dota-cyan/80 shadow-[0_0_12px_rgba(56,189,248,0.25)]'
-                  : 'bg-dota-surface/70 border-dota-border/60'
+                  : 'bg-dota-surface/70 border-dota-border/60',
               ]"
             >
-              <img src="/assets/icons/hero_intelligence.png" alt="智力" class="w-6 h-6 object-contain" />
+              <img src="/assets/icons/hero_intelligence.png" alt="智力" class="h-5 w-5 object-contain">
               <div>
-                <div class="text-[11px] text-dota-subtle font-medium flex items-center space-x-1">
+                <div class="text-dota-subtle text-[10px] font-medium flex items-center space-x-1">
                   <span>智力</span>
-                  <span v-if="activeHero.primary_attr === 'int'" class="text-[9px] px-1 rounded bg-dota-cyan/30 text-dota-cyan font-bold">主属性</span>
+                  <span v-if="activeHero.primary_attr === 'int'" class="bg-dota-cyan/30 text-dota-cyan text-[8px] font-bold px-1 rounded">主属性</span>
                 </div>
-                <div class="text-dota-text font-mono font-bold text-sm">
+                <div class="text-dota-text text-xs font-bold font-mono">
                   {{ activeDetails?.int_base || activeHero.base_int }}
-                  <span class="text-[11px] text-dota-subtle font-normal">+{{ activeDetails?.int_gain?.toFixed(1) || activeHero.int_gain?.toFixed(1) }}</span>
+                  <span class="text-dota-subtle text-[10px] font-normal">+{{ activeDetails?.int_gain?.toFixed(1) || activeHero.int_gain?.toFixed(1) }}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 生命槽与魔法槽 (官方风格双进度条) -->
-          <div v-if="activeLevel1Stats" class="space-y-1.5 font-mono text-xs">
-            <div class="h-6 rounded-lg bg-emerald-950/60 border border-emerald-800/60 px-3 flex items-center justify-between text-dota-green font-bold shadow-inner">
+          <!-- 生命槽与魔法槽 -->
+          <div v-if="activeLevel1Stats" class="text-xs font-mono space-y-1">
+            <div class="text-dota-green text-[11px] font-bold px-2.5 border border-emerald-800/60 rounded-lg bg-emerald-950/60 flex h-5 shadow-inner items-center justify-between">
               <span>生命值 {{ activeLevel1Stats.hp }}</span>
-              <span class="text-[11px] font-normal text-emerald-400">+{{ activeLevel1Stats.hpRegen }}/s</span>
+              <span class="text-[10px] text-emerald-400 font-normal">+{{ activeLevel1Stats.hpRegen }}/s</span>
             </div>
-            <div class="h-6 rounded-lg bg-blue-950/60 border border-blue-800/60 px-3 flex items-center justify-between text-dota-cyan font-bold shadow-inner">
+            <div class="text-dota-cyan text-[11px] font-bold px-2.5 border border-blue-800/60 rounded-lg bg-blue-950/60 flex h-5 shadow-inner items-center justify-between">
               <span>魔法值 {{ activeLevel1Stats.mana }}</span>
-              <span class="text-[11px] font-normal text-cyan-300">+{{ activeLevel1Stats.manaRegen }}/s</span>
+              <span class="text-[10px] text-cyan-300 font-normal">+{{ activeLevel1Stats.manaRegen }}/s</span>
             </div>
           </div>
 
-          <!-- 官方 8 大衍生属性网格 (搭配官方专属图标) -->
-          <div v-if="activeLevel1Stats" class="grid grid-cols-4 gap-1.5 text-xs font-mono pt-1">
-            <!-- 攻击力 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="基础攻击力">
-              <img src="/assets/icons/icon_damage.png" alt="攻击" class="w-4 h-4 object-contain shrink-0" />
+          <!-- 官方 8 大衍生属性网格 -->
+          <div v-if="activeLevel1Stats" class="text-xs font-mono gap-1.5 grid grid-cols-4">
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="基础攻击力">
+              <img src="/assets/icons/icon_damage.png" alt="攻击" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeLevel1Stats.attackMin }}-{{ activeLevel1Stats.attackMax }}</span>
             </div>
-            <!-- 护甲 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="物理护甲">
-              <img src="/assets/icons/icon_armor.png" alt="护甲" class="w-4 h-4 object-contain shrink-0" />
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="物理护甲">
+              <img src="/assets/icons/icon_armor.png" alt="护甲" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeLevel1Stats.armor }}</span>
             </div>
-            <!-- 移速 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="基础移动速度">
-              <img src="/assets/icons/icon_movement_speed.png" alt="移速" class="w-4 h-4 object-contain shrink-0" />
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="基础移动速度">
+              <img src="/assets/icons/icon_movement_speed.png" alt="移速" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeLevel1Stats.moveSpeed }}</span>
             </div>
-            <!-- 攻击间隔 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="基础攻击间隔 (BAT)">
-              <img src="/assets/icons/icon_attack_time.png" alt="攻速" class="w-4 h-4 object-contain shrink-0" />
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="基础攻击间隔 (BAT)">
+              <img src="/assets/icons/icon_attack_time.png" alt="攻速" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeDetails?.attack_rate || 1.7 }}s</span>
             </div>
-            <!-- 攻击距离 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="攻击距离">
-              <img src="/assets/icons/icon_attack_range.png" alt="射程" class="w-4 h-4 object-contain shrink-0" />
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="攻击距离">
+              <img src="/assets/icons/icon_attack_range.png" alt="射程" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeDetails?.attack_range || activeHero.base_attack_min }}</span>
             </div>
-            <!-- 魔法抗性 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="基础魔法抗性">
-              <img src="/assets/icons/icon_magic_resist.png" alt="魔抗" class="w-4 h-4 object-contain shrink-0" />
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="基础魔法抗性">
+              <img src="/assets/icons/icon_magic_resist.png" alt="魔抗" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeDetails?.magic_resistance || 25 }}%</span>
             </div>
-            <!-- 转身速率 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="转身速率">
-              <img src="/assets/icons/icon_turn_rate.png" alt="转身" class="w-4 h-4 object-contain shrink-0" />
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="转身速率">
+              <img src="/assets/icons/icon_turn_rate.png" alt="转身" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeDetails?.turn_rate || 0.6 }}</span>
             </div>
-            <!-- 视野范围 -->
-            <div class="p-1.5 rounded-lg bg-dota-surface/80 border border-dota-border/60 flex items-center space-x-1.5" title="白天 / 夜晚视野">
-              <img src="/assets/icons/icon_vision.png" alt="视野" class="w-4 h-4 object-contain shrink-0" />
+            <div class="bg-dota-surface/80 border-dota-border/60 text-[11px] p-1 border rounded-lg flex items-center space-x-1" title="视野范围">
+              <img src="/assets/icons/icon_vision.png" alt="视野" class="shrink-0 h-3.5 w-3.5 object-contain">
               <span class="text-dota-text font-bold">{{ activeDetails?.sight_range_day || 1800 }}/{{ activeDetails?.sight_range_night || 800 }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 2. 官方技能展示区 (水平图标选项卡选择器 + 展开大画幅技能卡片) -->
-      <div v-if="activeDetails?.abilities && activeDetails.abilities.length > 0" class="space-y-4">
-        <div class="flex items-center justify-between border-b border-dota-border pb-2">
-          <h2 class="text-sm font-bold text-dota-gold flex items-center space-x-2">
-            <Zap class="w-4 h-4" />
-            <span>官方技能体系 (点击技能图标切换详情)</span>
-          </h2>
-          <span class="text-xs text-dota-subtle">当前收录 {{ activeDetails.abilities.length }} 项主动/被动/升级技能</span>
-        </div>
+      <!-- 2. 核心区：天赋树、先天技能、技能列表一体化联动展台 -->
+      <div class="bg-dota-panel border-dota-border/90 p-5 border rounded-2xl shadow-xl space-y-4">
+        <!-- 展台顶栏：统一能力与天赋选择条 (先天技能 + 技能列表 + 英雄天赋树) -->
+        <div class="border-dota-border/60 pb-3 border-b flex flex-wrap gap-3 items-center justify-between">
+          <div class="flex flex-wrap gap-2 items-center">
+            <!-- 先天技能入口 -->
+            <button
+              v-if="innateAbility"
+              type="button"
+              class="group px-3 py-1.5 border rounded-xl flex cursor-pointer transition-all duration-200 items-center space-x-2.5"
+              :class="[
+                selectedShowcaseTab === 'ability' && activeSelectedAbility?.name === innateAbility.name
+                  ? 'bg-emerald-950/60 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)] scale-[1.02]'
+                  : 'bg-dota-surface/70 border-dota-border/60 text-dota-subtle hover:border-emerald-500/60 hover:text-emerald-300',
+              ]"
+              @click="selectAbility(innateAbility.name)"
+            >
+              <div class="bg-dota-card border border-emerald-500/50 rounded-lg shrink-0 h-8 w-8 relative overflow-hidden">
+                <img
+                  :src="`https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/abilities/${innateAbility.name}.png`"
+                  :alt="innateAbility.name_loc"
+                  class="h-full w-full object-cover"
+                >
+                <img
+                  src="/assets/icons/innate_icon.png"
+                  alt="先天遮罩"
+                  class="h-full w-full pointer-events-none inset-0 absolute z-10 object-contain"
+                >
+              </div>
+              <div class="text-left">
+                <div class="text-[10px] text-emerald-400 tracking-wider font-bold uppercase">
+                  先天技能
+                </div>
+                <div class="text-xs font-bold max-w-[100px] truncate">
+                  {{ innateAbility.name_loc || innateAbility.name }}
+                </div>
+              </div>
+            </button>
 
-        <!-- 水平技能图标选择栏 (官方经典 Tab 排列) -->
-        <div class="flex items-center space-x-3 overflow-x-auto py-2 scrollbar-none">
+            <!-- 常规技能列表入口 -->
+            <div class="border-dota-border/50 pl-1 border-l flex items-center space-x-1.5">
+              <button
+                v-for="ability in nonInnateAbilities"
+                :key="ability.id"
+                type="button"
+                class="group p-1 border rounded-xl flex flex-col cursor-pointer transition-all duration-200 items-center relative"
+                :class="[
+                  selectedShowcaseTab === 'ability' && activeSelectedAbility?.name === ability.name
+                    ? 'bg-dota-surface border-dota-gold text-dota-gold shadow-[0_0_12px_rgba(229,193,88,0.35)] scale-105'
+                    : 'bg-dota-surface/50 border-dota-border/60 text-dota-muted hover:border-dota-gold/60 hover:text-dota-text',
+                ]"
+                @click="selectAbility(ability.name)"
+              >
+                <div class="bg-dota-card rounded-lg h-9 w-9 relative overflow-hidden">
+                  <img
+                    :src="`https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/abilities/${ability.name}.png`"
+                    :alt="ability.name_loc || ability.name"
+                    class="h-full w-full object-cover"
+                    @error="(e) => ((e.target as HTMLElement).style.display = 'none')"
+                  >
+                  <!-- 神杖遮罩 -->
+                  <img
+                    v-if="ability.ability_has_scepter || ability.ability_is_granted_by_scepter"
+                    src="/assets/icons/aghs_scepter.png"
+                    alt="神杖遮罩"
+                    class="h-full w-full pointer-events-none inset-0 absolute z-10 object-contain"
+                  >
+                  <!-- 魔晶遮罩 -->
+                  <img
+                    v-else-if="ability.ability_has_shard || ability.ability_is_granted_by_shard"
+                    src="/assets/icons/aghs_shard.png"
+                    alt="魔晶遮罩"
+                    class="h-full w-full pointer-events-none inset-0 absolute z-10 object-contain"
+                  >
+                </div>
+                <span class="text-[9px] font-medium mt-0.5 text-center max-w-[50px] truncate">
+                  {{ ability.name_loc || ability.name }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 英雄天赋树独立专属切换按钮 -->
           <button
-            v-for="(ability, idx) in activeDetails.abilities"
-            :key="ability.id"
-            @click="activeAbilityIndex = idx"
+            type="button"
+            class="px-3.5 py-1.5 border rounded-xl flex cursor-pointer transition-all duration-200 items-center space-x-2"
             :class="[
-              'relative rounded-xl p-1 border-2 transition-all cursor-pointer shrink-0 group flex flex-col items-center',
-              activeAbilityIndex === idx
-                ? 'border-dota-gold bg-dota-panel shadow-[0_0_16px_rgba(229,193,88,0.4)] scale-105'
-                : 'border-dota-border bg-dota-surface/80 hover:border-dota-gold/50 hover:bg-dota-panel'
+              selectedShowcaseTab === 'talents'
+                ? 'bg-amber-950/50 border-dota-gold text-dota-gold shadow-[0_0_14px_rgba(229,193,88,0.35)] scale-[1.02]'
+                : 'bg-dota-surface/70 border-dota-border/60 text-dota-subtle hover:border-dota-gold/60 hover:text-dota-gold',
             ]"
+            @click="selectTalents"
           >
-            <!-- 技能图标 -->
-            <div class="w-14 h-14 rounded-lg overflow-hidden relative bg-dota-card">
-              <img
-                :src="`https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/abilities/${ability.name}.png`"
-                :alt="ability.name_loc || ability.name"
-                class="w-full h-full object-cover"
-                @error="(e) => ((e.target as HTMLElement).style.display = 'none')"
-              />
-
-              <!-- 角标标识 (先天技能 / A杖 / 魔晶) -->
-              <div v-if="ability.ability_is_innate || ability.is_innate" class="absolute bottom-0 inset-x-0 bg-emerald-600/90 text-white text-[10px] text-center font-bold">
-                先天
+            <Shield class="text-dota-gold h-4 w-4" />
+            <div class="text-left">
+              <div class="text-xs font-bold">
+                英雄天赋树
               </div>
-              <div v-else-if="ability.ability_is_granted_by_scepter" class="absolute bottom-0 inset-x-0 bg-dota-gold/90 text-black text-[10px] text-center font-bold">
-                神杖
-              </div>
-              <div v-else-if="ability.ability_is_granted_by_shard" class="absolute bottom-0 inset-x-0 bg-dota-cyan/90 text-black text-[10px] text-center font-bold">
-                魔晶
+              <div class="text-dota-subtle text-[10px] font-mono">
+                10 / 15 / 20 / 25 级
               </div>
             </div>
-
-            <span class="text-[11px] font-medium text-dota-text mt-1 truncate max-w-[64px] text-center">
-              {{ ability.name_loc || ability.name }}
-            </span>
-
-            <!-- 选中高光下三角指针 -->
-            <div
-              v-if="activeAbilityIndex === idx"
-              class="absolute -bottom-2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-dota-gold"
-            />
           </button>
         </div>
 
-        <!-- 选中的技能全景展示大卡片 -->
-        <div
-          v-if="selectedAbility"
-          class="p-6 rounded-2xl bg-dota-panel border border-dota-border/80 shadow-xl space-y-4 transition-all"
-        >
-          <!-- 技能顶栏：大图标 + 技能名字 + 快捷键 + 伤害机制 + 冷却魔耗 -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-dota-border/60 pb-4">
-            <div class="flex items-center space-x-4">
-              <div class="w-16 h-16 rounded-xl overflow-hidden bg-dota-card border-2 border-dota-border shrink-0 shadow-lg relative">
-                <img
-                  :src="`https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/abilities/${selectedAbility.name}.png`"
-                  :alt="selectedAbility.name_loc || selectedAbility.name"
-                  class="w-full h-full object-cover"
-                />
-              </div>
-
-              <div class="space-y-1">
-                <div class="flex items-center space-x-2.5 flex-wrap gap-y-1">
-                  <h3 class="text-xl font-extrabold text-dota-goldLight">{{ selectedAbility.name_loc || selectedAbility.name }}</h3>
-                  
-                  <!-- 机制分类标签 -->
-                  <span v-if="selectedAbility.ability_is_innate || selectedAbility.is_innate" class="text-xs px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-bold">
-                    先天技能 (Innate)
-                  </span>
-                  <span v-if="selectedAbility.ability_is_granted_by_scepter" class="text-xs px-2 py-0.5 rounded bg-dota-gold/20 text-dota-gold border border-dota-gold/40 font-bold">
-                    阿哈利姆神杖赋予新技能
-                  </span>
-                  <span v-if="selectedAbility.ability_is_granted_by_shard" class="text-xs px-2 py-0.5 rounded bg-dota-cyan/20 text-dota-cyan border border-dota-cyan/40 font-bold">
-                    阿哈利姆魔晶赋予新技能
-                  </span>
-
-                  <!-- 伤害类型 -->
-                  <span v-if="selectedAbility.damage === 1" class="text-xs px-2 py-0.5 rounded bg-orange-950/60 text-orange-400 border border-orange-800/60 font-mono">
-                    物理伤害
-                  </span>
-                  <span v-else-if="selectedAbility.damage === 2" class="text-xs px-2 py-0.5 rounded bg-blue-950/60 text-blue-400 border border-blue-800/60 font-mono">
-                    魔法伤害
-                  </span>
-                  <span v-else-if="selectedAbility.damage === 3 || selectedAbility.damage === 4" class="text-xs px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-700/60 font-mono">
-                    纯粹伤害
-                  </span>
-
-                  <!-- 减益免疫贯通 -->
-                  <span v-if="selectedAbility.immunity === 1 || selectedAbility.immunity === 3" class="text-xs px-2 py-0.5 rounded bg-emerald-950/50 text-emerald-400 border border-emerald-800/50 font-mono">
-                    无视减益免疫
-                  </span>
+        <!-- 展台全景详细内容区 (切换展示技能详情 或 天赋树分支) -->
+        <div class="bg-dota-surface/90 border-dota-border/70 p-5 border rounded-xl shadow-lg">
+          <!-- 模式 A：技能详细全景展示 (先天技能或常规技能) -->
+          <div v-if="selectedShowcaseTab === 'ability' && activeSelectedAbility" class="space-y-4">
+            <!-- 技能顶栏：大图 + 标题 + 属性 + 冷却魔耗 -->
+            <div class="border-dota-border/50 pb-3.5 border-b flex flex-col gap-3 justify-between sm:flex-row sm:items-center">
+              <div class="flex items-center space-x-3.5">
+                <div class="bg-dota-card border-dota-border border-2 rounded-xl shrink-0 h-15 w-15 shadow-md relative overflow-hidden">
+                  <img
+                    :src="`https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/abilities/${activeSelectedAbility.name}.png`"
+                    :alt="activeSelectedAbility.name_loc"
+                    class="h-full w-full object-cover"
+                  >
+                  <!-- 先天/神杖/魔晶遮罩 -->
+                  <img
+                    v-if="activeSelectedAbility.ability_is_innate"
+                    src="/assets/icons/innate_icon.png"
+                    alt="先天遮罩"
+                    class="h-full w-full pointer-events-none inset-0 absolute z-10 object-contain"
+                  >
+                  <img
+                    v-else-if="activeSelectedAbility.ability_has_scepter || activeSelectedAbility.ability_is_granted_by_scepter"
+                    src="/assets/icons/aghs_scepter.png"
+                    alt="神杖遮罩"
+                    class="h-full w-full pointer-events-none inset-0 absolute z-10 object-contain"
+                  >
+                  <img
+                    v-else-if="activeSelectedAbility.ability_has_shard || activeSelectedAbility.ability_is_granted_by_shard"
+                    src="/assets/icons/aghs_shard.png"
+                    alt="魔晶遮罩"
+                    class="h-full w-full pointer-events-none inset-0 absolute z-10 object-contain"
+                  >
                 </div>
 
-                <div class="text-xs text-dota-subtle font-mono">
-                  技术代码: {{ selectedAbility.name }}
+                <div class="space-y-1">
+                  <div class="flex flex-wrap gap-y-1 items-center space-x-2">
+                    <h3 class="text-dota-goldLight text-lg font-extrabold">
+                      {{ activeSelectedAbility.name_loc || activeSelectedAbility.name }}
+                    </h3>
+
+                    <!-- 先天技能标签 (纯中文) -->
+                    <span v-if="activeSelectedAbility.ability_is_innate" class="text-[11px] text-emerald-300 font-medium px-2 py-0.5 border border-emerald-700/60 rounded bg-emerald-900/60">
+                      先天技能
+                    </span>
+
+                    <!-- 伤害类型 -->
+                    <span v-if="activeSelectedAbility.damage === 1" class="text-[11px] text-orange-400 font-medium px-2 py-0.5 border border-orange-800/60 rounded bg-orange-950/60">
+                      物理伤害
+                    </span>
+                    <span v-else-if="activeSelectedAbility.damage === 2" class="text-[11px] text-blue-400 font-medium px-2 py-0.5 border border-blue-800/60 rounded bg-blue-950/60">
+                      魔法伤害
+                    </span>
+                    <span v-else-if="activeSelectedAbility.damage === 3 || activeSelectedAbility.damage === 4" class="text-[11px] text-amber-300 font-medium px-2 py-0.5 border border-amber-700/60 rounded bg-amber-950/60">
+                      纯粹伤害
+                    </span>
+
+                    <!-- 减益免疫状态 -->
+                    <span v-if="activeSelectedAbility.immunity === 1 || activeSelectedAbility.immunity === 3" class="text-[11px] text-emerald-400 font-medium px-2 py-0.5 border border-emerald-800/50 rounded bg-emerald-950/50">
+                      无视减益免疫
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 冷却与魔法消耗 -->
+              <div class="bg-dota-panel/90 border-dota-border/60 text-xs font-mono px-3.5 py-1.5 border rounded-lg flex shrink-0 items-center self-start space-x-3 sm:self-auto">
+                <div v-if="activeSelectedAbility.cooldowns && activeSelectedAbility.cooldowns.length > 0 && activeSelectedAbility.cooldowns[0] > 0" class="text-dota-gold flex items-center space-x-1">
+                  <Clock class="h-3.5 w-3.5" />
+                  <span class="font-bold">{{ activeSelectedAbility.cooldowns.join(' / ') }}s</span>
+                </div>
+                <div v-if="activeSelectedAbility.cooldowns?.length && activeSelectedAbility.mana_costs?.length" class="bg-dota-border h-3 w-[1px]" />
+                <div v-if="activeSelectedAbility.mana_costs && activeSelectedAbility.mana_costs.length > 0 && activeSelectedAbility.mana_costs[0] > 0" class="text-dota-cyan flex items-center space-x-1">
+                  <Droplet class="h-3.5 w-3.5 fill-current" />
+                  <span class="font-bold">{{ activeSelectedAbility.mana_costs.join(' / ') }}</span>
                 </div>
               </div>
             </div>
 
-            <!-- 冷却时间与魔法消耗 -->
-            <div class="flex items-center space-x-4 text-xs font-mono bg-dota-surface/80 px-3.5 py-2 rounded-xl border border-dota-border/60 shrink-0">
-              <div v-if="selectedAbility.cooldowns && selectedAbility.cooldowns.length > 0" class="flex items-center space-x-1.5 text-dota-gold">
-                <Clock class="w-4 h-4" />
-                <span class="font-bold">{{ selectedAbility.cooldowns.join(' / ') }}s</span>
+            <!-- 技能机制描述 -->
+            <div class="text-dota-text bg-dota-panel/60 border-dota-border/40 text-xs leading-relaxed p-4 border rounded-xl whitespace-pre-line">
+              {{ cleanHtml(resolveAbilityText(activeSelectedAbility.desc_loc, activeSelectedAbility, 'none', activeDetails || undefined)) }}
+            </div>
+
+            <!-- 神杖/魔晶强化卡片 (去英文标签，纯中文高质感卡片) -->
+            <div class="pt-1 gap-3.5 grid grid-cols-1 md:grid-cols-2">
+              <!-- 阿哈利姆神杖强化卡片 -->
+              <div
+                v-if="isEffectiveScepterUpgrade(activeSelectedAbility, activeDetails || undefined)"
+                class="from-dota-gold/15 to-dota-panel/80 border-dota-gold/40 text-dota-goldLight text-xs p-3.5 border rounded-xl flex shadow-md items-start bg-gradient-to-r space-x-3"
+              >
+                <div class="border-dota-gold/50 p-1 border rounded-lg bg-black/60 shrink-0 shadow">
+                  <img
+                    src="/assets/icons/ultimate_scepter.png"
+                    alt="阿哈利姆神杖"
+                    class="h-8 w-11 object-contain"
+                  >
+                </div>
+                <div class="flex-1 space-y-1">
+                  <div class="text-dota-gold text-xs font-bold flex items-center space-x-1.5">
+                    <span>阿哈利姆神杖强化效果</span>
+                    <span class="bg-dota-gold/20 text-dota-gold border-dota-gold/40 text-[9px] px-1.5 py-0.2 border rounded">神杖加成</span>
+                  </div>
+                  <p class="text-dota-text text-[11px] leading-relaxed">
+                    {{ cleanHtml(resolveAbilityText(activeSelectedAbility.scepter_loc, activeSelectedAbility, 'scepter', activeDetails || undefined)) }}
+                  </p>
+                </div>
               </div>
-              <div v-if="selectedAbility.cooldowns?.length && selectedAbility.mana_costs?.length" class="w-[1px] h-3 bg-dota-border" />
-              <div v-if="selectedAbility.mana_costs && selectedAbility.mana_costs.length > 0" class="flex items-center space-x-1.5 text-dota-cyan">
-                <Droplet class="w-4 h-4 fill-current" />
-                <span class="font-bold">{{ selectedAbility.mana_costs.join(' / ') }}</span>
+
+              <!-- 阿哈利姆魔晶强化卡片 -->
+              <div
+                v-if="isEffectiveShardUpgrade(activeSelectedAbility, activeDetails || undefined)"
+                class="from-dota-cyan/15 to-dota-panel/80 border-dota-cyan/40 text-dota-cyan text-xs p-3.5 border rounded-xl flex shadow-md items-start bg-gradient-to-r space-x-3"
+              >
+                <div class="border-dota-cyan/50 p-1 border rounded-lg bg-black/60 shrink-0 shadow">
+                  <img
+                    src="/assets/icons/aghanims_shard.png"
+                    alt="阿哈利姆魔晶"
+                    class="h-8 w-11 object-contain"
+                  >
+                </div>
+                <div class="flex-1 space-y-1">
+                  <div class="text-dota-cyan text-xs font-bold flex items-center space-x-1.5">
+                    <span>阿哈利姆魔晶</span>
+                    <span class="bg-dota-cyan/20 text-dota-cyan border-dota-cyan/40 text-[9px] px-1.5 py-0.2 border rounded" />
+                  </div>
+                  <p class="text-dota-text text-[11px] leading-relaxed">
+                    {{ cleanHtml(resolveAbilityText(activeSelectedAbility.shard_loc, activeSelectedAbility, 'shard', activeDetails || undefined)) }}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 技能中文详细机制描述 -->
-          <div class="text-sm text-dota-text leading-relaxed whitespace-pre-line bg-dota-surface/40 p-4 rounded-xl border border-dota-border/40">
-            {{ resolveAbilityText(selectedAbility.desc_loc, selectedAbility, 'none', activeDetails || undefined) }}
-          </div>
-
-          <!-- 官方阿哈利姆神杖升级卡片 -->
-          <div
-            v-if="isEffectiveScepterUpgrade(selectedAbility, activeDetails || undefined)"
-            class="p-4 rounded-xl bg-gradient-to-r from-dota-gold/15 to-transparent border border-dota-gold/40 text-xs text-dota-goldLight flex items-start space-x-3 shadow-md"
-          >
-            <img src="/assets/icons/ultimate_scepter.png" alt="A杖" class="w-8 h-6 object-contain shrink-0 mt-0.5" />
-            <div class="space-y-1">
-              <div class="font-bold text-dota-gold text-sm flex items-center space-x-1.5">
-                <span>阿哈利姆神杖强化 (Aghanim's Scepter Upgrade)</span>
+          <!-- 模式 B：英雄天赋树全景展示 (居中大画幅左右分支) -->
+          <div v-else-if="selectedShowcaseTab === 'talents'" class="py-2 space-y-4">
+            <div class="border-dota-border/50 pb-2.5 border-b flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <Shield class="text-dota-gold h-4.5 w-4.5" />
+                <span class="text-dota-gold text-sm font-bold">{{ activeHero.localized_name }} 完整天赋树</span>
               </div>
-              <p class="leading-relaxed text-dota-text">
-                {{ resolveAbilityText(selectedAbility.scepter_loc, selectedAbility, 'scepter', activeDetails || undefined) }}
-              </p>
+              <span class="text-dota-subtle text-xs">对局每升 5 级可选择一项左侧或右侧天赋</span>
             </div>
-          </div>
 
-          <!-- 官方阿哈利姆魔晶升级卡片 -->
-          <div
-            v-if="isEffectiveShardUpgrade(selectedAbility, activeDetails || undefined)"
-            class="p-4 rounded-xl bg-gradient-to-r from-dota-cyan/15 to-transparent border border-dota-cyan/40 text-xs text-dota-cyan flex items-start space-x-3 shadow-md"
-          >
-            <img src="/assets/icons/aghanims_shard.png" alt="魔晶" class="w-8 h-6 object-contain shrink-0 mt-0.5" />
-            <div class="space-y-1">
-              <div class="font-bold text-dota-cyan text-sm flex items-center space-x-1.5">
-                <span>阿哈利姆魔晶强化 (Aghanim's Shard Upgrade)</span>
+            <div class="mx-auto py-2 max-w-3xl space-y-3">
+              <div v-for="(lvl, index) in [25, 20, 15, 10]" :key="lvl" class="flex items-center space-x-2">
+                <!-- 左翼天赋 -->
+                <div
+                  class="bg-dota-panel hover:bg-dota-hover border-dota-border/60 hover:border-dota-gold/50 text-dota-text text-xs leading-relaxed p-3 text-right border rounded-xl flex-1 shadow-sm transition-all"
+                  :title="cleanHtml(resolveTalentText(activeDetails?.talents?.[index * 2 + 1], activeDetails || undefined))"
+                >
+                  {{ cleanHtml(resolveTalentText(activeDetails?.talents?.[index * 2 + 1], activeDetails || undefined)) }}
+                </div>
+
+                <!-- 居中等级徽章 -->
+                <div class="text-xs text-slate-950 font-black font-mono border-2 border-amber-300 rounded-full flex shrink-0 h-9 w-9 shadow-lg items-center justify-center from-amber-400 to-amber-600 bg-gradient-to-b">
+                  {{ lvl }}
+                </div>
+
+                <!-- 右翼天赋 -->
+                <div
+                  class="bg-dota-panel hover:bg-dota-hover border-dota-border/60 hover:border-dota-gold/50 text-dota-text text-xs leading-relaxed p-3 text-left border rounded-xl flex-1 shadow-sm transition-all"
+                  :title="cleanHtml(resolveTalentText(activeDetails?.talents?.[index * 2], activeDetails || undefined))"
+                >
+                  {{ cleanHtml(resolveTalentText(activeDetails?.talents?.[index * 2], activeDetails || undefined)) }}
+                </div>
               </div>
-              <p class="leading-relaxed text-dota-text">
-                {{ resolveAbilityText(selectedAbility.shard_loc, selectedAbility, 'shard', activeDetails || undefined) }}
-              </p>
             </div>
-          </div>
-
-          <!-- 英雄背景故事 (折叠小面板) -->
-          <div v-if="activeDetails?.bio_loc" class="pt-2">
-            <details class="text-xs text-dota-subtle bg-dota-surface/30 p-3 rounded-lg border border-dota-border/40 cursor-pointer">
-              <summary class="font-medium text-dota-muted hover:text-dota-gold transition-colors">
-                阅读 {{ activeHero.localized_name }} 官方背景故事传记...
-              </summary>
-              <p class="mt-2.5 leading-relaxed text-dota-muted whitespace-pre-line">
-                {{ activeDetails.bio_loc }}
-              </p>
-            </details>
           </div>
         </div>
       </div>
 
-      <!-- 3. 官方对阵式天赋树 (居中等级圆环 + 左右翼对阵分支) -->
-      <div v-if="activeDetails?.talents && activeDetails.talents.length > 0" class="space-y-3 pt-2">
-        <h2 class="text-sm font-bold text-dota-gold flex items-center space-x-2">
-          <Shield class="w-4 h-4" />
-          <span>英雄天赋树 (官方对阵式加成)</span>
-        </h2>
+      <!-- 3. 页面下方：英雄技巧和热门出装 (放在页面下方) -->
+      <div class="pt-1 gap-5 grid grid-cols-1 lg:grid-cols-2">
+        <!-- 英雄核心机制技巧 (Mechanic Tips) -->
+        <div class="bg-dota-panel border-dota-border p-4 border rounded-xl shadow-md space-y-3">
+          <div class="border-dota-border/60 pb-2.5 border-b flex items-center space-x-2">
+            <Sparkles class="text-dota-gold h-4 w-4" />
+            <h3 class="text-dota-goldLight text-xs font-bold">
+              英雄实战技巧与机制解析
+            </h3>
+          </div>
 
-        <div class="bg-dota-panel p-5 rounded-2xl border border-dota-border space-y-3 max-w-3xl mx-auto shadow-xl">
-          <div v-for="(lvl, index) in [25, 20, 15, 10]" :key="lvl" class="flex items-center text-xs">
-            <!-- 左翼天赋选项 -->
-            <div class="flex-1 text-right p-3 rounded-xl bg-dota-surface text-dota-text mr-4 hover:bg-dota-hover border border-dota-border/60 hover:border-dota-gold/40 transition-all font-medium text-xs leading-normal">
-              {{ resolveTalentText(activeDetails.talents[index * 2 + 1], activeDetails || undefined) }}
+          <div class="space-y-2.5">
+            <div
+              v-for="(tip, idx) in heroGuide.tips"
+              :key="idx"
+              class="bg-dota-surface/60 border-dota-border/50 p-3 border rounded-lg space-y-1"
+            >
+              <div class="text-dota-gold text-xs font-bold flex items-center space-x-1.5">
+                <span class="bg-dota-gold rounded-full h-1.5 w-1.5" />
+                <span>{{ tip.title }}</span>
+              </div>
+              <p class="text-dota-text text-[11px] leading-relaxed pl-3">
+                {{ cleanHtml(tip.content) }}
+              </p>
             </div>
+          </div>
+        </div>
 
-            <!-- 居中天赋等级金色徽章 -->
-            <div class="w-10 h-10 rounded-full bg-gradient-to-b from-dota-gold/30 to-dota-panel border-2 border-dota-gold text-dota-gold font-bold flex items-center justify-center shrink-0 shadow-lg">
-              <span class="font-mono text-sm">{{ lvl }}</span>
-            </div>
+        <!-- 热门实战出装推荐 (Item Builds) -->
+        <div class="bg-dota-panel border-dota-border p-4 border rounded-xl shadow-md space-y-3">
+          <div class="border-dota-border/60 pb-2.5 border-b flex items-center space-x-2">
+            <ShoppingBag class="text-dota-gold h-4 w-4" />
+            <h3 class="text-dota-goldLight text-xs font-bold">
+              推荐与热门出装路线
+            </h3>
+          </div>
 
-            <!-- 右翼天赋选项 -->
-            <div class="flex-1 text-left p-3 rounded-xl bg-dota-surface text-dota-text ml-4 hover:bg-dota-hover border border-dota-border/60 hover:border-dota-gold/40 transition-all font-medium text-xs leading-normal">
-              {{ resolveTalentText(activeDetails.talents[index * 2], activeDetails || undefined) }}
+          <div class="space-y-3">
+            <div
+              v-for="b in heroGuide.builds"
+              :key="b.stage"
+              class="bg-dota-surface/60 border-dota-border/50 p-2.5 border rounded-lg space-y-2"
+            >
+              <div class="text-dota-subtle text-[11px] font-bold flex items-center justify-between">
+                <span>{{ b.stage }}</span>
+                <span class="text-dota-muted text-[10px]">当前 7.41e 热门</span>
+              </div>
+
+              <!-- 官网 56x42 规格物品列表 -->
+              <div class="flex flex-wrap gap-2 items-center space-x-2">
+                <div
+                  v-for="item in b.items"
+                  :key="item.name"
+                  class="bg-dota-panel border-dota-border/80 p-1.5 border rounded flex items-center space-x-1.5"
+                  :title="`${item.dname} (${item.cost} 金币)`"
+                >
+                  <img
+                    :src="item.img"
+                    :alt="item.dname"
+                    class="border-dota-border/60 border rounded-sm shrink-0 h-5 w-7 object-cover"
+                    @error="(e) => ((e.target as HTMLImageElement).src = '/assets/icons/aghs_scepter.png')"
+                  >
+                  <div class="text-[10px] leading-tight">
+                    <div class="text-dota-text font-medium">
+                      {{ item.dname }}
+                    </div>
+                    <div class="text-dota-gold text-[9px] font-mono">
+                      {{ item.cost }}金
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -412,236 +807,148 @@
   </div>
 
   <!-- 视图 1：全屏铺满 127 英雄大图鉴网格 -->
-  <div v-else class="flex-1 flex flex-col overflow-hidden bg-dota-bg select-none">
+  <div v-else class="bg-dota-bg flex flex-1 flex-col select-none overflow-hidden">
     <!-- 顶部单行高密度控制栏 -->
-    <div class="h-12 border-b border-dota-border px-4 flex items-center justify-between bg-dota-surface shrink-0 gap-4">
+    <div class="border-dota-border bg-dota-surface px-4 border-b flex shrink-0 gap-4 h-12 items-center justify-between">
       <!-- 左侧属性分类 Tabs -->
       <div class="flex items-center space-x-1">
         <button
           v-for="tab in ATTR_TABS"
           :key="tab.id"
-          @click="selectedAttr = tab.id"
-          :class="[
-            'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer font-medium',
+          class="text-xs font-medium px-3 py-1.5 rounded-lg flex cursor-pointer transition-all items-center space-x-1.5" :class="[
             selectedAttr === tab.id
               ? 'bg-dota-panel text-dota-gold font-bold border border-dota-gold/40 shadow-sm'
-              : 'text-dota-muted hover:bg-dota-hover hover:text-dota-text'
+              : 'text-dota-muted hover:bg-dota-hover hover:text-dota-text',
           ]"
+          @click="selectedAttr = tab.id"
         >
-          <img :src="tab.icon" :alt="tab.label" class="w-4 h-4 object-contain" />
+          <img :src="tab.icon" :alt="tab.label" class="h-4 w-4 object-contain">
           <span>{{ tab.label }}</span>
         </button>
       </div>
 
-      <!-- 中间段位选择 -->
-      <div class="flex items-center space-x-2 text-xs">
+      <!-- 中间段位选择 (带段位官方图标) -->
+      <div class="text-xs flex items-center relative space-x-2">
         <span class="text-dota-subtle">段位环境:</span>
-        <select
-          v-model="selectedRank"
-          class="h-7 bg-dota-panel border border-dota-border rounded px-2 text-xs text-dota-gold outline-none focus:border-dota-gold cursor-pointer"
+        <button
+          type="button"
+          class="bg-dota-panel border-dota-border hover:border-dota-gold/70 text-dota-gold group text-xs px-2 border rounded-lg flex h-7.5 cursor-pointer shadow-sm transition-all items-center space-x-1.5"
+          @click="isRankDropdownOpen = !isRankDropdownOpen"
         >
-          <option v-for="rank in RANK_OPTIONS" :key="rank.id" :value="rank.id">
-            {{ rank.label }}
-          </option>
-        </select>
+          <img
+            :src="currentRankOption.icon"
+            :alt="currentRankOption.label"
+            class="shrink-0 h-4.5 w-4.5 object-contain drop-shadow"
+          >
+          <span class="group-hover:text-dota-goldLight font-bold">{{ currentRankOption.label }}</span>
+          <ChevronDown class="text-dota-muted group-hover:text-dota-gold h-3.5 w-3.5 transition-transform duration-200" :class="{ 'rotate-180': isRankDropdownOpen }" />
+        </button>
+
+        <!-- 背景遮罩 (点击外部关闭) -->
+        <div v-if="isRankDropdownOpen" class="inset-0 fixed z-40" @click="isRankDropdownOpen = false" />
+
+        <!-- 段位下拉弹窗列表 (带图标) -->
+        <div
+          v-if="isRankDropdownOpen"
+          class="bg-dota-surface border-dota-gold/40 mt-1 py-1 border rounded-xl max-h-72 w-40 shadow-2xl left-16 top-full absolute z-50 overflow-y-auto backdrop-blur-md"
+        >
+          <div
+            v-for="rank in RANK_OPTIONS"
+            :key="rank.id"
+            class="text-xs px-3 py-1.5 flex cursor-pointer transition-colors items-center space-x-2.5" :class="[
+              selectedRank === rank.id
+                ? 'bg-dota-panel text-dota-gold font-bold'
+                : 'text-dota-text hover:bg-dota-hover hover:text-dota-goldLight',
+            ]"
+            @click="selectRank(rank.id)"
+          >
+            <img :src="rank.icon" :alt="rank.label" class="shrink-0 h-4.5 w-4.5 object-contain">
+            <span class="flex-1">{{ rank.label }}</span>
+            <span v-if="selectedRank === rank.id" class="text-dota-gold text-[10px]">✓</span>
+          </div>
+        </div>
       </div>
 
       <!-- 右侧排序规则 -->
-      <div class="flex items-center space-x-1 text-xs">
-        <span class="text-dota-subtle mr-1">排序:</span>
+      <div class="text-xs flex items-center space-x-1">
         <button
+          class="px-2.5 py-1 rounded transition-colors" :class="[
+            sortMode === 'win_desc'
+              ? 'bg-dota-panel text-dota-gold font-bold border border-dota-gold/40'
+              : 'text-dota-muted hover:bg-dota-hover hover:text-dota-text',
+          ]"
           @click="sortMode = 'win_desc'"
-          :class="['px-2.5 py-1 rounded text-xs transition-colors cursor-pointer font-medium', sortMode === 'win_desc' ? 'bg-dota-panel text-dota-gold font-bold border border-dota-gold/40' : 'text-dota-muted hover:text-dota-text']"
         >
           胜率最高
         </button>
         <button
+          class="px-2.5 py-1 rounded transition-colors" :class="[
+            sortMode === 'pick_desc'
+              ? 'bg-dota-panel text-dota-gold font-bold border border-dota-gold/40'
+              : 'text-dota-muted hover:bg-dota-hover hover:text-dota-text',
+          ]"
           @click="sortMode = 'pick_desc'"
-          :class="['px-2.5 py-1 rounded text-xs transition-colors cursor-pointer font-medium', sortMode === 'pick_desc' ? 'bg-dota-panel text-dota-gold font-bold border border-dota-gold/40' : 'text-dota-muted hover:text-dota-text']"
         >
           出场最多
-        </button>
-        <button
-          @click="sortMode = 'id_asc'"
-          :class="['px-2.5 py-1 rounded text-xs transition-colors cursor-pointer font-medium', sortMode === 'id_asc' ? 'bg-dota-panel text-dota-gold font-bold border border-dota-gold/40' : 'text-dota-muted hover:text-dota-text']"
-        >
-          编号排序
         </button>
       </div>
     </div>
 
-    <!-- 英雄大卡片网格列表 -->
-    <div class="flex-1 overflow-y-auto p-4">
-      <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2.5">
+    <!-- 127 英雄首页大图鉴卡片网格 (首页使用大图) -->
+    <div class="p-4 flex-1 overflow-y-auto">
+      <div class="gap-4 grid grid-cols-2 2xl:grid-cols-7 lg:grid-cols-5 md:grid-cols-4 sm:grid-cols-3 xl:grid-cols-6">
         <div
           v-for="hero in filteredHeroes"
           :key="hero.id"
+          class="bg-dota-surface border-dota-border/80 hover:border-dota-gold group border rounded-2xl flex flex-col cursor-pointer transition-all duration-300 relative overflow-hidden hover:shadow-[0_8px_25px_rgba(0,0,0,0.7)] hover:-translate-y-1"
           @click="openHeroDetail(hero)"
-          class="group relative rounded-lg bg-dota-panel border border-dota-border/80 hover:border-dota-gold overflow-hidden cursor-pointer transition-all hover:scale-105 hover:shadow-lg flex flex-col"
         >
-          <div class="aspect-[16/9] w-full bg-dota-surface relative overflow-hidden">
+          <!-- 英雄大图展示区域 (400x250 官方全貌图 / Steam CDN 高清大图) -->
+          <div class="bg-dota-card aspect-[16/10] relative overflow-hidden">
             <img
-              :src="`https://cdn.cloudflare.steamstatic.com${hero.img}`"
+              :src="getHeroDisplayImg(hero)"
               :alt="hero.localized_name"
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+              class="h-full w-full transition-transform duration-500 object-cover group-hover:scale-110"
               loading="lazy"
-              @error="(e) => ((e.target as HTMLElement).style.display = 'none')"
-            />
-            <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1">
-              <div class="text-xs font-bold text-dota-text truncate text-center group-hover:text-dota-gold transition-colors">
-                {{ hero.localized_name }}
-              </div>
+              @error="(e) => ((e.target as HTMLImageElement).src = `https://cdn.cloudflare.steamstatic.com${hero.img}`)"
+            >
+            <!-- 渐变阴影底色 -->
+            <div class="from-dota-surface pointer-events-none inset-0 absolute to-black/30 via-transparent bg-gradient-to-t" />
+
+            <!-- 主属性图标徽章 (左上角) -->
+            <div class="p-1 border border-white/10 rounded-lg bg-black/70 shadow left-2 top-2 absolute backdrop-blur-xs">
+              <img
+                :src="getAttrIcon(hero.primary_attr)"
+                :alt="hero.primary_attr"
+                class="h-3.5 w-3.5 object-contain"
+              >
             </div>
-          </div>
-          <div class="p-1.5 text-[11px] font-mono flex items-center justify-between text-dota-subtle bg-dota-surface/40">
-            <span class="text-dota-gold font-bold">{{ getWinRate(hero) }}%</span>
-            <span>{{ getPickCount(hero) }}场</span>
+
+            <!-- 增量更新徽章 (左上角属性右侧) -->
+            <div
+              v-if="dataSyncService.isHeroNew(hero.id)"
+              class="text-[9px] text-slate-950 tracking-wider font-black px-1.5 py-0.5 border border-amber-300 rounded uppercase shadow-[0_0_10px_rgba(245,158,11,0.6)] left-9 top-2 absolute animate-pulse from-amber-500 to-rose-500 bg-gradient-to-r"
+            >
+              官方更新
+            </div>
+
+            <!-- 胜率徽章 (右上角) -->
+            <div class="text-dota-gold border-dota-gold/40 text-[11px] font-bold font-mono px-2 py-0.5 border rounded-lg bg-black/80 shadow right-2 top-2 absolute backdrop-blur-xs">
+              {{ getWinRate(hero) }}%
+            </div>
+
+            <!-- 底部英雄名称与出场频次 -->
+            <div class="flex pointer-events-none items-center bottom-2 left-2.5 right-2.5 justify-between absolute">
+              <span class="group-hover:text-dota-gold text-sm text-white tracking-wide font-extrabold truncate drop-shadow-md">
+                {{ hero.localized_name }}
+              </span>
+              <span class="text-dota-subtle text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/60 shrink-0 backdrop-blur-xs">
+                {{ (getPickCount(hero) / 1000).toFixed(0) }}k场
+              </span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { HeroStat } from '../types';
-import { HERO_CHINESE_NAMES } from '../data/heroNames';
-import { HERO_ALIASES } from '../data/aliases';
-import { calculateLevel1Stats } from '../utils/heroStats';
-import {
-  OfficialHero,
-  resolveAbilityText,
-  resolveTalentText,
-  isEffectiveScepterUpgrade,
-  isEffectiveShardUpgrade,
-} from '../utils/abilityTextResolver';
-import { useAppStore } from '../store';
-import { ArrowLeft, Zap, Shield, Clock, Droplet } from 'lucide-vue-next';
-
-const RANK_OPTIONS = [
-  { id: 7, label: '冠绝一世' },
-  { id: 6, label: '超凡入圣' },
-  { id: 5, label: '万古流芳' },
-  { id: 4, label: '传奇' },
-  { id: 3, label: '统帅' },
-  { id: 2, label: '中军' },
-  { id: 1, label: '先锋/卫士' },
-];
-
-const ATTR_TABS = [
-  { id: 'all', label: '全部', icon: '/assets/icons/hero_universal.png' },
-  { id: 'str', label: '力量', icon: '/assets/icons/hero_strength.png' },
-  { id: 'agi', label: '敏捷', icon: '/assets/icons/hero_agility.png' },
-  { id: 'int', label: '智力', icon: '/assets/icons/hero_intelligence.png' },
-  { id: 'all_attr', label: '全才', icon: '/assets/icons/hero_universal.png' },
-];
-
-const { state } = useAppStore();
-const heroes = ref<HeroStat[]>([]);
-const officialDetails = ref<Record<number, OfficialHero>>({});
-const selectedAttr = ref<string>('all');
-const selectedRank = ref<number>(7);
-const sortMode = ref<'win_desc' | 'pick_desc' | 'id_asc'>('win_desc');
-const activeHero = ref<HeroStat | null>(null);
-const activeAbilityIndex = ref<number>(0);
-const loading = ref(true);
-
-const openHeroDetail = (hero: HeroStat) => {
-  activeHero.value = hero;
-  activeAbilityIndex.value = 0;
-};
-
-onMounted(async () => {
-  try {
-    const [statsRes, officialRes] = await Promise.all([
-      fetch('/assets/data/herostats.json'),
-      fetch('/assets/data/heroes-details-official.json')
-    ]);
-    const statsData: HeroStat[] = await statsRes.json();
-    const officialData = await officialRes.json();
-
-    // 100% 静态常数兜底英雄中文名（防退化红线）
-    const enriched = statsData.map((h) => ({
-      ...h,
-      localized_name: HERO_CHINESE_NAMES[h.id] || h.localized_name,
-    }));
-    heroes.value = enriched;
-
-    if (officialData?.heroes) {
-      const dict: Record<number, OfficialHero> = {};
-      officialData.heroes.forEach((h: OfficialHero) => {
-        dict[h.id] = h;
-      });
-      officialDetails.value = dict;
-    }
-  } catch (err) {
-    console.error('加载英雄数据失败', err);
-  } finally {
-    loading.value = false;
-  }
-});
-
-const getWinRate = (hero: HeroStat): string => {
-  const pick = (hero as any)[`${selectedRank.value}_pick`] || 0;
-  const win = (hero as any)[`${selectedRank.value}_win`] || 0;
-  if (pick <= 0) return '0.0';
-  return ((win / pick) * 100).toFixed(1);
-};
-
-const getPickCount = (hero: HeroStat): number => {
-  return (hero as any)[`${selectedRank.value}_pick`] || 0;
-};
-
-const filteredHeroes = computed(() => {
-  let list = heroes.value.filter((h) => {
-    if (selectedAttr.value === 'str' && h.primary_attr !== 'str') return false;
-    if (selectedAttr.value === 'agi' && h.primary_attr !== 'agi') return false;
-    if (selectedAttr.value === 'int' && h.primary_attr !== 'int') return false;
-    if (selectedAttr.value === 'all_attr' && h.primary_attr !== 'all') return false;
-
-    if (state.searchQuery.trim()) {
-      const q = state.searchQuery.toLowerCase().trim();
-      const nameMatch = h.localized_name.toLowerCase().includes(q) || h.name.toLowerCase().includes(q);
-      const aliases = HERO_ALIASES[String(h.id)] || [];
-      const aliasMatch = aliases.some((a) => a.toLowerCase().includes(q));
-      return nameMatch || aliasMatch;
-    }
-    return true;
-  });
-
-  return list.sort((a, b) => {
-    if (sortMode.value === 'win_desc') {
-      const aPick = (a as any)[`${selectedRank.value}_pick`] || 0;
-      const aWin = (a as any)[`${selectedRank.value}_win`] || 0;
-      const aRate = aPick > 0 ? aWin / aPick : 0;
-
-      const bPick = (b as any)[`${selectedRank.value}_pick`] || 0;
-      const bWin = (b as any)[`${selectedRank.value}_win`] || 0;
-      const bRate = bPick > 0 ? bWin / bPick : 0;
-
-      return bRate - aRate;
-    }
-    if (sortMode.value === 'pick_desc') {
-      const aPick = (a as any)[`${selectedRank.value}_pick`] || 0;
-      const bPick = (b as any)[`${selectedRank.value}_pick`] || 0;
-      return bPick - aPick;
-    }
-    return a.id - b.id;
-  });
-});
-
-const activeDetails = computed(() => {
-  return activeHero.value ? officialDetails.value[activeHero.value.id] : null;
-});
-
-const activeLevel1Stats = computed(() => {
-  return activeHero.value ? calculateLevel1Stats(activeHero.value) : null;
-});
-
-const selectedAbility = computed(() => {
-  const abilities = activeDetails.value?.abilities || [];
-  if (abilities.length === 0) return null;
-  return abilities[activeAbilityIndex.value] || abilities[0];
-});
-</script>

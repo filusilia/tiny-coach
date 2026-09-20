@@ -1,5 +1,8 @@
-import { createApp } from 'vue';
-import './index.css';
-import App from './App.vue';
+import { createApp } from 'vue'
+import App from './App.vue'
+import { initWailsBridge } from './services/wailsBridge'
+import './index.css'
 
-createApp(App).mount('#app');
+initWailsBridge()
+
+createApp(App).mount('#app')

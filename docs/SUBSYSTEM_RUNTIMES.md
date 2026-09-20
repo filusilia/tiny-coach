@@ -4,36 +4,36 @@
 
 ---
 
-## 1. GSI 实时接收与单消费者无锁管线
+## 1. GSI 实时接收与单消费者事件管线
 
 Dota 2 Game State Integration（GSI）是系统获取对局状态的唯一实时通道。
 
 ```mermaid
 sequenceDiagram
     participant Dota as Dota 2 Client
-    participant Axum as Axum GSI Server (HTTP 4444)
-    participant Engine as Rules Engine (Rust)
-    participant IPC as Tauri Event Stream
-    participant UI as Zustand Store / React UI
+    participant GoHTTP as Go GSI Receiver (HTTP 4444)
+    participant Wails as Wails Event Stream
+    participant Engine as Rules Engine (gsiRuleEngine.ts)
+    participant Store as Vue 3 Reactive Store & UI
 
-    Dota->>Axum: HTTP POST (application/json, ~10Hz)
-    Axum->>Axum: 校验 Auth Token & 时间戳单调递增
-    Axum-->>Dota: 立即响应 200 OK (0.2ms)
-    Axum->>Engine: 压入单消费者差分通道
-    loop 顺序消费状态差分
-        Engine->>Engine: 相邻快照字段对比 & 规则冷却检查
-        alt 命中确定性提醒
-            Engine->>IPC: emit("gsi-advice", AdvicePayload)
-            IPC->>UI: 触发教练提示 (文字 / 语音播报)
+    Dota->>GoHTTP: HTTP POST (application/json, ~10Hz)
+    GoHTTP->>GoHTTP: 校验 Auth Token & 存入最新快照
+    GoHTTP-->>Dota: 立即响应 200 OK (微秒级)
+    GoHTTP->>Wails: runtime.EventsEmit("dota_gsi_update", rawPayload)
+    Wails->>Engine: 顺序处理快照差分与规则判定
+    loop 状态差分与 9 类提醒冷却检查
+        Engine->>Engine: 检查血量/蓝量/控制/神符/肉山/出装及独立冷却
+        alt 命中确定性战术建议
+            Engine->>Store: 派发提醒 (结合三段式开关: 仅文字 / 语音+文字)
+            Store->>Store: 触发电竞 TTS 语音合成与文字高亮
         end
-        Engine->>IPC: emit("gsi-state", MatchSnapshot)
-        IPC->>UI: 合并最新战局概览 (阶段/时间/比分/建筑)
     end
+    Wails->>Store: 合并最新战局概览 (阶段/时间/比分/经济/建筑)
 ```
 
 ### 关键运行语义：
-- **极速应答**：基于 Rust Axum 接收 HTTP POST，在 0.2ms 内返回 200 OK，杜绝影响 Dota 2 客户端网络。
-- **单消费者顺序处理**：所有差分计算在单消费者通道中按到达顺序处理，避免多线程数据竞态，彻底解耦 UI 渲染主线程。
+- **极速应答**：基于 Go 原生 `net/http` 在后台 Goroutine 接收 HTTP POST，在 0.2ms 内返回 200 OK，杜绝影响 Dota 2 客户端网络。
+- **单消费者顺序处理**：所有快照由 Go 接收器直接通过 Wails 运行时事件管道派发，前端规则引擎单通道顺序处理，彻底解耦 UI 渲染主线程。
 - **断线与心跳管理**：若超过 5 秒未收到新快照，状态自动切换为“已断开连接”，重置瞬态并通知前端展示断线状态。
 
 ---

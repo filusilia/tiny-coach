@@ -1,6 +1,6 @@
 # Dota 2 英雄与物品核心数据体系规范 (HERO_AND_ITEM_DATA_SPEC.md)
 
-本文档是神盾教练（AegisCoach）在英雄资料、技能天赋、装备物品、合成路线与搜索检索等核心数据体系上的**全量业务规范与技术事实唯一参考来源**。无论后续使用 Rust、Go 还是 TypeScript，所有 AI 与研发人员必须严格以此文档中的数据模型、计算公式、分类算法与降级策略为准。
+本文档是神盾教练（AegisCoach）在英雄资料、技能天赋、装备物品、合成路线与搜索检索等核心数据体系上的**全量业务规范与技术事实唯一参考来源**。在 Wails v3 (Go) + Vue 3 (TypeScript) 现代化极轻架构下，所有 AI 与研发人员必须严格以此文档中的数据模型、计算公式、分类算法与降级策略为准。
 
 ---
 
@@ -10,13 +10,13 @@
 
 | 资源相对路径 | 数据内容说明 | 关键模型结构 |
 |---|---|---|
-| `Assets/Data/heroes-details-official.json` | 官方 127 英雄全量快照（包含技能、天赋、神杖魔晶升级、数值矩阵） | `OfficialHeroSnapshot` |
-| `Assets/Data/items-details-official.json` | 官方物品全量详情（包含物品描述、冷却、魔耗、属性加成） | `OfficialItemSnapshot` |
-| `Assets/Data/items.json` | 经典物品关系数据库（包含合成配件、升级前置、商店分类、价格） | `Dictionary<string, ItemData>` |
-| `Assets/Data/herostats.json` | 127 英雄基础属性（力量/敏捷/智力基数、护甲、移速、攻击范围等） | `List<HeroStat>` |
-| `Assets/Data/herolist.json` | 官方英雄中英文映射清单 | `HeroListData` |
-| `Assets/Data/item_constants.json` | 物品元数据常量表 | `Dictionary<string, ItemConstant>` |
-| `Assets/Icons/` | 游戏高清图标（属性标、神杖、魔晶、天赋树、56x42 物品贴图等） | PNG / SVG 图像资源 |
+| `frontend/public/assets/data/heroes-details-official.json` | 官方 127 英雄全量快照（包含技能、天赋、神杖魔晶升级、数值矩阵） | `OfficialHeroSnapshot` |
+| `frontend/public/assets/data/items-details-official.json` | 官方物品全量详情（包含物品描述、冷却、魔耗、属性加成） | `OfficialItemSnapshot` |
+| `frontend/public/assets/data/items.json` | 经典物品关系数据库（包含合成配件、升级前置、商店分类、价格） | `Record<string, ItemData>` |
+| `frontend/public/assets/data/herostats.json` | 127 英雄基础属性（力量/敏捷/智力基数、护甲、移速、攻击范围等） | `HeroStat[]` |
+| `frontend/public/assets/data/herolist.json` | 官方英雄中英文映射清单 | `HeroListData` |
+| `frontend/public/assets/data/item_constants.json` | 物品元数据常量表 | `Record<string, ItemConstant>` |
+| `frontend/public/assets/icons/` | 游戏高清图标（属性标、神杖、魔晶、天赋树、56x42 物品贴图等） | PNG / SVG 图像资源 |
 
 ---
 
@@ -55,47 +55,49 @@
 即使断网或官方接口失效，英雄中文名绝对不可显示为英文代号或“待同步”：
 
 ```text
-1: 敌法师 (antimage)          2: 斧王 (axe)                 3: 祸乱之源 (bane)
-4: 嗜血狂魔 (bloodseeker)     5: 水晶室女 (crystal_maiden)   6: 卓尔游侠 (drow_ranger)
-7: 地球灵 (earthshaker)       8: 主宰 (juggernaut)          9: 米拉娜 (mirana)
-10: 变体精灵 (morphling)      11: 影魔 (nevermore)          12: 幻影长矛手 (phantom_lancer)
-13: 帕克 (puck)              14: 帕吉 (pudge)              15: 影魔 (razor/剃刀)
-16: 沙王 (sand_king)         17: 风暴之灵 (storm_spirit)   18: 流浪剑客 (sven)
-19: 小小 (tiny)              20: 复仇之魂 (vengefulspirit) 21: 风行者 (windrunner)
-22: 宙斯 (zuus)              23: 昆卡 (kunkka)             25: 莉娜 (lina)
-26: 莱恩 (lion)              27: 暗影萨满 (shadow_shaman)   28: 斯拉达 (slardar)
-29: 潮汐猎人 (tidehunter)     30: 巫医 (witch_doctor)       31: 巫妖 (lich)
-32: 裂魂人 (riki/力丸)        33: 谜团 (enigma)             34: 修补匠 (tinker)
-35: 狙击手 (sniper)          36: 殁境神蚀者 (necrolyte/死灵法) 37: 术士 (warlock)
-38: 兽王 (beastmaster)       39: 痛苦女王 (queenofpain)     40: 剧毒术士 (venomancer)
-41: 虚空假面 (faceless_void) 42: 骷髅王 (wraith_king)      43: 死亡先知 (death_prophet)
-44: 幻影刺客 (phantom_assassin) 45: 帕格纳 (pugna)         46: 圣堂刺客 (templar_assassin)
-47: 冥界亚龙 (viper)         48: 露娜 (luna)               49: 龙骑士 (dragon_knight)
-50: 戴泽 (dazzle)            51: 发条技师 (rattletrap)     52: 拉席克 (leshrac)
-53: 自然先知 (furion)        54: 噬魂鬼 (life_stealer)     55: 暗影恶魔 (dark_seer)
-56: 德鲁伊 (clinkz/克林克兹)  57: 全能骑士 (omniknight)     58: 魅惑魔女 (enchantress)
-59: 哈斯卡 (huskar)          60: 暗夜魔王 (night_stalker)   61: 育母蜘蛛 (broodmother)
-62: 赏金猎人 (bounty_hunter) 63: 编织者 (weaver)           64: 杰奇洛 (jakiro)
-65: 蝙蝠骑士 (batrider)      66: 陈 (chen)                 67: 幽鬼 (spectre)
-68: 远古冰魄 (ancient_apparition) 69: 末日使者 (doom_bringer) 70: 熊战士 (ursa)
-71: 裂魂人 (spirit_breaker)  72: 矮人直升机 (gyrocopter)   73: 炼金术士 (alchemist)
-74: 祈求者 (invoker)         75: 沉默术士 (silencer)       76: 殁境神蚀者 (obsidian_destroyer)
-77: 狼人 (lycan)             78: 孤单德鲁伊 (lone_druid)    79: 混沌骑士 (chaos_knight)
-80: 米波 (meepo)             81: 树精卫士 (treant)         82: 食人魔魔法师 (ogre_magi)
-83: 不朽尸王 (undying)       84: 灰烬之灵 (rubick/拉比克)   85: 干扰者 (disruptor)
-86: 撼地者 (nyx_assassin/司夜刺客) 87: 娜迦海妖 (naga_siren) 88: 光之守卫 (keeper_of_the_light)
-89: 艾欧 (wisp)              90: 维萨吉 (visage)           91: 斯拉克 (slark)
-92: 美杜莎 (medusa)          93: 巨魔战将 (troll_warlord)   94: 半人马战行者 (centaur)
-95: 马格纳斯 (magnataur)     96: 伐木机 (shredder)         97: 刚背兽 (bristleback)
-98: 巨牙海民 (tusk)          99: 天怒法师 (skywrath_mage)  100: 亚巴顿 (abaddon)
-101: 大地之灵 (earth_spirit) 102: 孽主 (abyssal_underlord) 103: 恐怖利刃 (terrorblade)
-104: 凤凰 (phoenix)          105: 神谕者 (oracle)          106: 工程师 (techies)
-107: 灰烬之灵 (ember_spirit) 108: 大地之灵 (earth_spirit) 109: 齐天大圣 (monkey_king)
-110: 破晓辰星 (pangolier/石鳞剑士) 111: 邪影芳灵 (dark_willow) 112: 琼英碧灵 (muerta)
-113: 天穹守望者 (arc_warden) 114: 玛尔斯 (mars)           119: 虚无之灵 (void_spirit)
-120: 电炎绝手 (snapfire)     121: 邪恶术士 (hoodwink/森海飞霞) 123: 破晓辰星 (dawnbreaker)
-124: 玛西 (marci)            126: 兽 (primal_beast)        128: 琼英碧灵 (muerta)
-131: 百炼之灵/凯 (ringmaster/擂台霸主) 145: 柯赞 (kez)
+1: 敌法师 (antimage)             2: 斧王 (axe)                   3: 祸乱之源 (bane)
+4: 血魔 (bloodseeker)           5: 水晶室女 (crystal_maiden)      6: 卓尔游侠 (drow_ranger)
+7: 撼地者 (earthshaker)          8: 主宰 (juggernaut)            9: 米拉娜 (mirana)
+10: 变体精灵 (morphling)          11: 影魔 (nevermore)            12: 幻影长矛手 (phantom_lancer)
+13: 帕克 (puck)                 14: 帕吉 (pudge)                15: 雷泽 (razor)
+16: 沙王 (sand_king)            17: 风暴之灵 (storm_spirit)       18: 斯温 (sven)
+19: 小小 (tiny)                 20: 复仇之魂 (vengefulspirit)     21: 风行者 (windrunner)
+22: 宙斯 (zuus)                 23: 昆卡 (kunkka)               25: 莉娜 (lina)
+26: 莱恩 (lion)                 27: 暗影萨满 (shadow_shaman)      28: 斯拉达 (slardar)
+29: 潮汐猎人 (tidehunter)         30: 巫医 (witch_doctor)         31: 巫妖 (lich)
+32: 力丸 (riki)                 33: 谜团 (enigma)               34: 修补匠 (tinker)
+35: 狙击手 (sniper)              36: 瘟疫法师 (necrolyte)          37: 术士 (warlock)
+38: 兽王 (beastmaster)          39: 痛苦女王 (queenofpain)        40: 剧毒术士 (venomancer)
+41: 虚空假面 (faceless_void)      42: 冥魂大帝 (skeleton_king)      43: 死亡先知 (death_prophet)
+44: 幻影刺客 (phantom_assassin)   45: 帕格纳 (pugna)               46: 圣堂刺客 (templar_assassin)
+47: 冥界亚龙 (viper)              48: 露娜 (luna)                 49: 龙骑士 (dragon_knight)
+50: 戴泽 (dazzle)               51: 发条技师 (rattletrap)         52: 拉席克 (leshrac)
+53: 自然先知 (furion)             54: 噬魂鬼 (life_stealer)        55: 黑暗贤者 (dark_seer)
+56: 克林克兹 (clinkz)             57: 全能骑士 (omniknight)         58: 魅惑魔女 (enchantress)
+59: 哈斯卡 (huskar)              60: 暗夜魔王 (night_stalker)      61: 育母蜘蛛 (broodmother)
+62: 赏金猎人 (bounty_hunter)      63: 编织者 (weaver)              64: 杰奇洛 (jakiro)
+65: 蝙蝠骑士 (batrider)           66: 陈 (chen)                  67: 幽鬼 (spectre)
+68: 远古冰魄 (ancient_apparition) 69: 末日使者 (doom_bringer)       70: 熊战士 (ursa)
+71: 裂魂人 (spirit_breaker)      72: 矮人直升机 (gyrocopter)        73: 炼金术士 (alchemist)
+74: 祈求者 (invoker)             75: 沉默术士 (silencer)           76: 殁境神蚀者 (obsidian_destroyer)
+77: 狼人 (lycan)                78: 酒仙 (brewmaster)           79: 暗影恶魔 (shadow_demon)
+80: 独行德鲁伊 (lone_druid)        81: 混沌骑士 (chaos_knight)       82: 米波 (meepo)
+83: 树精卫士 (treant)             84: 食人魔魔法师 (ogre_magi)        85: 不朽尸王 (undying)
+86: 拉比克 (rubick)              87: 干扰者 (disruptor)           88: 司夜刺客 (nyx_assassin)
+89: 娜迦海妖 (naga_siren)         90: 光之守卫 (keeper_of_the_light)91: 艾欧 (wisp)
+92: 维萨吉 (visage)              93: 斯拉克 (slark)               94: 美杜莎 (medusa)
+95: 巨魔战将 (troll_warlord)      96: 半人马战行者 (centaur)          97: 马格纳斯 (magnataur)
+98: 伐木机 (shredder)            99: 钢背兽 (bristleback)         100: 巨牙海民 (tusk)
+101: 天怒法师 (skywrath_mage)     102: 亚巴顿 (abaddon)            103: 上古巨神 (elder_titan)
+104: 军团指挥官 (legion_commander) 105: 工程师 (techies)            106: 灰烬之灵 (ember_spirit)
+107: 大地之灵 (earth_spirit)      108: 孽主 (abyssal_underlord)   109: 恐怖利刃 (terrorblade)
+110: 凤凰 (phoenix)             111: 神谕者 (oracle)             112: 寒冬飞龙 (winter_wyvern)
+113: 天穹守望者 (arc_warden)       114: 齐天大圣 (monkey_king)       119: 邪影芳灵 (dark_willow)
+120: 石鳞剑士 (pangolier)         121: 天涯墨客 (grimstroke)        123: 森海飞霞 (hoodwink)
+126: 虚无之灵 (void_spirit)       128: 电炎绝手 (snapfire)          129: 玛尔斯 (mars)
+131: 百戏大王 (ringmaster)        135: 破晓辰星 (dawnbreaker)       136: 玛西 (marci)
+137: 獸 (primal_beast)         138: 琼英碧灵 (muerta)            145: 凯 (kez)
+155: 朗戈 (largo)
 ```
 
 ---
@@ -167,7 +169,7 @@
 
 为实现顶部搜索栏与英雄/物品列表在 10 毫秒内无卡顿筛选，必须建立静态别名与首字母索引表：
 
-### 1. 核心别名映射举例 (`DotaAliasTable.cs`)
+### 1. 核心别名映射举例 (`frontend/src/data/aliases.ts`)
 - **英雄常用简称**：
   - 敌法 / AM -> 敌法师 (`antimage`)
   - 影魔 / SF -> 影魔 (`nevermore`)
@@ -190,26 +192,27 @@
 
 ### 2. 检索匹配算法
 ```text
-MatchScore = (精准名称完全匹配 ? 100) 
-           + (拼音首字母完全匹配 ? 80) 
-           + (别名完全匹配 ? 60) 
+MatchScore = (精准名称完全匹配 ? 100)
+           + (拼音首字母完全匹配 ? 80)
+           + (别名完全匹配 ? 60)
            + (包含中英文字符串 ? 40)
 ```
-搜索过滤应在独立 Worker / 异步任务中执行，利用防抖（30ms ~ 50ms）配合取消令牌轮换，UI 仅单次原子重置列表。
+搜索过滤在前端响应式状态中计算，结合轻量防抖（30ms ~ 50ms）与内存别名快速检索，UI 原子更新列表，无需跨进程往返开销。
 
 ---
 
 ## 六、 本地两级缓存与版本一致性规范
 
 1. **缓存目录结构**：
-   - 用户数据根目录：`%APPDATA%/AegisCoach/cache/`
+   - 用户数据根目录：默认位于 `[用户文档目录]/DotaAICoach`（可通过环境变量 `MODELS_DIR` 覆盖，并支持用户在系统“设置”中通过原生目录拾取器自定义与一键打开）；
    - 子目录正交隔离：
      - `/heroes/`：存放 `hero-{id}-zh-v2-v{Patch}.json`
      - `/items/`：存放 `item-details-v{Patch}.json`
-     - `/audio/`：存放 Edge-TTS SHA256 语音片段缓存（`.mp3`）
-2. **版本号强绑定（TargetPatch = 7.39）**：
+     - `/tts/`：存放 Edge-TTS SHA256 语音片段音频缓存（`.mp3`）
+     - `/rag/`：存放 AI 战术问答知识库与玩家战绩脱敏检索上下文
+2. **版本号强绑定（TargetPatch = 7.41e）**：
    - 凡涉及游戏平衡与技能数值的 JSON 文件，文件名强制携带 `-v{TargetPatch}.json`。
-3. **过期缓存自动清理契约**：
+3. **过期缓存与目录清理契约**：
    - 应用启动后异步扫描 `/heroes/` 与 `/items/` 目录；
-   - 若文件名含有 `-v` 且版本号不匹配当前客户端版本，静默删除旧文件；
-   - 坚决杜绝旧版本技能与数值跨版本残留误导玩家。
+   - 若文件名含有 `-v` 且版本号不匹配当前客户端版本，静默安全删除旧文件；
+   - 支持设置页一键“清空缓存”，保留子目录骨架并彻底清理过期临时碎片。

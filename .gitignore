@@ -4,10 +4,6 @@ dist/
 dist-ssr/
 *.local
 
-# Tauri & Rust Build
-src-tauri/target/
-**/target/
-
 # Application Release & Temporary Outputs
 release/
 .build/
@@ -15,22 +11,18 @@ build/bin/
 build-out/
 **/.artifacts/
 
+# Go Build & Temporary Binaries
+*.syso
+神盾教练.exe
+
 # Logs and environment
 *.log
 .env
 .env.*
 !.env.example
 
-# Visual Studio & IDE local state
-.vs/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
+# IDE & Editor local state
 .idea/
 .vscode/*
 !.vscode/extensions.json
 
-# Python cache
-__pycache__/
-*.pyc
