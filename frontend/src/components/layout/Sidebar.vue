@@ -1,15 +1,34 @@
 <script setup lang="ts">
 import { Settings } from '@lucide/vue'
-import { useAppStore } from '../../store'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAppStore } from '../../stores/app'
 
-const { state, setCurrentTab } = useAppStore()
+const router = useRouter()
+const route = useRoute()
+const appStore = useAppStore()
 
 const navItems = [
-  { id: 'heroes' as const, label: '英雄资料', icon: '/assets/icons/hero_universal.png' },
-  { id: 'items' as const, label: '物品资料', icon: '/assets/icons/aghs_scepter.png' },
-  { id: 'coach' as const, label: '实时教练', icon: '/assets/icons/app_256.png' },
-  { id: 'analysis' as const, label: '赛后分析', icon: '/assets/icons/rank_icon_8.png' },
+  { id: 'coach' as const, path: '/coach', label: '实时教练', icon: '/assets/icons/app_256.png' },
+  { id: 'analysis' as const, path: '/analysis', label: '赛后分析', icon: '/assets/icons/rank_icon_8.png' },
+  { id: 'heroes' as const, path: '/heroes', label: '英雄资料', icon: '/assets/icons/hero_universal.png' },
+  { id: 'items' as const, path: '/items', label: '物品资料', icon: '/assets/icons/aghs_scepter.png' },
 ]
+
+const currentTab = computed(() => {
+  const path = route.path
+  if (path.includes('coach')) return 'coach'
+  if (path.includes('analysis')) return 'analysis'
+  if (path.includes('heroes')) return 'heroes'
+  if (path.includes('items')) return 'items'
+  if (path.includes('settings')) return 'settings'
+  return appStore.currentTab
+})
+
+function navigate(id: 'heroes' | 'items' | 'coach' | 'analysis' | 'settings', path: string) {
+  appStore.setCurrentTab(id)
+  router.push(path).catch(() => {})
+}
 </script>
 
 <template>
@@ -18,12 +37,13 @@ const navItems = [
       <button
         v-for="item in navItems"
         :key="item.id"
-        class="text-xs font-medium px-3 py-2 rounded-lg flex w-full transition-all items-center space-x-3" :class="[
-          state.currentTab === item.id
+        class="text-xs font-medium px-3 py-2 rounded-lg flex w-full cursor-pointer transition-all items-center space-x-3"
+        :class="[
+          currentTab === item.id
             ? 'bg-dota-panel text-dota-gold border border-dota-gold/40 shadow-sm'
             : 'text-dota-muted hover:bg-dota-hover hover:text-dota-text',
         ]"
-        @click="setCurrentTab(item.id)"
+        @click="navigate(item.id, item.path)"
       >
         <img :src="item.icon" :alt="item.label" class="shrink-0 h-4 w-4 object-contain">
         <span>{{ item.label }}</span>
@@ -32,12 +52,13 @@ const navItems = [
 
     <div class="border-dota-border pt-2 border-t">
       <button
-        class="text-xs font-medium px-3 py-2 rounded-lg flex w-full transition-all items-center space-x-3" :class="[
-          state.currentTab === 'settings'
+        class="text-xs font-medium px-3 py-2 rounded-lg flex w-full cursor-pointer transition-all items-center space-x-3"
+        :class="[
+          currentTab === 'settings'
             ? 'bg-dota-panel text-dota-gold border border-dota-gold/40 shadow-sm'
             : 'text-dota-muted hover:bg-dota-hover hover:text-dota-text',
         ]"
-        @click="setCurrentTab('settings')"
+        @click="navigate('settings', '/settings')"
       >
         <Settings class="shrink-0 h-4 w-4" />
         <span>应用设置</span>

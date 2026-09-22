@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -86,7 +87,7 @@ func (s *Service) GetPlayerProfile(accountIdInput string) (*PlayerProfileAnalysi
 	if err != nil {
 		return nil, fmt.Errorf("连接 OpenDota 战绩接口超时或失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("OpenDota 接口返回异常状态码 HTTP %d", resp.StatusCode)
@@ -198,12 +199,7 @@ func (s *Service) analyzeMatches(accountId string, matches []OpenDotaMatchSummar
 	}
 
 	var topHeroDescs []string
-	limit := 3
-	if len(heroList) < 3 {
-		limit = len(heroList)
-	}
-	for i := 0; i < limit; i++ {
-		h := heroList[i]
+	for _, h := range heroList[:min(3, len(heroList))] {
 		topHeroDescs = append(topHeroDescs, fmt.Sprintf("%s(%d场,胜率%d%%)", h.HeroName, h.Matches, h.WinRate))
 	}
 	heroStr := strings.Join(topHeroDescs, "、")
@@ -254,7 +250,7 @@ func (s *Service) GetPlayerRecentMatches(accountId string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("拉取对局列表失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -302,7 +298,7 @@ func (s *Service) GetMatchDetails(matchId string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("连接比赛详情接口超时或失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("OpenDota 接口返回异常 HTTP %d", resp.StatusCode)
@@ -313,9 +309,11 @@ func (s *Service) GetMatchDetails(matchId string) (string, error) {
 		return "", fmt.Errorf("读取比赛详情失败: %w", err)
 	}
 
-	// 3. 异步落盘持久化
+	// 3. 异步落盘持久化 (失败仅记录日志，不影响主流程返回)
 	go func(path string, content []byte) {
-		_ = os.WriteFile(path, content, 0644)
+		if err := os.WriteFile(path, content, 0644); err != nil {
+			log.Printf("[player] 写入比赛缓存失败 %s: %v", path, err)
+		}
 	}(cacheFilePath, body)
 
 	return string(body), nil

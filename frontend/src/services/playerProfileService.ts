@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { playerApi } from '../api'
 import { HERO_CHINESE_NAMES } from '../data/heroNames'
 
 /**
@@ -119,7 +120,7 @@ export function convertSteamId64ToAccountId(steamId64: string): string | null {
       return (big - base).toString()
     }
     return raw
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -139,16 +140,13 @@ export async function normalizeDotaAccountId(input: string): Promise<string | nu
   if (!input || typeof input !== 'string') return null
 
   // 0. 优先调用 Go 原生服务进行超高鲁棒性清洗与提取 (开工铁律第 6 条架构分层)
-  const win = window as any
-  if (win?.go?.main?.App?.NormalizeDotaAccountId) {
-    try {
-      const nativeRes = await win.go.main.App.NormalizeDotaAccountId(input)
-      if (nativeRes && typeof nativeRes === 'string') {
-        return nativeRes
-      }
-    } catch {
-      // Go 原生调用异常时平滑降级至前端纯 TS 规则
+  try {
+    const nativeRes = await playerApi.normalizeAccountId(input)
+    if (nativeRes && typeof nativeRes === 'string') {
+      return nativeRes
     }
+  } catch {
+    // Go 原生调用异常时平滑降级至前端纯 TS 规则
   }
 
   // 1. 全角数字转半角
@@ -156,6 +154,7 @@ export async function normalizeDotaAccountId(input: string): Promise<string | nu
     String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
 
   // 2. 清除不可见与零宽字符
+  // eslint-disable-next-line no-control-regex
   cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u0000-\u001F]/g, '').trim()
   if (!cleaned) return null
 
@@ -292,23 +291,63 @@ class PlayerProfileService {
     this.state.error = null
 
     // 0. 优先调用 Go 原生后端战绩网关 (带 10 分钟 TTL 内存缓存与强防限流机制)
-    const win = window as any
-    if (win?.go?.main?.App?.GetPlayerProfile) {
-      try {
-        const nativeProfile = await win.go.main.App.GetPlayerProfile(targetId)
-        if (nativeProfile && nativeProfile.accountId) {
-          this.state.profile = nativeProfile
-          if (typeof window !== 'undefined' && window.localStorage) {
-            localStorage.setItem(
-              CACHE_KEY_PROFILE,
-              JSON.stringify({ timestamp: Date.now(), data: nativeProfile }),
-            )
+    try {
+      const nativeProfile = await playerApi.getPlayerProfile(targetId)
+      if (nativeProfile && nativeProfile.accountId) {
+        const anyP = nativeProfile as any
+        const rawHeroes = (anyP.topHeroes && anyP.topHeroes.length > 0)
+          ? anyP.topHeroes
+          : (anyP.recentHeroes || [])
+
+        const topHeroes: HeroPerformance[] = rawHeroes.map((h: any) => {
+          const matches = h.matches ?? h.games ?? 0
+          const wins = h.wins ?? h.win ?? 0
+          const winRate = h.winRate ?? h.winrate ?? (matches > 0 ? Math.round((wins / matches) * 100) : 0)
+          return {
+            heroId: h.heroId,
+            heroName: h.heroName || HERO_CHINESE_NAMES[h.heroId] || `英雄 #${h.heroId}`,
+            matches,
+            wins,
+            winRate,
+            avgKills: Number(h.avgKills || 0),
+            avgDeaths: Number(h.avgDeaths || 0),
+            avgAssists: Number(h.avgAssists || 0),
           }
-          return nativeProfile
+        })
+
+        const totalMatches = anyP.totalMatches ?? anyP.totalGames ?? 20
+        const wins = anyP.wins ?? anyP.winGames ?? 0
+        const losses = anyP.losses ?? Math.max(0, totalMatches - wins)
+        const winRate = anyP.winRate ?? anyP.winrate ?? (totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0)
+        const summary = anyP.tacticalSummary
+          || (anyP.tags && anyP.tags.length > 0 ? anyP.tags.join('；') : '天梯实力选手')
+
+        const mappedProfile: PlayerProfileAnalysis = {
+          accountId: anyP.accountId,
+          totalMatches,
+          wins,
+          losses,
+          winRate,
+          avgKills: Number(anyP.avgKills || 0),
+          avgDeaths: Number(anyP.avgDeaths || 0),
+          avgAssists: Number(anyP.avgAssists || 0),
+          topHeroes: topHeroes.slice(0, 5),
+          recentHeroes: topHeroes,
+          tacticalSummary: summary,
+          lastUpdated: anyP.lastUpdated || new Date().toLocaleTimeString('zh-CN', { hour12: false }),
         }
-      } catch (nativeErr: any) {
-        console.warn('[PlayerProfile] Go 原生 GetPlayerProfile 失败，降级至前端请求:', nativeErr)
+
+        this.state.profile = mappedProfile
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(
+            CACHE_KEY_PROFILE,
+            JSON.stringify({ timestamp: Date.now(), data: mappedProfile }),
+          )
+        }
+        return mappedProfile
       }
+    } catch (nativeErr: unknown) {
+      console.warn('[PlayerProfile] playerApi.getPlayerProfile 失败，降级至前端请求:', nativeErr)
     }
 
     try {
@@ -483,16 +522,13 @@ export async function fetchMatchDetails(matchId: string): Promise<any> {
   const cleanId = matchId.trim()
   if (!cleanId) throw new Error('比赛 ID 不能为空')
 
-  const win = window as any
-  if (win?.go?.main?.App?.GetMatchDetails) {
-    try {
-      const rawJson = await win.go.main.App.GetMatchDetails(cleanId)
-      if (rawJson) {
-        return JSON.parse(rawJson)
-      }
-    } catch (e) {
-      console.warn('[PlayerProfile] Go 原生 GetMatchDetails 失败，降级至前端请求:', e)
+  try {
+    const rawJson = await playerApi.getMatchDetails(cleanId)
+    if (rawJson) {
+      return JSON.parse(rawJson)
     }
+  } catch (e) {
+    console.warn('[PlayerProfile] playerApi.getMatchDetails 失败，降级至前端请求:', e)
   }
 
   // 前端网络请求降级
@@ -513,17 +549,14 @@ export async function fetchPlayerRecentMatchesList(accountId: string): Promise<a
   const cleanId = accountId.trim()
   if (!cleanId) return []
 
-  const win = window as any
-  if (win?.go?.main?.App?.GetPlayerRecentMatches) {
-    try {
-      const rawJson = await win.go.main.App.GetPlayerRecentMatches(cleanId)
-      if (rawJson) {
-        const parsed = JSON.parse(rawJson)
-        if (Array.isArray(parsed)) return parsed
-      }
-    } catch (e) {
-      console.warn('[PlayerProfile] Go 原生 GetPlayerRecentMatches 失败，降级至前端请求:', e)
+  try {
+    const rawJson = await playerApi.getPlayerRecentMatches(cleanId)
+    if (rawJson) {
+      const parsed = JSON.parse(rawJson)
+      if (Array.isArray(parsed)) return parsed
     }
+  } catch (e) {
+    console.warn('[PlayerProfile] playerApi.getPlayerRecentMatches 失败，降级至前端请求:', e)
   }
 
   const res = await fetch(`https://api.opendota.com/api/players/${encodeURIComponent(cleanId)}/recentMatches`, {

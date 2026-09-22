@@ -16,12 +16,13 @@
 - **现代化电竞暗色 HUD 界面与实战纯化视口**：实时教练页纯实战设计（血蓝条动画、KDA、GPM/XPM、买活判定、技能CD倒计时、56x42 物品格与肉山/魔方时钟），零设置干扰；所有系统与 AI 配置统一收纳至设置中枢。
 - **物理隔离标题栏与 IME 输入保护**：窗口拖拽区域物理隔离，支持中文拼音防抖搜索，全键盘与鼠标流畅交互。
 - **10Hz GSI 高频单消费者流水线**：基于 Go 原生 HTTP 本地轻量监听（端口 4444），非外挂合规原则，无需注入游戏、不修改内存。
-- **2026 Qwen 3.5/3.7/3.8 最新端侧 NPU 推理 + 全模态 AI 接入**：
-  - 默认首选 `qwen3.5:4b` 端侧模型（~2.8GB 内存，延迟 <180ms，支持 Intel NPU / Ryzen AI / 骁龙 / RTX）；
-  - 支持纯确定性规则引擎降级模式（0 延迟、0 网络消耗、纯离线运行）；
-  - 支持端点连通性测试与 API Response 原始响应体实时回显。
+- **2026 Qwen 3.5 最新端侧 NPU 推理 + 全模态 AI 接入**：
+  - 默认首选 `qwen3.5:1.5b` 端侧模型（严格 ≤ 2GB 内存开销，延迟 <120ms，在 16G 物理内存下顺畅与 Dota 2 同跑，支持 Intel NPU / Ryzen AI / 骁龙 / RTX）；
+  - 支持云端商用模型（DeepSeek-V3/R1 等）端点连通性测试与一键自动拉取模型列表，提供模型选项快速点击选用；
+  - 支持纯确定性规则引擎降级模式（0 延迟、0 网络消耗、纯离线秒级裁定）；
+  - 深度集成 Windows 原生选择文件夹、大模型文件选择及文件资源管理器直接联动。
 - **OpenDota 玩家近 20 场战绩画像接入**：通过 `api.opendota.com/api/players/{account_id}/matches?limit=20` 获取玩家常用英雄与胜率特征，严格脱敏后动态注入 AI Prompt，提供高度契合选手技术水平与风格的定制化对战指引。
-- **确定性战术规则 + 智能语音播报**：内置战略节拍与战术裁定规则，提供三段式提醒开关控制与拟真人声语音。
+- **确定性战术规则 + 智能语音播报**：内置战略节拍与战术裁定规则，提供三段式提醒开关控制与拟真人声语音（内置微软 Edge-TTS 原生保底，支持第三方 CosyVoice / ChatTTS）。
 - **独立置顶经济与战局悬浮窗**：多窗口架构，可独立浮于游戏上方实时呈现团队净胜与关键经济差，支持号角吹响自动拉起。
 
 ---
@@ -30,22 +31,29 @@
 
 ```text
 ├── build/                  # Wails v3 宿主配置、Windows 高清图标与清单
-├── frontend/               # 前端电竞 HUD (Vue 3 + TypeScript + Vite + TailwindCSS)
+├── internal/               # Go 后端标准领域分层与系统服务
+│   ├── app/                # App 生命周期与主窗口句柄治理
+│   ├── services/           # SystemService、AiService、GsiService、OverlayService、PlayerService
+│   ├── models/             # 前后端 1:1 契约强类型 DTO 实体
+│   ├── storage/            # 缓存目录路径解析与持久化存储管理
+│   ├── dota/               # GSI 监听接收器与游戏状态反序列化
+│   ├── player/             # 玩家账号格式清洗与 OpenDota 网关
+│   └── overlay/            # 桌面置顶经济悬浮窗保活协程与 WinAPI 绑定
+├── frontend/               # 前端电竞 HUD (Vue 3 + TypeScript + Vite + UnoCSS / TailwindCSS)
 │   ├── public/             # 静态数据与游戏图标 (127 英雄、全物品 JSON、官方高清图标)
 │   ├── src/
+│   │   ├── api/            # 强类型 Wails v3 IPC 客户端与系统/AI/GSI 门面
 │   │   ├── components/     # TitleBar、Sidebar、VoiceBroadcastBar、GsiSimulator 等
-│   │   ├── data/           # 127 英雄中文常数映射表、7.41e 物品图谱、出装指南
-│   │   ├── pages/          # 实时教练、英雄资料、物品图谱、赛后复盘、系统设置
-│   │   ├── services/       # GSI 规则引擎、语音播报服务、配置持久化
-│   │   ├── store/          # Vue 3 响应式全局战局状态
-│   │   ├── utils/          # 1 级基础属性计算器、技能分类与宏解析、HTML 清洗
-│   │   └── windows/        # 独立置顶透明经济悬浮窗 (OverlayWindow.vue)
-│   └── wailsjs/            # Wails 自动生成的 Go 后端 IPC 绑定
+│   │   ├── composables/    # useGsiStream、useNativeNavigation 响应式钩子
+│   │   ├── data/           # 127 英雄中文常数映射表、7.41f 物品图谱、出装指南
+│   │   ├── stores/         # Pinia 全局响应式状态中枢 (app, battle, hero, item, player)
+│   │   ├── views/          # CoachView、HeroesView、ItemsView、AnalysisView、SettingsView、OverlayView
+│   │   ├── services/       # GSI 规则引擎、AI 教练服务、语音播报服务、玩家画像
+│   │   └── utils/          # 1 级基础属性计算器、技能宏解析、HTML 清洗、资产防破损
 ├── tests/fixtures/         # 真实比赛 GSI 快照数据集 (Huskar, Juggernaut 等)
 ├── tools/                  # 自动化发布脚本 (package-release.ps1)
 ├── docs/                   # 完整架构规范与技术文档
-├── app.go                  # Wails 后端核心业务与 GSI HTTP 接收器
-├── main.go                 # Wails 桌面入口与多窗口/无边框总控
+├── main.go                 # Wails 桌面入口与多服务注入总控
 ├── Taskfile.yml            # Wails v3 构建任务定义
 └── package.json            # 根工程脚本调度与依赖管理
 ```

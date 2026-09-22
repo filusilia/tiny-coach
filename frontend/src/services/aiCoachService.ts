@@ -1,5 +1,7 @@
+import type { BattleContextDTO } from '../api/types'
 import type { AiEndpointTestResult } from '@/types'
 import { useAppStore } from '@/store'
+import { aiApi, systemApi } from '../api'
 import { HERO_CHINESE_NAMES } from '../data/heroNames'
 import { playerProfileService } from './playerProfileService'
 
@@ -82,57 +84,46 @@ export interface MatchReviewResult {
  */
 export const RECOMMENDED_NPU_MODELS: NpuModelRecommendation[] = [
   {
-    id: 'qwen2.5:7b',
-    name: 'Qwen 2.5 7B Instruct',
-    tag: '🌟 官方首推 · 中文战术理解最强',
-    size: '~4.7 GB 内存/显存',
-    npuRequirement: '中高端 PC NPU / 独显加速',
-    recommendedFor: '中文电竞术语、出装克制推演、战术意图深度理解',
+    id: 'qwen3.5:1.5b',
+    name: 'Qwen 3.5 1.5B Instruct',
+    tag: '👑 16G + Dota2 绝配首选 (仅占 1.2G)',
+    size: '~1.2 GB 运行内存 (严格 < 2G)',
+    npuRequirement: '全系 NPU (Intel Ultra / AMD Ryzen AI / 骁龙) / 核显 / CPU',
+    recommendedFor: '16GB 内存边打 Dota 2 边运行、0 掉帧、秒级中文出装决策',
     contextWindow: '32k 上下文',
-    description: '阿里通义千问 2.5 代 7B 标杆模型，逻辑严密，战术复盘见解深刻，首选主力！',
+    description: '阿里通义千问 3.5 代 1.5B 端侧旗舰版。实测仅占 ~1.2GB 物理内存，初字生成 < 25ms。16G 电脑在 Dota 2 激烈团战时内存依然充裕，100% 不掉帧不抢占游戏资源！',
     isPriority: true,
   },
   {
-    id: 'qwen2.5:3b',
-    name: 'Qwen 2.5 3B Instruct',
-    tag: '⚡ 极致轻量 · 极速端侧推理',
-    size: '~2.2 GB 内存占用',
-    npuRequirement: '主流 PC NPU (Intel Core Ultra / AMD Ryzen AI / 骁龙)',
-    recommendedFor: '轻薄本、超低显存、毫秒级快速问答',
+    id: 'qwen3.5:0.5b',
+    name: 'Qwen 3.5 0.5B Instruct',
+    tag: '⚡ 极限省内存 (仅占 400MB)',
+    size: '~0.4 GB 运行内存',
+    npuRequirement: '任何老电脑 / 轻薄本核显 / 任意 CPU',
+    recommendedFor: '极致低配设备、严苛内存控制、纯本地基础战术答复',
     contextWindow: '32k 上下文',
-    description: '轻量化端侧主力，在主流轻薄本 NPU 上延迟低至 120ms，开销极低。',
+    description: 'Qwen 3.5 极限轻量版，单文件仅 390MB，内存仅占 400MB！推理速度如同本地代码执行，对游戏完全 0 负载，绝对安全保障。',
     isPriority: true,
   },
   {
-    id: 'deepseek-r1:7b',
-    name: 'DeepSeek-R1 Distill Qwen 7B',
-    tag: '🧠 原生思维链 · 深度宏观推演',
-    size: '~4.8 GB 内存占用',
-    npuRequirement: '30+ TOPS NPU 或独立 GPU',
-    recommendedFor: '复盘长局推演、团战胜负手与胜率波动归因',
-    contextWindow: '64k 上下文',
-    description: '具备原生 CoT 深度推理链，善于剖析团战失误与经济差质变点。',
-    isPriority: true,
+    id: 'qwen3.8:1.5b',
+    name: 'Qwen 3.8 1.5B Instruct',
+    tag: '🚀 最新 3.8 代端侧优化 (仅占 1.3G)',
+    size: '~1.3 GB 运行内存',
+    npuRequirement: '全系主流 NPU / RTX / 现代核显',
+    recommendedFor: '前沿端侧战术推演、阵容克制深度研判',
+    contextWindow: '64k 长上下文',
+    description: '通义千问 3.8 代最新轻量权重，逻辑推理性能进一步增强，开销稳定在 1.3GB 以内，电竞实战完美契合。',
   },
   {
-    id: 'deepseek-r1:1.5b',
-    name: 'DeepSeek-R1 Distill 1.5B',
-    tag: '⚡ 超轻便携 · 极低资源消耗',
-    size: '~1.1 GB 内存占用',
-    npuRequirement: '核显 / 便携设备通用 (10+ TOPS 即顺畅)',
-    recommendedFor: '极低配置设备、局内极速答疑',
-    contextWindow: '64k 上下文',
-    description: '极致轻量化，在超轻薄核显本上也能瞬时响应。',
-  },
-  {
-    id: 'llama3.2:3b',
-    name: 'Llama 3.2 3B Instruct',
-    tag: '🌐 Meta 端侧国际旗舰',
-    size: '~2.0 GB 内存占用',
-    npuRequirement: 'Windows DirectML 硬件加速',
-    recommendedFor: '英文与多语言对局分析、标准遵循',
+    id: 'llama3.2:1b',
+    name: 'Llama 3.2 1B Instruct',
+    tag: '🌐 Meta 端侧架构 (仅占 900MB)',
+    size: '~0.9 GB 运行内存',
+    npuRequirement: '骁龙 X Elite / Intel NPU / AMD Ryzen AI',
+    recommendedFor: '端侧高能效 NPU、国际服英文交流与轻快推理',
     contextWindow: '128k 超长上下文',
-    description: 'Meta 专为现代端侧硬件优化，遵循严苛指令约束。',
+    description: 'Meta 专门针对移动端与 PC NPU 优化的 1B 级模型，开销控制在 1GB 以内，极具效能比。',
   },
 ]
 
@@ -195,22 +186,27 @@ class AiCoachService {
     }
 
     // 0. 优先通过 Go 原生进行毫秒级端点网络探测 (彻底避免浏览器 CORS 拦截与 Token 泄漏)
-    const win = window as any
-    if (win?.go?.main?.App?.TestAiEndpoint) {
-      try {
-        const nativeResult = await win.go.main.App.TestAiEndpoint(mode, endpoint, apiKey, model)
-        if (nativeResult) {
-          return nativeResult
+    try {
+      const nativeResult = await aiApi.testAiEndpoint(mode, endpoint, apiKey, model)
+      if (nativeResult) {
+        return {
+          success: nativeResult.success,
+          latencyMs: nativeResult.latencyMs,
+          statusCode: nativeResult.success ? 200 : 500,
+          modelUsed: nativeResult.modelUsed || model,
+          responsePreview: nativeResult.rawResponse,
+          errorMessage: nativeResult.errorMessage,
+          testedAt,
         }
-      } catch (nativeErr: any) {
-        console.warn('[AiCoachService] Go 原生 TestAiEndpoint 失败，降级至前端探测:', nativeErr)
       }
+    } catch (nativeErr: unknown) {
+      console.warn('[AiCoachService] aiApi.testAiEndpoint 失败，降级至前端探测:', nativeErr)
     }
 
     try {
       const isLocal = mode === 'local_npu' || mode === 'npu'
       const cleanEndpoint = (endpoint || (isLocal ? 'http://127.0.0.1:11434/v1' : 'https://api.deepseek.com/v1')).replace(/\/+$/, '')
-      const testModel = model || (isLocal ? 'qwen2.5:7b' : 'deepseek-chat')
+      const testModel = model || (isLocal ? 'qwen3.5:1.5b' : 'deepseek-chat')
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -307,33 +303,32 @@ class AiCoachService {
     const isNpu = mode === 'local_npu' || mode === 'npu'
 
     // 0. 优先调用 Go 原生战术问答引擎 (开工铁律第 6 条与第 9 条)
-    const win = window as any
-    if (win?.go?.main?.App?.AskCoach) {
-      try {
-        const endpoint = (isNpu ? state.settings.npu_endpoint : state.settings.cloud_base_url) || ''
-        const apiKey = (isNpu ? '' : state.settings.cloud_api_key) || ''
-        const model = (isNpu ? state.settings.npu_model : state.settings.cloud_model) || ''
-        const timeoutSec = Math.max(2, Math.round(timeoutMs / 1000))
+    try {
+      const endpoint = (isNpu ? state.settings.npu_endpoint : state.settings.cloud_base_url) || ''
+      const apiKey = (isNpu ? '' : state.settings.cloud_api_key) || ''
+      const model = (isNpu ? state.settings.npu_model : state.settings.cloud_model) || ''
 
-        const nativeReply = await win.go.main.App.AskCoach(
-          question,
-          context,
-          mode,
-          endpoint,
-          apiKey,
-          model,
-          timeoutSec,
-        )
-        if (nativeReply && nativeReply.answer) {
-          return {
-            answer: nativeReply.answer,
-            modelUsed: nativeReply.modelUsed || (isNpu ? `[NPU] ${model}` : `[Cloud] ${model}`),
-            isNpu: Boolean(nativeReply.isNpu),
-          }
-        }
-      } catch (nativeErr: any) {
-        console.warn('[AiCoachService] Go 原生 AskCoach 失败，降级至前端请求:', nativeErr)
+      const battleDto: BattleContextDTO = {
+        ...context,
+        clockTime: context.clockTime !== undefined ? String(context.clockTime) : undefined,
       }
+      const nativeReply = await aiApi.askCoach(
+        question,
+        battleDto,
+        mode,
+        endpoint,
+        apiKey,
+        model,
+      )
+      if (nativeReply) {
+        return {
+          answer: nativeReply,
+          modelUsed: isNpu ? `[NPU] ${model}` : `[Cloud] ${model}`,
+          isNpu: Boolean(isNpu),
+        }
+      }
+    } catch (nativeErr: unknown) {
+      console.warn('[AiCoachService] aiApi.askCoach 失败，降级至前端请求:', nativeErr)
     }
 
     const systemPrompt = `你是一名 Dota 2 顶尖电竞教练。
@@ -362,7 +357,7 @@ class AiCoachService {
       if (isNpu) {
         // 本地 AI / 本机 NPU 模式 (Ollama / LM Studio / DirectML endpoint)
         const endpoint = (state.settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
-        const model = state.settings.npu_model || 'qwen2.5:7b'
+        const model = state.settings.npu_model || 'qwen3.5:1.5b'
 
         const res = await fetch(`${endpoint}/chat/completions`, {
           method: 'POST',
@@ -465,7 +460,7 @@ class AiCoachService {
    * @param match OpenDota match 详情实体
    * @param targetPlayerSlot 目标分析的玩家槽位 (若未指定则自动探测已绑定账号或首发选手)
    */
-  public async generateMatchReview(match: any, targetPlayerSlot?: number): Promise<MatchReviewResult> {
+  public async generateMatchReview(match: any, targetPlayerSlot?: number, userContext?: string): Promise<MatchReviewResult> {
     const { state } = useAppStore()
     const mode = state.settings.ai_mode
 
@@ -499,7 +494,7 @@ class AiCoachService {
 - 个人战绩: ${target.kills} 击杀 / ${target.deaths} 阵亡 / ${target.assists} 助攻
 - 经济与经验: GPM ${target.gold_per_min} / XPM ${target.xp_per_min}
 - 英雄伤害: ${target.hero_damage} | 建筑伤害: ${target.tower_damage || 0}
-- 正/反补刀: ${target.last_hits} / ${target.denies}
+- 正/反补刀: ${target.last_hits} / ${target.denies}${userContext ? `\n- 玩家战术重点关注: ${userContext}` : ''}
 
 请依据上述客观事实，给出高水平专业战术复盘：`
 
@@ -523,30 +518,49 @@ class AiCoachService {
     const isNpu = mode === 'local_npu' || mode === 'npu'
 
     // 0. 优先调用 Go 原生赛后复盘分析引擎 (开工铁律第 6 条与第 9 条)
-    const win = window as any
-    if (win?.go?.main?.App?.GenerateMatchReview) {
-      try {
-        const endpoint = (isNpu ? state.settings.npu_endpoint : state.settings.cloud_base_url) || ''
-        const apiKey = (isNpu ? '' : state.settings.cloud_api_key) || ''
-        const model = (isNpu ? state.settings.npu_model : state.settings.cloud_model) || ''
-        const slot = targetPlayerSlot !== undefined ? targetPlayerSlot : -1
-        const boundId = state.settings.dota_player_id || ''
+    try {
+      const endpoint = (isNpu ? state.settings.npu_endpoint : state.settings.cloud_base_url) || ''
+      const apiKey = (isNpu ? '' : state.settings.cloud_api_key) || ''
+      const model = (isNpu ? state.settings.npu_model : state.settings.cloud_model) || ''
+      const slot = targetPlayerSlot !== undefined ? targetPlayerSlot : -1
 
-        const nativeReview = await win.go.main.App.GenerateMatchReview(
-          JSON.stringify(match),
-          slot,
-          boundId,
-          mode,
-          endpoint,
-          apiKey,
-          model,
-        )
-        if (nativeReview && nativeReview.overview) {
-          return nativeReview
-        }
-      } catch (nativeErr: any) {
-        console.warn('[AiCoachService] Go 原生 GenerateMatchReview 失败，降级至前端请求:', nativeErr)
+      // 规整提炼核心指标，杜绝将数兆字节的战斗日志原始 JSON 塞入大模型 Prompt 导致超限崩溃
+      const matchSummaryPayload = JSON.stringify({
+        match_id: match.match_id,
+        duration_minutes: durationMin,
+        is_win: isWin,
+        radiant_score: match.radiant_score,
+        dire_score: match.dire_score,
+        radiant_heroes: radiantHeroes,
+        dire_heroes: direHeroes,
+        target_player: {
+          slot: target.player_slot,
+          hero: targetHeroName,
+          kda: `${target.kills}/${target.deaths}/${target.assists}`,
+          gpm: target.gold_per_min,
+          xpm: target.xp_per_min,
+          hero_damage: target.hero_damage,
+          tower_damage: target.tower_damage,
+          last_hits: target.last_hits,
+          denies: target.denies,
+        },
+        user_focus: userContext || '',
+      })
+
+      const nativeReview = await aiApi.generateMatchReview(
+        String(match.match_id || ''),
+        matchSummaryPayload,
+        slot,
+        mode,
+        endpoint,
+        apiKey,
+        model,
+      )
+      if (nativeReview && nativeReview.overview) {
+        return nativeReview
       }
+    } catch (nativeErr: unknown) {
+      console.warn('[AiCoachService] aiApi.generateMatchReview 失败，降级至前端请求:', nativeErr)
     }
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 12000)
@@ -557,7 +571,7 @@ class AiCoachService {
 
       if (isNpu) {
         const endpoint = (state.settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
-        const model = state.settings.npu_model || 'qwen2.5:7b'
+        const model = state.settings.npu_model || 'qwen3.5:1.5b'
         modelUsed = `[本地/NPU] ${model}`
 
         const res = await fetch(`${endpoint}/chat/completions`, {
@@ -680,7 +694,7 @@ class AiCoachService {
    * 确定性离线复盘报告生成器 (保证在无网络/无模型时 100% 产出专业见解)
    */
   private generateDeterministicMatchReview(
-    match: any,
+    _match: any,
     target: any,
     isWin: boolean,
     targetHeroName: string,
@@ -729,16 +743,13 @@ export const aiCoachService = new AiCoachService()
  * 通过 Go 端发送请求，彻底解决浏览器跨域 CORS 拦截问题
  */
 export async function fetchCloudModelsList(baseUrl: string, apiKey: string): Promise<string[]> {
-  const win = window as any
-  if (win?.go?.main?.App?.FetchCloudModels) {
-    try {
-      const models = await win.go.main.App.FetchCloudModels(baseUrl, apiKey)
-      if (Array.isArray(models) && models.length > 0) {
-        return models
-      }
-    } catch (e) {
-      console.warn('[AiCoachService] Go 原生 FetchCloudModels 失败，降级至前端 fetch:', e)
+  try {
+    const models = await aiApi.fetchCloudModels(baseUrl, apiKey)
+    if (Array.isArray(models) && models.length > 0) {
+      return models
     }
+  } catch (e) {
+    console.warn('[AiCoachService] aiApi.fetchCloudModels 失败，降级至前端 fetch:', e)
   }
 
   // 纯浏览器降级
@@ -756,30 +767,59 @@ export async function fetchCloudModelsList(baseUrl: string, apiKey: string): Pro
 }
 
 /**
- * 原生获取本地 Ollama 安装模型列表
+ * 原生获取本地安装/已下载模型列表 (聚合本地 GGUF 文件、Ollama 服务与 OpenAI 兼容端点)
  */
 export async function fetchLocalModelsList(endpoint: string): Promise<string[]> {
-  const win = window as any
-  if (win?.go?.main?.App?.FetchLocalModels) {
-    try {
-      const models = await win.go.main.App.FetchLocalModels(endpoint)
-      if (Array.isArray(models) && models.length > 0) {
-        return models
-      }
-    } catch (e) {
-      console.warn('[AiCoachService] Go 原生 FetchLocalModels 失败，降级至前端 fetch:', e)
+  const modelsSet = new Set<string>()
+
+  // 1. 优先扫描本地磁盘中的 GGUF / ONNX 模型文件
+  try {
+    const localFiles = await systemApi.scanLocalModelFiles()
+    if (Array.isArray(localFiles)) {
+      localFiles.forEach((f: any) => {
+        const name = typeof f === 'string' ? f : f.name
+        if (name && name.trim()) modelsSet.add(name.trim())
+      })
     }
+  } catch (e) {
+    console.debug('[AiCoachService] 扫描本地模型文件跳过:', e)
   }
 
   const cleanEndpoint = (endpoint || 'http://127.0.0.1:11434').replace(/\/+$/, '').replace(/\/v1$/, '')
-  const res = await fetch(`${cleanEndpoint}/api/tags`, {
-    signal: AbortSignal.timeout(3000),
-  })
-  if (res.ok) {
-    const data = await res.json()
-    if (Array.isArray(data?.models)) {
-      return data.models.map((m: any) => m.name).filter(Boolean)
+
+  // 2. 探测 Ollama 原生端点 (/api/tags)
+  try {
+    const res = await fetch(`${cleanEndpoint}/api/tags`, {
+      signal: AbortSignal.timeout(2500),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data?.models)) {
+        data.models.forEach((m: any) => {
+          if (m?.name) modelsSet.add(m.name)
+        })
+      }
     }
+  } catch {
+    // 连接超时或未启动
   }
-  return []
+
+  // 3. 探测 OpenAI 兼容本地端点 (/v1/models - LM Studio, vLLM, LocalAI)
+  try {
+    const res = await fetch(`${cleanEndpoint}/v1/models`, {
+      signal: AbortSignal.timeout(2500),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data?.data)) {
+        data.data.forEach((m: any) => {
+          if (m?.id) modelsSet.add(m.id)
+        })
+      }
+    }
+  } catch {
+    // 忽略兼容端点错误
+  }
+
+  return Array.from(modelsSet)
 }

@@ -13,6 +13,41 @@ export const BROADCAST_MODES = [
 ]
 
 /**
+ * 宏观战术播报策略预设体系
+ */
+export interface BroadcastStrategyPreset {
+  id: 'all_coach' | 'focus_ranked' | 'silent_hud'
+  name: string
+  tag: string
+  description: string
+  badgeClass: string
+}
+
+export const BROADCAST_STRATEGY_PRESETS: BroadcastStrategyPreset[] = [
+  {
+    id: 'all_coach',
+    name: '全能战术解说',
+    tag: '大局观提升 · 推荐',
+    description: '关键战略节拍（肉山/魔方/神符）与危机变量（买活/终极技能/关键装成型）全量人声语音 + 屏幕战术卡片',
+    badgeClass: 'text-amber-400 border-amber-500/40 bg-amber-500/15',
+  },
+  {
+    id: 'focus_ranked',
+    name: '专注天梯防打扰',
+    tag: '纯净排位 · 开黑连麦',
+    description: '仅在生死核心大局（肉山刷新倒计时、买活危机、敌方质变跳刀/BKB）语音预警，其余事件静音文字呈现，绝不干扰游戏环境音与开麦',
+    badgeClass: 'text-cyan-400 border-cyan-500/40 bg-cyan-500/15',
+  },
+  {
+    id: 'silent_hud',
+    name: '纯净战术流',
+    tag: '完全静音 · 沉浸视觉',
+    description: '彻底关闭所有人声发音，仅在战况面板与局内置顶悬浮窗中展现高对比度战术气泡与倒计时',
+    badgeClass: 'text-slate-400 border-slate-700 bg-slate-900/80',
+  },
+]
+
+/**
  * 官方预设 9 大战术与大局提醒分类配置表
  * 严格遵照“宏观战略优先，杜绝微观琐碎噪音”设计原则：
  * 包含：宏观局势节奏、肉山控盾、痛苦魔方、神符视野掌控、买活储备与防守、关键装成型与克制、AI 研判指导、核心技能就绪、阵亡复活时机

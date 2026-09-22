@@ -240,10 +240,9 @@ const PLACEHOLDER_REGEX = /%(\w+)%|\{([sdfg]?:?\w+)\}|\{\{(\w+)\}\}/g
 export function extractPlaceholderKeys(template: string | undefined): string[] {
   if (!template || typeof template !== 'string') return []
   const keys: string[] = []
-  let m: RegExpExecArray | null
   const regex = new RegExp(PLACEHOLDER_REGEX.source, 'g')
-  while ((m = regex.exec(template)) !== null) {
-    const rawKey = m[1] || m[2] || m[3]
+  for (const match of template.matchAll(regex)) {
+    const rawKey = match[1] || match[2] || match[3]
     if (rawKey) {
       const cleanKey = rawKey.replace(/^[sdfg]:/, '')
       keys.push(cleanKey)

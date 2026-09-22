@@ -150,7 +150,7 @@ func (s *Service) AskCoach(
 	targetModel := strings.TrimSpace(model)
 	if targetModel == "" {
 		if isNpu {
-			targetModel = "qwen2.5:7b"
+			targetModel = "qwen3.5:1.5b"
 		} else {
 			targetModel = "deepseek-chat"
 		}
@@ -367,7 +367,7 @@ func (s *Service) GenerateMatchReview(
 	targetModel := strings.TrimSpace(model)
 	if targetModel == "" {
 		if isNpu {
-			targetModel = "qwen2.5:7b"
+			targetModel = "qwen3.5:1.5b"
 		} else {
 			targetModel = "deepseek-chat"
 		}
@@ -641,7 +641,7 @@ func (s *Service) TestEndpoint(mode string, endpoint string, apiKey string, mode
 	testModel := strings.TrimSpace(model)
 	if testModel == "" {
 		if isLocal {
-			testModel = "qwen2.5:7b"
+			testModel = "qwen3.5:1.5b"
 		} else {
 			testModel = "deepseek-chat"
 		}

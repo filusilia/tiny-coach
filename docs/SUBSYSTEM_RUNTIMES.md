@@ -19,7 +19,7 @@ sequenceDiagram
     Dota->>GoHTTP: HTTP POST (application/json, ~10Hz)
     GoHTTP->>GoHTTP: 校验 Auth Token & 存入最新快照
     GoHTTP-->>Dota: 立即响应 200 OK (微秒级)
-    GoHTTP->>Wails: runtime.EventsEmit("dota_gsi_update", rawPayload)
+    GoHTTP->>Wails: app.Event.Emit("gsi_data", rawPayload)
     Wails->>Engine: 顺序处理快照差分与规则判定
     loop 状态差分与 9 类提醒冷却检查
         Engine->>Engine: 检查血量/蓝量/控制/神符/肉山/出装及独立冷却

@@ -1,7 +1,8 @@
 import type { CoachAdvice, ReminderCategoryKey } from '@/types'
 import { reactive } from 'vue'
-import { HERO_CHINESE_NAMES } from '../data/heroNames'
 import { useAppStore } from '@/store'
+import { overlayApi } from '../api'
+import { HERO_CHINESE_NAMES } from '../data/heroNames'
 import { convertSteamId64ToAccountId, playerProfileService } from './playerProfileService'
 import { speechService } from './speechService'
 
@@ -240,13 +241,22 @@ class GsiRuleEngine {
     if (this.initialized) return
     this.initialized = true
 
-    // 检查 Wails 原生 runtime 事件系统
+    // 优先接入 Wails v3 原生事件总线，保持对兼容通道的兜底
     if (typeof window !== 'undefined') {
-      const runtime = (window as any).runtime
-      if (runtime && typeof runtime.EventsOn === 'function') {
-        runtime.EventsOn('dota_gsi_update', (raw: any) => {
-          this.processGsiSnapshot(raw)
-        })
+      const win = window as any
+      const handleEvent = (eventPayload: any) => {
+        const payload = eventPayload?.data !== undefined ? eventPayload.data : eventPayload
+        this.processGsiSnapshot(payload)
+      }
+
+      // 1. Wails v3 原生事件监听 (优先标准 'gsi_data' 与兼容 'dota_gsi_update')
+      if (win.wails?.Events?.On) {
+        win.wails.Events.On('gsi_data', handleEvent)
+        win.wails.Events.On('dota_gsi_update', handleEvent)
+      } else if (win.runtime?.EventsOn) {
+        // 2. 兼容垫片/旧版事件总线降级 (互斥执行，防止 10Hz 事件双倍重复处理)
+        win.runtime.EventsOn('gsi_data', handleEvent)
+        win.runtime.EventsOn('dota_gsi_update', handleEvent)
       }
     }
   }
@@ -442,25 +452,22 @@ class GsiRuleEngine {
     // ==========================================
     if (isGameActive && state.settings.auto_overlay_on_game_start && !this.hasAutoLaunchedOverlay) {
       this.hasAutoLaunchedOverlay = true
-      const appApi = (window as any).go?.main?.App
-      if (appApi?.IsOverlayRunning) {
-        appApi.IsOverlayRunning().then((running: boolean) => {
-          if (!running && appApi.ToggleOverlayWindow) {
-            appApi.ToggleOverlayWindow().then(() => {
-              state.isOverlayRunning = true
-              triggerAlert(
-                'macro_tempo',
-                'AUTO_OVERLAY_LAUNCH',
-                '比赛开启 · 悬浮窗就绪',
-                '对局正式开始，已为您自动唤起独立置顶经济悬浮窗！',
-                'Info',
-                '专注屏幕中央操作，右上角悬浮窗实时监控经济差与全队买活。',
-                'Solution Hierarchy: 观察敌方出门装，对线期前两波兵重点控线发育。',
-              )
-            })
-          }
-        })
-      }
+      overlayApi.isOverlayRunning().then((running: boolean) => {
+        if (!running) {
+          overlayApi.toggleOverlayWindow().then(() => {
+            state.isOverlayRunning = true
+            triggerAlert(
+              'macro_tempo',
+              'AUTO_OVERLAY_LAUNCH',
+              '比赛开启 · 悬浮窗就绪',
+              '对局正式开始，已为您自动唤起独立置顶经济悬浮窗！',
+              'Info',
+              '专注屏幕中央操作，右上角悬浮窗实时监控经济差与全队买活。',
+              'Solution Hierarchy: 观察敌方出门装，对线期前两波兵重点控线发育。',
+            )
+          }).catch(() => {})
+        }
+      }).catch(() => {})
     }
 
     // 离开对局时重置标志，下一场比赛可再次自动拉起

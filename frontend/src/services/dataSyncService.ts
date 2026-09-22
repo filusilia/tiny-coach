@@ -1,4 +1,4 @@
-import {reactive} from 'vue'
+import { reactive } from 'vue'
 
 /**
  * 官方图鉴数据同步与版本检测响应式状态实体
@@ -159,7 +159,7 @@ class DataSyncService {
         console.info('远程数据源联通受限，切换为本地静态图鉴校验:', netErr)
       }
 
-      this.state.lastChecked = new Date().toLocaleTimeString('zh-CN', {hour12: false})
+      this.state.lastChecked = new Date().toLocaleTimeString('zh-CN', { hour12: false })
 
       if (Array.isArray(remoteHeroList) && remoteHeroList.length > 0) {
         // 发现新 ID
@@ -183,7 +183,7 @@ class DataSyncService {
 
       // 离线兜底逻辑
       this.refreshNewHeroIds()
-      this.state.statusMessage = `已校验本地 7.41 官方英雄与装备图鉴 (检测到 ${this.state.newHeroIds.length} 个新英雄版本更新)`
+      this.state.statusMessage = `已校验本地 7.41f 官方英雄与装备图鉴 (检测到 ${this.state.newHeroIds.length} 个新英雄版本更新)`
       return {
         success: true,
         message: this.state.statusMessage,

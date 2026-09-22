@@ -1,6 +1,11 @@
 import antfu from '@antfu/eslint-config'
 
 export default antfu({
+  // 忽略自动生成目录与构建产物
+  ignores: [
+    'dist/**',
+    'build/**',
+  ],
   // 启用各种格式支持
   formatters: {
     css: true,

@@ -40,15 +40,27 @@
   body {
     color: #f8fafc;
     font-family:
-      'Microsoft YaHei UI',
+      /* 系统原生 UI（macOS / 通用） */
       -apple-system,
       BlinkMacSystemFont,
+      /* Windows 系统 UI */ 'Segoe UI Variable',
+      'Segoe UI',
+      /* Emoji 与符号：必须排在中文字体之前 */ 'Segoe UI Emoji',
+      'Segoe UI Symbol',
+      'Apple Color Emoji',
+      'Noto Color Emoji',
+      /* 中文：优先 UI 版，再标准版 */ 'Microsoft YaHei UI',
+      'Microsoft YaHei',
       'PingFang SC',
       'Hiragino Sans GB',
-      'Microsoft YaHei',
-      'Segoe UI',
-      Roboto,
+      'Noto Sans CJK SC',
+      'Source Han Sans SC',
+      /* 日韩：中文缺失时的回退 */ 'Malgun Gothic',
+      'Meiryo',
+      'Yu Gothic UI',
+      /* 通用兜底 */ Roboto,
       'Helvetica Neue',
+      Arial,
       sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

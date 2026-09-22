@@ -217,7 +217,7 @@ export interface LocalizedHeroData {
 
 /**
  * 物品白名单与基础属性实体
- * 严格遵照 Dota 2 官网 7.41e 标准目录与分类规范
+ * 严格遵照 Dota 2 官网 7.41f 标准目录与分类规范
  */
 export interface ItemData {
   /** 物品数字 ID */

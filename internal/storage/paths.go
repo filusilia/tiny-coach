@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -26,10 +27,14 @@ func NewManager() *Manager {
 // 因果机制分析：
 // 1. 许多玩家将 Windows 文档目录重定向至非系统盘（如 E:\documents）；
 // 2. 传统 %USERPROFILE%\Documents 会发生路径错位与无权写入错误；
-// 3. 本函数优先读取注册表 HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\Personal 获取绝对物理路径；
-// 4. 若注册表缺失则以 %USERPROFILE%\Documents 安全兜底。
+// 3. 本函数依次通过 KnownFolderPath -> 注册表 User Shell Folders -> 注册表 Shell Folders -> 环境变量 -> 用户目录多级权威兜底。
 func GetUserDocumentsDir() string {
-	// 1. 优先读取 Windows 注册表配置的用户实际文档目录 (Personal)
+	// 1. 优先尝试 Windows KnownFolder API
+	if dir, err := windows.KnownFolderPath(windows.FOLDERID_Documents, windows.KF_FLAG_DEFAULT); err == nil && strings.TrimSpace(dir) != "" {
+		return filepath.Clean(dir)
+	}
+
+	// 2. 优先读取 Windows 注册表配置的用户实际文档目录 (User Shell Folders)
 	if k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders`, registry.QUERY_VALUE); err == nil {
 		defer k.Close()
 		if val, _, err := k.GetStringValue("Personal"); err == nil && strings.TrimSpace(val) != "" {
@@ -38,7 +43,16 @@ func GetUserDocumentsDir() string {
 		}
 	}
 
-	// 2. 兜底：%USERPROFILE%\Documents
+	// 3. 读取经典注册表 Shell Folders
+	if k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders`, registry.QUERY_VALUE); err == nil {
+		defer k.Close()
+		if val, _, err := k.GetStringValue("Personal"); err == nil && strings.TrimSpace(val) != "" {
+			expanded := os.ExpandEnv(strings.TrimSpace(val))
+			return filepath.Clean(expanded)
+		}
+	}
+
+	// 4. 兜底：%USERPROFILE%\Documents
 	userProfile := strings.TrimSpace(os.Getenv("USERPROFILE"))
 	if userProfile == "" {
 		if home, err := os.UserHomeDir(); err == nil {
@@ -75,11 +89,12 @@ func (m *Manager) EnsureCacheDirectories(customDir string) (string, error) {
 	baseDir := m.ResolveBaseCacheDir(customDir)
 
 	subDirs := []string{
-		"heroes",  // 英雄静态数据与官方快照缓存
-		"items",   // 现行物品图谱与合成路线缓存
-		"tts",     // TTS 离线音频缓存（预录固定短语与解说片段）
-		"rag",     // RAG 战术知识库向量索引缓存
-		"matches", // 单场比赛详情与复盘数据本地持久化缓存
+		"heroes",    // 英雄静态数据与官方快照缓存
+		"items",     // 现行物品图谱与合成路线缓存
+		"abilities", // 技能图标与效果快照缓存
+		"tts",       // TTS 离线音频缓存（预录固定短语与解说片段）
+		"rag",       // RAG 战术知识库向量索引缓存
+		"matches",   // 单场比赛详情与复盘数据本地持久化缓存
 	}
 
 	for _, sub := range subDirs {

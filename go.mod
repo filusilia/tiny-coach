@@ -3,7 +3,7 @@ module aegis-coach
 go 1.27.1
 
 require (
-	github.com/wailsapp/wails/v3 v3.0.0-beta.23
+	github.com/wailsapp/wails/v3 v3.0.0-beta.24
 	golang.org/x/sys v0.48.0
 )
 

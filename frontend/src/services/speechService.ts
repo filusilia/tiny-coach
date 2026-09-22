@@ -1,4 +1,4 @@
-import {VoiceMode} from "@/types";
+import type { VoiceMode } from '@/types'
 
 /**
  * Dota 2 专属战术语音发音词典
@@ -76,10 +76,14 @@ export interface SpeakOptions {
   voiceName?: string
   /** 是否启用第三方自定义 HTTP TTS 引擎 */
   customTtsEnabled?: boolean
-  /** 第三方 TTS 请求服务端点 */
+  /** 第三方 TTS 引擎协议类型 ('openai' | 'get_stream' | 'edge') */
+  customTtsEngine?: 'openai' | 'get_stream' | 'edge' | string
+  /** 第三方 TTS 请求服务端点 (如 http://127.0.0.1:9233) */
   customTtsEndpoint?: string
   /** 第三方 TTS API 鉴权密钥 */
   customTtsApiKey?: string
+  /** 第三方 TTS 自定义音色名称 */
+  customTtsVoice?: string
 }
 
 /**
@@ -237,51 +241,91 @@ class SpeechService {
     )
 
     if (shouldUseCustomTts) {
-      const endpoint = (optionsOrMode as SpeakOptions).customTtsEndpoint!.trim().replace(/\/+$/, '')
+      const opts = optionsOrMode as SpeakOptions
+      const endpoint = opts.customTtsEndpoint!.trim().replace(/\/+$/, '')
       const cleanText = normalizeTacticalSpeech(text)
+      const engineType = opts.customTtsEngine || 'openai'
+      const apiKey = opts.customTtsApiKey?.trim() || ''
 
       const playedByCustom = await new Promise<boolean>((resolveCustom) => {
-        try {
-          const audio = new Audio(`${endpoint}/tts?text=${encodeURIComponent(cleanText)}`)
-          audio.volume = Math.max(0, Math.min(1, volume / 100))
+        (async () => {
+          try {
+            if (engineType === 'openai') {
+              // 1. OpenAI 规范 (/v1/audio/speech，兼容用户已填写 /v1 的情况)
+              const baseEndpoint = endpoint.endsWith('/v1') ? endpoint : `${endpoint}/v1`
+              const reqUrl = `${baseEndpoint}/audio/speech`
+              const res = await fetch(reqUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+                },
+                body: JSON.stringify({
+                  model: 'tts-1',
+                  input: cleanText,
+                  voice: opts.customTtsVoice || opts.voiceName || 'alloy',
+                  speed: Math.max(0.25, Math.min(4.0, rate)),
+                }),
+                signal: AbortSignal.timeout(3500),
+              })
+              if (!res.ok) {
+                resolveCustom(false)
+                return
+              }
+              const blob = await res.blob()
+              const audioUrl = URL.createObjectURL(blob)
+              const audio = new Audio(audioUrl)
+              audio.volume = Math.max(0, Math.min(1, volume / 100))
+              audio.onended = () => {
+                URL.revokeObjectURL(audioUrl)
+                resolveCustom(true)
+              }
+              audio.onerror = () => {
+                URL.revokeObjectURL(audioUrl)
+                resolveCustom(false)
+              }
+              await audio.play()
+            } else {
+              // 2. 通用 GET 流式接口 (/tts?text=...)
+              const audio = new Audio(`${endpoint}/tts?text=${encodeURIComponent(cleanText)}`)
+              audio.volume = Math.max(0, Math.min(1, volume / 100))
 
-          let finished = false
-          const finish = (ok: boolean) => {
-            if (!finished) {
-              finished = true
-              resolveCustom(ok)
+              let finished = false
+              const finish = (ok: boolean) => {
+                if (!finished) {
+                  finished = true
+                  resolveCustom(ok)
+                }
+              }
+
+              const timer = setTimeout(() => {
+                audio.pause()
+                finish(false)
+              }, 2000)
+
+              audio.onplaying = () => {
+                clearTimeout(timer)
+                finish(true)
+              }
+              audio.onerror = () => {
+                clearTimeout(timer)
+                finish(false)
+              }
+              audio.play().catch(() => {
+                clearTimeout(timer)
+                finish(false)
+              })
             }
+          } catch {
+            resolveCustom(false)
           }
-
-          // 超时防护：若 1.2 秒内第三方端点未就绪或未开始播放，立即判定失败并触发内置降级
-          const timer = setTimeout(() => {
-            audio.pause()
-            finish(false)
-          }, 1200)
-
-          audio.onplaying = () => {
-            clearTimeout(timer)
-            finish(true)
-          }
-
-          audio.onerror = () => {
-            clearTimeout(timer)
-            finish(false)
-          }
-
-          audio.play().catch(() => {
-            clearTimeout(timer)
-            finish(false)
-          })
-        } catch {
-          resolveCustom(false)
-        }
+        })()
       })
 
       if (playedByCustom) {
         return
       }
-      console.warn('[SpeechService] 第三方 TTS 服务端点未响应或不可用，已自动降级至系统内置语音引擎。')
+      console.warn('[SpeechService] 第三方 TTS 服务未响应或调用失败，已自动降级至系统内置语音引擎。')
     }
 
     return new Promise((resolve) => {
@@ -352,6 +396,69 @@ class SpeechService {
    */
   public getAvailableVoices(): SpeechSynthesisVoice[] {
     return this.refreshVoices()
+  }
+
+  /**
+   * 单独测试第三方 TTS 发音与连通性
+   */
+  public async testThirdPartyTts(
+    text: string,
+    options: SpeakOptions,
+  ): Promise<{ success: boolean, message: string }> {
+    const endpoint = options.customTtsEndpoint?.trim().replace(/\/+$/, '')
+    if (!endpoint) {
+      return { success: false, message: '第三方 TTS 端点 URL 不能为空' }
+    }
+
+    const cleanText = normalizeTacticalSpeech(text || '神盾教练语音测试，肉山大魔王已刷新，黑皇杖就绪。')
+    const engineType = options.customTtsEngine || 'openai'
+    const apiKey = options.customTtsApiKey?.trim() || ''
+
+    try {
+      if (engineType === 'openai') {
+        const baseEndpoint = endpoint.endsWith('/v1') ? endpoint : `${endpoint}/v1`
+        const reqUrl = `${baseEndpoint}/audio/speech`
+        const res = await fetch(reqUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model: 'tts-1',
+            input: cleanText,
+            voice: options.customTtsVoice || 'alloy',
+            speed: 1.0,
+          }),
+          signal: AbortSignal.timeout(5000),
+        })
+        if (!res.ok) {
+          return {
+            success: false,
+            message: `服务端返回异常 HTTP ${res.status}: ${res.statusText}`,
+          }
+        }
+        const blob = await res.blob()
+        const audioUrl = URL.createObjectURL(blob)
+        const audio = new Audio(audioUrl)
+        audio.volume = 1.0
+        audio.onended = () => URL.revokeObjectURL(audioUrl)
+        await audio.play()
+        return { success: true, message: 'OpenAI 协议 TTS 发音测试成功！' }
+      } else {
+        const audioUrl = `${endpoint}/tts?text=${encodeURIComponent(cleanText)}`
+        const audio = new Audio(audioUrl)
+        audio.volume = 1.0
+        await audio.play()
+        return { success: true, message: 'HTTP GET 流式 TTS 发音测试成功！' }
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      return {
+        success: false,
+        message: `无法连接到服务 (${endpoint}): ${errMsg}。请检查本地 TTS 服务是否已启动。`,
+      }
+    }
   }
 }
 
