@@ -106,30 +106,30 @@ const reminderGroups = computed(() => [
             <span class="text-xs text-slate-100 font-bold">战术语音播报</span>
             <span
               v-if="currentBroadcastStrategy === 'all_coach'"
-              class="text-[10px] text-amber-300 font-bold font-mono px-2 py-0.5 border border-amber-500/40 rounded bg-amber-500/20"
+              class="text-amber-300 font-bold font-mono px-2 py-0.5 border border-amber-500/40 rounded bg-amber-500/20 text-[10px]"
             >
               全能解说模式
             </span>
             <span
               v-else-if="currentBroadcastStrategy === 'focus_ranked'"
-              class="text-[10px] text-cyan-300 font-bold font-mono px-2 py-0.5 border border-cyan-500/40 rounded bg-cyan-500/20"
+              class="text-cyan-300 font-bold font-mono px-2 py-0.5 border border-cyan-500/40 rounded bg-cyan-500/20 text-[10px]"
             >
               专注排位防打扰
             </span>
             <span
               v-else-if="currentBroadcastStrategy === 'silent_hud'"
-              class="text-[10px] text-slate-400 font-bold font-mono px-2 py-0.5 border border-slate-700 rounded bg-slate-800"
+              class="text-slate-400 font-bold font-mono px-2 py-0.5 border border-slate-700 rounded bg-slate-800 text-[10px]"
             >
               纯净静音模式
             </span>
             <span
               v-else
-              class="text-[10px] text-purple-300 font-bold font-mono px-2 py-0.5 border border-purple-500/40 rounded bg-purple-500/20"
+              class="text-purple-300 font-bold font-mono px-2 py-0.5 border border-purple-500/40 rounded bg-purple-500/20 text-[10px]"
             >
               自定义策略
             </span>
           </div>
-          <div class="text-[11px] text-slate-400 mt-0.5 flex items-center space-x-3">
+          <div class="text-slate-400 mt-0.5 flex items-center space-x-3 text-[11px]">
             <span>语音提醒: <strong class="text-amber-400 font-mono">{{ voiceCount }}</strong> 项</span>
             <span>文字提醒: <strong class="text-cyan-400 font-mono">{{ textOnlyCount }}</strong> 项</span>
           </div>
@@ -195,7 +195,7 @@ const reminderGroups = computed(() => [
               <component :is="grp.icon" class="text-amber-400 h-4 w-4" />
               <span class="text-xs text-slate-100 font-bold">{{ grp.name }}</span>
             </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed mt-1.5">
+            <p class="text-slate-400 leading-relaxed mt-1.5 text-[11px]">
               {{ grp.desc }}
             </p>
           </div>
@@ -212,7 +212,7 @@ const reminderGroups = computed(() => [
               </div>
               <div class="flex shrink-0 items-center space-x-1">
                 <button
-                  class="text-[10px] font-semibold px-2 py-0.5 rounded transition-colors"
+                  class="font-semibold px-2 py-0.5 rounded transition-colors text-[10px]"
                   :class="[
                     getReminderMode(item.key) === 2
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
@@ -224,7 +224,7 @@ const reminderGroups = computed(() => [
                   语音
                 </button>
                 <button
-                  class="text-[10px] font-semibold px-2 py-0.5 rounded transition-colors"
+                  class="font-semibold px-2 py-0.5 rounded transition-colors text-[10px]"
                   :class="[
                     getReminderMode(item.key) === 1
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50'
@@ -236,7 +236,7 @@ const reminderGroups = computed(() => [
                   仅字
                 </button>
                 <button
-                  class="text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors"
+                  class="font-semibold px-1.5 py-0.5 rounded transition-colors text-[10px]"
                   :class="[
                     getReminderMode(item.key) === 0
                       ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50'

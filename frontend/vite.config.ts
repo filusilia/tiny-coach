@@ -1,9 +1,13 @@
 import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
+import UnoCSS from 'unocss/vite'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    UnoCSS(),
+    vue(),
+  ],
   clearScreen: false,
   server: {
     port: 1420,

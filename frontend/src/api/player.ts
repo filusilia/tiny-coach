@@ -1,9 +1,10 @@
 /**
  * 玩家档案与历史战绩查询 API 模块 (src/api/player.ts)
- * 封装 Dota 玩家画像分析、比赛详情及近期对局查询
+ * 遵循 Wails v3 前后端绑定唯一事实来源铁律：优先直调 AppBindings
  */
 
 import type { PlayerProfileAnalysis } from './types'
+import * as AppBindings from '../../bindings/aegis-coach/app'
 import { invokeWails } from './client'
 
 export const playerApi = {
@@ -14,13 +15,22 @@ export const playerApi = {
     if (!input || !input.trim()) {
       throw new Error('请输入有效的玩家 ID 或 Steam 好友代码')
     }
+    const clean = input.trim()
+
+    try {
+      const res = await AppBindings.NormalizeDotaAccountId(clean)
+      if (res) return res
+    } catch (bindErr) {
+      console.warn('[playerApi] AppBindings.NormalizeDotaAccountId 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<string>(
       [
         'main.App.NormalizeDotaAccountId',
         'services.PlayerService.NormalizeAccountId',
         'app.App.NormalizeDotaAccountId',
       ],
-      input.trim(),
+      clean,
     )
   },
 
@@ -31,13 +41,22 @@ export const playerApi = {
     if (!accountIdInput || !accountIdInput.trim()) {
       throw new Error('玩家账号 ID 不能为空')
     }
+    const clean = accountIdInput.trim()
+
+    try {
+      const res = await AppBindings.GetPlayerProfile(clean)
+      if (res) return res as PlayerProfileAnalysis
+    } catch (bindErr) {
+      console.warn('[playerApi] AppBindings.GetPlayerProfile 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<PlayerProfileAnalysis>(
       [
         'main.App.GetPlayerProfile',
         'services.PlayerService.GetPlayerProfile',
         'app.App.GetPlayerProfile',
       ],
-      accountIdInput.trim(),
+      clean,
     )
   },
 
@@ -45,6 +64,13 @@ export const playerApi = {
    * 获取单场比赛详细原始数据
    */
   async getMatchDetails(matchId: string): Promise<string> {
+    try {
+      const res = await AppBindings.GetMatchDetails(matchId)
+      if (typeof res === 'string') return res
+    } catch (bindErr) {
+      console.warn('[playerApi] AppBindings.GetMatchDetails 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<string>(
       [
         'main.App.GetMatchDetails',
@@ -59,6 +85,13 @@ export const playerApi = {
    * 获取指定玩家近期对局历史列表原始数据
    */
   async getPlayerRecentMatches(accountId: string): Promise<string> {
+    try {
+      const res = await AppBindings.GetPlayerRecentMatches(accountId)
+      if (typeof res === 'string') return res
+    } catch (bindErr) {
+      console.warn('[playerApi] AppBindings.GetPlayerRecentMatches 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<string>(
       [
         'main.App.GetPlayerRecentMatches',

@@ -8,7 +8,7 @@
  * 4. 实时动态展示确定性规则引擎生成的战略告警与决策建议流
  */
 
-import type { CoachAdvice } from '../types'
+import type { CoachAdvice } from '@/types'
 import {
   AlertTriangle,
   Clock,
@@ -22,14 +22,12 @@ import {
   Sparkles,
   Sun,
   Volume2,
-  Zap,
 } from '@lucide/vue'
 import { onMounted, ref } from 'vue'
+import { useAppStore, useBattleStore } from '@/stores'
 import { aiCoachService } from '../services/aiCoachService'
 import { activeBattleContext } from '../services/gsiRuleEngine'
 import { speechService } from '../services/speechService'
-import { useAppStore } from '../stores/app'
-import { useBattleStore } from '../stores/battle'
 import {
   getAbilityCdnUrl,
   getAbilityIconUrl,
@@ -207,9 +205,9 @@ function replayText(text: string) {
 </script>
 
 <template>
-  <div class="bg-dota-bg text-slate-100 flex flex-1 flex-col select-none overflow-hidden">
+  <div class="text-slate-100 bg-dota-bg flex flex-1 flex-col select-none overflow-hidden">
     <!-- 1. 顶部实战对局状态栏 (纯实战信息展示与快捷操作) -->
-    <header class="border-dota-border bg-dota-surface px-5 border-b flex shrink-0 h-13 items-center justify-between">
+    <header class="px-5 border-b border-dota-border bg-dota-surface flex shrink-0 h-13 items-center justify-between">
       <div class="flex items-center space-x-3.5">
         <!-- GSI 状态指示 -->
         <div class="flex items-center space-x-2">
@@ -222,7 +220,7 @@ function replayText(text: string) {
             ]"
           />
           <span class="text-xs tracking-wide font-bold">
-            {{ battle.connected ? `Dota 2 实战通信在线 · ${battle.gameState}` : '等待 Dota 2 客户端启动对局 (GSI 4444 端口)...' }}
+            {{ battle.connected ? `Dota 2 在线 · ${battle.gameState}` : '等待 Dota 2 客户端启动' }}
           </span>
         </div>
 
@@ -233,33 +231,27 @@ function replayText(text: string) {
           <span>{{ formatClockTime(battle.clockTime) }}</span>
         </div>
 
-        <!-- 10Hz 毫秒快照徽章 -->
-        <span class="text-[11px] text-cyan-300 font-medium font-mono px-2 py-0.5 border border-cyan-800/40 rounded-md bg-slate-800/80 flex items-center space-x-1">
-          <Zap class="text-cyan-400 h-3 w-3" />
-          <span>10Hz 毫秒快照</span>
-        </span>
-
         <!-- 当前生效 AI 引擎只读指示 -->
         <span
           v-if="appStore.settings.ai_mode === 'rule_only'"
-          class="text-[11px] text-slate-300 font-medium font-mono px-2 py-0.5 border border-slate-700 rounded-md bg-slate-800 flex items-center space-x-1"
+          class="text-slate-300 font-medium font-mono px-2 py-0.5 border border-slate-700 rounded-md bg-slate-800 flex items-center space-x-1 text-[11px]"
         >
           <ShieldAlert class="text-slate-400 h-3 w-3" />
           <span>规则引擎纯降级</span>
         </span>
         <span
           v-else-if="appStore.settings.ai_mode === 'local_npu' || appStore.settings.ai_mode === 'npu'"
-          class="text-[11px] text-emerald-300 font-medium font-mono px-2 py-0.5 border border-emerald-700/40 rounded-md bg-emerald-950/60 flex items-center space-x-1"
+          class="text-emerald-300 font-medium font-mono px-2 py-0.5 border border-emerald-700/40 rounded-md bg-emerald-950/60 flex items-center space-x-1 text-[11px]"
         >
           <Cpu class="text-emerald-400 h-3 w-3" />
-          <span>端侧高能效: {{ appStore.settings.npu_model || 'qwen3.5:1.5b' }}</span>
+          <span>端侧高能效: {{ appStore.settings.npu_model }}</span>
         </span>
         <span
           v-else
-          class="text-[11px] text-amber-300 font-medium font-mono px-2 py-0.5 border border-amber-700/40 rounded-md bg-amber-950/60 flex items-center space-x-1"
+          class="text-amber-300 font-medium font-mono px-2 py-0.5 border border-amber-700/40 rounded-md bg-amber-950/60 flex items-center space-x-1 text-[11px]"
         >
           <Sparkles class="text-amber-400 h-3 w-3" />
-          <span>云端大模型: {{ appStore.settings.cloud_model || 'deepseek-chat' }}</span>
+          <span>云端大模型: {{ appStore.settings.cloud_model }}</span>
         </span>
       </div>
 
@@ -274,7 +266,7 @@ function replayText(text: string) {
         @click="appStore.toggleStandaloneOverlay"
       >
         <Shield class="h-3.5 w-3.5" />
-        <span>{{ appStore.isOverlayRunning ? '已呼出桌面悬浮雷达' : '呼出独立置顶悬浮窗 (Alt+F2)' }}</span>
+        <span>{{ appStore.isOverlayRunning ? '悬浮窗已启动' : '打开悬浮窗 (Alt+F2)' }}</span>
       </button>
     </header>
 
@@ -284,7 +276,7 @@ function replayText(text: string) {
       <section v-if="battle.connected && battle.heroId > 0 && battle.heroInternalName" class="p-4 border border-slate-700/80 rounded-2xl bg-slate-900/90 shadow-xl space-y-3.5">
         <div class="flex flex-col gap-4 items-stretch justify-between xl:flex-row xl:items-center">
           <!-- 英雄头像、等级与血蓝战备槽 -->
-          <div class="flex min-w-[280px] items-center space-x-4">
+          <div class="flex min-w-70 items-center space-x-4">
             <div class="shrink-0 relative">
               <img
                 :src="getHeroAvatarUrl(battle.heroInternalName)"
@@ -292,7 +284,7 @@ function replayText(text: string) {
                 class="border-2 border-amber-500/60 rounded-xl bg-black h-14 w-20 shadow-lg object-cover"
                 @error="(e) => handleImageFallback(e, getHeroCdnUrl(battle.heroInternalName))"
               >
-              <span class="text-[10px] text-slate-950 font-black font-mono px-1.5 py-0.2 border border-amber-300 rounded bg-amber-500 absolute -bottom-1 -right-1">
+              <span class="text-slate-950 font-black font-mono px-1.5 py-0.2 border border-amber-300 rounded bg-amber-500 absolute text-[10px] -bottom-1 -right-1">
                 Lv.{{ battle.heroLevel }}
               </span>
             </div>
@@ -301,7 +293,7 @@ function replayText(text: string) {
               <div class="flex items-center justify-between">
                 <span class="text-sm text-amber-400 tracking-wide font-extrabold">{{ battle.heroName }}</span>
                 <span
-                  class="text-[10px] font-bold px-2 py-0.5 rounded uppercase"
+                  class="font-bold px-2 py-0.5 rounded uppercase text-[10px]"
                   :class="[
                     battle.alive ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-rose-950 text-rose-300 border border-rose-700',
                   ]"
@@ -317,7 +309,7 @@ function replayText(text: string) {
                     class="h-full transition-all duration-300 from-emerald-600 to-emerald-400 bg-gradient-to-r"
                     :style="{ width: `${Math.min(100, Math.max(0, battle.healthPercent))}%` }"
                   />
-                  <div class="text-[9px] text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow">
+                  <div class="text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow text-[9px]">
                     <span>HP</span>
                     <span>{{ battle.health }} / {{ battle.maxHealth }} ({{ battle.healthPercent }}%)</span>
                   </div>
@@ -331,7 +323,7 @@ function replayText(text: string) {
                     class="h-full transition-all duration-300 from-blue-600 to-cyan-400 bg-gradient-to-r"
                     :style="{ width: `${Math.min(100, Math.max(0, battle.manaPercent))}%` }"
                   />
-                  <div class="text-[9px] text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow">
+                  <div class="text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow text-[9px]">
                     <span>MP</span>
                     <span>{{ battle.mana }} / {{ battle.maxMana }} ({{ battle.manaPercent }}%)</span>
                   </div>
@@ -343,7 +335,7 @@ function replayText(text: string) {
           <!-- 战绩经济与买活状态卡片 -->
           <div class="text-xs font-mono shrink-0 gap-2 grid grid-cols-2 sm:grid-cols-4">
             <div class="p-2.5 border border-slate-800 rounded-xl bg-slate-950/80 space-y-0.5">
-              <div class="text-[10px] text-slate-400">
+              <div class="text-slate-400 text-[10px]">
                 战绩 K / D / A
               </div>
               <div class="text-sm text-slate-100 font-extrabold">
@@ -351,31 +343,31 @@ function replayText(text: string) {
                 <span class="text-rose-400">{{ battle.deaths }}</span> /
                 <span class="text-cyan-400">{{ battle.assists }}</span>
               </div>
-              <div class="text-[10px] text-slate-500">
+              <div class="text-slate-500 text-[10px]">
                 补刀: {{ battle.lastHits }} / {{ battle.denies }}
               </div>
             </div>
 
             <div class="p-2.5 border border-slate-800 rounded-xl bg-slate-950/80 space-y-0.5">
-              <div class="text-[10px] text-slate-400">
+              <div class="text-slate-400 text-[10px]">
                 储备金币 (Gold)
               </div>
               <div class="text-sm text-amber-400 font-extrabold">
                 {{ battle.gold }}
               </div>
-              <div class="text-[10px] text-slate-500">
+              <div class="text-slate-500 text-[10px]">
                 可靠: {{ battle.goldReliable }}
               </div>
             </div>
 
             <div class="p-2.5 border border-slate-800 rounded-xl bg-slate-950/80 space-y-0.5">
-              <div class="text-[10px] text-slate-400">
+              <div class="text-slate-400 text-[10px]">
                 经济 / 经验 (分)
               </div>
               <div class="text-sm text-cyan-400 font-extrabold">
                 {{ battle.gpm }} <span class="text-xs text-slate-500">/</span> {{ battle.xpm }}
               </div>
-              <div class="text-[10px] text-slate-500">
+              <div class="text-slate-500 text-[10px]">
                 实时效率
               </div>
             </div>
@@ -388,14 +380,14 @@ function replayText(text: string) {
                   : 'bg-slate-950/80 border-slate-800',
               ]"
             >
-              <div class="text-[10px] flex items-center justify-between" :class="battle.canBuyback ? 'text-emerald-300' : 'text-slate-400'">
+              <div class="flex items-center justify-between text-[10px]" :class="battle.canBuyback ? 'text-emerald-300' : 'text-slate-400'">
                 <span>买活状态</span>
                 <span class="font-bold">{{ battle.canBuyback ? '充足' : '受限' }}</span>
               </div>
               <div class="text-sm font-extrabold" :class="battle.canBuyback ? 'text-emerald-400' : 'text-slate-400'">
                 {{ battle.buybackCost }} 金
               </div>
-              <div class="text-[10px] text-slate-500">
+              <div class="text-slate-500 text-[10px]">
                 CD: {{ battle.buybackCooldown }}s
               </div>
             </div>
@@ -447,7 +439,7 @@ function replayText(text: string) {
         <div class="pt-2.5 border-t border-slate-800/80 flex flex-col gap-3 items-start justify-between md:flex-row md:items-center">
           <!-- 技能格 -->
           <div class="flex items-center space-x-2">
-            <span class="text-[11px] text-slate-400 font-bold shrink-0">技能:</span>
+            <span class="text-slate-400 font-bold shrink-0 text-[11px]">技能:</span>
             <div v-if="battle.abilities.length === 0" class="text-xs text-slate-500 font-mono">
               等待实战技能数据...
             </div>
@@ -470,7 +462,7 @@ function replayText(text: string) {
                 >
                   {{ ab.cooldown }}
                 </div>
-                <div class="text-[8px] text-emerald-400 font-bold font-mono px-1 bg-black/90 bottom-0 right-0 absolute">
+                <div class="text-emerald-400 font-bold font-mono px-1 bg-black/90 bottom-0 right-0 absolute text-[8px]">
                   {{ ab.level }}
                 </div>
               </div>
@@ -493,10 +485,10 @@ function replayText(text: string) {
                   class="h-full w-full object-cover"
                   @error="(e) => handleImageFallback(e, getItemCdnUrl(battle.items[i - 1].name))"
                 >
-                <span v-else class="text-[9px] text-slate-700 font-mono">{{ i }}</span>
+                <span v-else class="text-slate-700 font-mono text-[9px]">{{ i }}</span>
                 <div
                   v-if="(battle.items[i - 1]?.cooldown ?? 0) > 0"
-                  class="text-[10px] text-amber-400 font-bold font-mono bg-black/80 flex items-center inset-0 justify-center absolute"
+                  class="text-amber-400 font-bold font-mono bg-black/80 flex items-center inset-0 justify-center absolute text-[10px]"
                 >
                   {{ battle.items[i - 1].cooldown }}
                 </div>
@@ -536,7 +528,7 @@ function replayText(text: string) {
 
             <!-- 中立物品格 -->
             <div class="pl-1 flex items-center space-x-1">
-              <span class="text-[10px] text-cyan-400 font-bold">中立:</span>
+              <span class="text-cyan-400 font-bold text-[10px]">中立:</span>
               <div
                 class="border border-cyan-700/60 rounded bg-slate-950 flex h-[24px] w-[32px] items-center justify-center relative overflow-hidden"
                 :title="battle.neutralItem?.name || '空中立装备'"
@@ -548,7 +540,7 @@ function replayText(text: string) {
                   class="h-full w-full object-cover"
                   @error="(e) => handleImageFallback(e, getItemCdnUrl(battle.neutralItem?.name || ''))"
                 >
-                <span v-else class="text-[8px] text-slate-700 font-mono">N</span>
+                <span v-else class="text-slate-700 font-mono text-[8px]">N</span>
               </div>
             </div>
           </div>
@@ -562,25 +554,20 @@ function replayText(text: string) {
         </div>
         <div class="mx-auto max-w-xl space-y-1.5">
           <h2 class="text-base text-slate-100 tracking-wide font-bold">
-            等待 Dota 2 客户端对局接入
+            等待对局接入
           </h2>
           <p class="text-xs text-slate-300 leading-relaxed font-normal">
-            神盾教练严格遵守非外挂合规原则，严禁伪造任何英雄与对局模拟数据。系统当前正持续监听本机 4444 端口官方 GSI 数据流。当您启动游戏并进入选人或正式比赛后，将自动呈现您实操英雄的血蓝战备、冷却节奏与全局战况。
+            当您启动游戏并进入选人或正式比赛后，将自动呈现您实操英雄的血蓝战备、冷却节奏与全局战况。
           </p>
         </div>
 
         <div class="pt-2 flex flex-wrap gap-3 items-center justify-center">
-          <div class="text-xs text-cyan-300 font-mono px-3.5 py-1.5 border border-slate-800 rounded-lg bg-slate-950/80 flex items-center space-x-2">
-            <span class="rounded-full bg-emerald-400 h-2 w-2 animate-pulse" />
-            <span>GSI 本机监听端口: 4444</span>
-          </div>
-
           <div v-if="appStore.settings.dota_player_id" class="text-xs text-amber-300 px-3.5 py-1.5 border border-slate-800 rounded-lg bg-slate-950/80 flex items-center space-x-1.5">
-            <span class="text-slate-400">主绑定玩家:</span>
+            <span class="text-slate-400">已绑定:</span>
             <span class="font-bold font-mono">{{ appStore.settings.dota_player_name || appStore.settings.dota_player_id }}</span>
           </div>
           <div v-else class="text-xs text-slate-400 px-3.5 py-1.5 border border-slate-800 rounded-lg bg-slate-950/80">
-            <span>未绑定玩家ID（可在设置页绑定您的 Dota 2 账号以获得专属战术分析）</span>
+            <span>未绑定ID</span>
           </div>
         </div>
       </section>
@@ -593,7 +580,7 @@ function replayText(text: string) {
             <h2 class="text-xs text-amber-400 tracking-wide font-bold">
               AI 实时战术参谋 · 即时战局问答
             </h2>
-            <span class="text-[10px] text-slate-400 font-medium">
+            <span class="text-slate-400 font-medium text-[10px]">
               (输入当前战况直接提问，基于 Solution Hierarchy 思维链快速返回实战行动)
             </span>
           </div>
@@ -644,13 +631,13 @@ function replayText(text: string) {
         <div v-if="lastAiResult" class="text-xs p-3.5 border border-amber-500/30 rounded-xl bg-slate-950 space-y-2">
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
-              <span class="text-[10px] text-amber-300 font-bold px-2 py-0.5 border border-amber-500/40 rounded bg-amber-500/20">
+              <span class="text-amber-300 font-bold px-2 py-0.5 border border-amber-500/40 rounded bg-amber-500/20 text-[10px]">
                 AI 参谋研判成果
               </span>
               <span class="text-slate-300 font-medium">问题: “{{ lastAiResult.question }}”</span>
             </div>
             <div class="flex items-center space-x-2">
-              <span class="text-[10px] text-slate-500 font-mono">{{ lastAiResult.model }}</span>
+              <span class="text-slate-500 font-mono text-[10px]">{{ lastAiResult.model }}</span>
               <button
                 title="重新语音朗读"
                 class="text-slate-400 p-1 rounded cursor-pointer transition-colors hover:text-amber-400 hover:bg-slate-800"
@@ -671,11 +658,8 @@ function replayText(text: string) {
         <div class="flex items-center justify-between">
           <h2 class="text-xs text-slate-100 font-bold flex items-center space-x-2">
             <Radio class="text-amber-400 h-4 w-4" />
-            <span>实时实战决策流 ({{ battleStore.advices.length }})</span>
+            <span>实时决策流 ({{ battleStore.advices.length }})</span>
           </h2>
-          <span class="text-[11px] text-slate-400">
-            优先掌控全局变量与宏观战术 · 低价值微观噪音已在设置页控制
-          </span>
         </div>
 
         <div v-if="battleStore.advices.length === 0" class="text-xs text-slate-400 p-10 text-center border border-slate-700/80 rounded-2xl border-dashed bg-slate-900/30">
@@ -683,7 +667,7 @@ function replayText(text: string) {
           <p class="text-slate-300 font-medium">
             对战就绪。比赛进行时系统将依据神符刷新、痛苦魔方、肉山控盾与买活储备毫秒级裁定告警！
           </p>
-          <p class="text-[11px] text-slate-500 mt-1">
+          <p class="text-slate-500 mt-1 text-[11px]">
             您可在上方输入框中主动向 AI 战术参谋发起实时战局询问。
           </p>
         </div>
@@ -710,7 +694,7 @@ function replayText(text: string) {
             <div class="pl-1 flex items-center justify-between">
               <div class="flex items-center space-x-2.5">
                 <span
-                  class="text-[10px] font-bold px-2 py-0.5 rounded uppercase"
+                  class="font-bold px-2 py-0.5 rounded uppercase text-[10px]"
                   :class="[
                     item.severity === 'Critical' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                     : item.severity === 'Warning' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -722,14 +706,14 @@ function replayText(text: string) {
                 <span class="text-xs text-slate-100 font-bold">{{ item.title }}</span>
                 <span
                   v-if="getRuleDisplayTag(item.rule_id || item.rule)"
-                  class="text-[10px] text-amber-300/90 font-medium px-1.5 py-0.2 border border-amber-500/30 rounded bg-amber-500/10"
+                  class="text-amber-300/90 font-medium px-1.5 py-0.2 border border-amber-500/30 rounded bg-amber-500/10 text-[10px]"
                 >
                   {{ getRuleDisplayTag(item.rule_id || item.rule) }}
                 </span>
               </div>
 
               <div class="flex items-center space-x-2">
-                <span class="text-[10px] text-slate-400 font-mono">{{ item.created_at }}</span>
+                <span class="text-slate-400 font-mono text-[10px]">{{ item.created_at }}</span>
                 <button
                   title="重新语音播报"
                   class="text-slate-400 p-1 rounded cursor-pointer transition-colors hover:text-amber-400 hover:bg-slate-800"
@@ -746,7 +730,7 @@ function replayText(text: string) {
 
             <!-- 推荐行动指南 -->
             <div v-if="item.suggested_action" class="text-xs pl-1 pt-1.5 border-t border-slate-800/80 flex items-start space-x-2">
-              <span class="text-[11px] text-amber-400 font-bold shrink-0">行动指南：</span>
+              <span class="text-amber-400 font-bold shrink-0 text-[11px]">行动指南：</span>
               <span class="text-slate-100 font-semibold">{{ item.suggested_action }}</span>
             </div>
 
@@ -754,7 +738,7 @@ function replayText(text: string) {
             <div v-if="item.ai_explanation" class="text-xs p-2.5 border border-slate-800/80 rounded-lg bg-slate-950/80 flex items-start space-x-2.5">
               <Sparkles class="text-cyan-400 mt-0.5 shrink-0 h-3.5 w-3.5" />
               <div>
-                <span class="text-[11px] text-cyan-300 font-bold">AI 战术推演 (Solution Hierarchy)：</span>
+                <span class="text-cyan-300 font-bold text-[11px]">AI 战术推演 (Solution Hierarchy)：</span>
                 <span class="text-slate-300 leading-relaxed">{{ item.ai_explanation }}</span>
               </div>
             </div>

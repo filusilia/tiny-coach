@@ -4,6 +4,7 @@
  */
 
 import type { DiskModelFile } from './types'
+import * as AppBindings from '../../bindings/aegis-coach/app'
 import { invokeWails } from './client'
 
 /**
@@ -107,12 +108,26 @@ export const systemApi = {
       }
     }
 
-    // 2. 降级通过 Go 后端 IPC 绑定方法调用
+    // 2. 优先通过 Wails v3 官方代码生成器生成的强类型绑定直连调用
+    try {
+      const res = await AppBindings.SelectDirectoryDialog()
+      if (res && typeof res === 'string' && res.trim()) {
+        return res.trim()
+      }
+      return ''
+    } catch (bindErr: unknown) {
+      if (isCancelError(bindErr)) {
+        return ''
+      }
+      console.warn('[systemApi] AppBindings.SelectDirectoryDialog 异常，尝试通用 IPC 降级:', bindErr)
+    }
+
+    // 3. 降级通过 Go 后端通用 IPC 绑定方法调用
     try {
       const res = await invokeWails<string>([
         'main.App.SelectDirectoryDialog',
-        'services.SystemService.SelectDirectoryDialog',
         'aegis-coach/internal/services.SystemService.SelectDirectoryDialog',
+        'services.SystemService.SelectDirectoryDialog',
         'app.App.SelectDirectoryDialog',
       ])
       if (res && typeof res === 'string' && res.trim()) {
@@ -230,6 +245,17 @@ export const systemApi = {
    * 在系统资源管理器中打开指定目录
    */
   async openCacheDirectory(dir: string): Promise<void> {
+    const cleanDir = dir ? dir.trim() : ''
+
+    // 1. 优先使用 Wails v3 官方生成的类型安全绑定函数直连
+    try {
+      await AppBindings.OpenCacheDirectory(cleanDir)
+      return
+    } catch (bindErr: unknown) {
+      console.warn('[systemApi] AppBindings.OpenCacheDirectory 异常，尝试 IPC 通道降级:', bindErr)
+    }
+
+    // 2. 降级使用通用 IPC 协议通道
     await invokeWails<void>(
       [
         'main.App.OpenCacheDirectory',
@@ -237,7 +263,7 @@ export const systemApi = {
         'services.SystemService.OpenCacheDirectory',
         'app.App.OpenCacheDirectory',
       ],
-      dir,
+      cleanDir,
     )
   },
 

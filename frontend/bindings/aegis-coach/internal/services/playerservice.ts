@@ -8,42 +8,43 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "/wails/runtime.js";
+import type { CancellablePromise as $CancellablePromise } from '@wailsio/runtime'
+import { Call as $Call, Create as $Create } from '@wailsio/runtime'
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as models$0 from "../models/models.js";
+import * as models$0 from '../models/models.js'
 
 /**
  * GetMatchDetails 查询单场公开比赛详情原始 JSON
  */
 export function GetMatchDetails(matchId: string): $CancellablePromise<string> {
-    return $Call.ByName("aegis-coach/internal/services.PlayerService.GetMatchDetails", matchId);
+  return $Call.ByName('aegis-coach/internal/services.PlayerService.GetMatchDetails', matchId)
 }
 
 /**
  * GetPlayerProfile 拉取并分析玩家近 20 场公开战绩 (Go 后端单例持有 10 分钟 TTL 与本地落盘权威)
  */
 export function GetPlayerProfile(accountIdInput: string): $CancellablePromise<models$0.PlayerProfileAnalysis | null> {
-    return $Call.ByName("aegis-coach/internal/services.PlayerService.GetPlayerProfile", accountIdInput).then(($result: any) => {
-        return $$createType1($result);
-    });
+  return $Call.ByName('aegis-coach/internal/services.PlayerService.GetPlayerProfile', accountIdInput).then(($result: any) => {
+    return $$createType1($result)
+  })
 }
 
 /**
  * GetPlayerRecentMatches 查询玩家近 20 场比赛原始列表 JSON
  */
 export function GetPlayerRecentMatches(accountId: string): $CancellablePromise<string> {
-    return $Call.ByName("aegis-coach/internal/services.PlayerService.GetPlayerRecentMatches", accountId);
+  return $Call.ByName('aegis-coach/internal/services.PlayerService.GetPlayerRecentMatches', accountId)
 }
 
 /**
  * NormalizeAccountId 提取规范化 32 位数字账号 ID
  */
 export function NormalizeAccountId(rawInput: string): $CancellablePromise<string> {
-    return $Call.ByName("aegis-coach/internal/services.PlayerService.NormalizeAccountId", rawInput);
+  return $Call.ByName('aegis-coach/internal/services.PlayerService.NormalizeAccountId', rawInput)
 }
 
 // Private type creation functions
-const $$createType0 = models$0.PlayerProfileAnalysis.createFrom;
-const $$createType1 = $Create.Nullable($$createType0);
+const $$createType0 = models$0.PlayerProfileAnalysis.createFrom
+const $$createType1 = $Create.Nullable($$createType0)

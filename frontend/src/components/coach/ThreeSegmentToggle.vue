@@ -28,7 +28,7 @@ function handleSelect(val: BroadcastMode) {
 
 <template>
   <div
-    class="bg-dota-surface/90 border-dota-border p-0.5 border rounded-lg inline-flex shrink-0 select-none items-center"
+    class="p-0.5 border border-dota-border rounded-lg bg-dota-surface/90 inline-flex shrink-0 select-none items-center"
     role="radiogroup"
     aria-label="播报模式选择"
   >

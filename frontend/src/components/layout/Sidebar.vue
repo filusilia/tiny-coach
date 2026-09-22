@@ -32,7 +32,7 @@ function navigate(id: 'heroes' | 'items' | 'coach' | 'analysis' | 'settings', pa
 </script>
 
 <template>
-  <aside class="bg-dota-surface border-dota-border p-2.5 border-r flex flex-col w-48 select-none justify-between">
+  <aside class="p-2.5 border-r border-dota-border bg-dota-surface flex flex-col w-48 select-none justify-between">
     <nav class="space-y-1">
       <button
         v-for="item in navItems"
@@ -50,7 +50,7 @@ function navigate(id: 'heroes' | 'items' | 'coach' | 'analysis' | 'settings', pa
       </button>
     </nav>
 
-    <div class="border-dota-border pt-2 border-t">
+    <div class="pt-2 border-t border-dota-border">
       <button
         class="text-xs font-medium px-3 py-2 rounded-lg flex w-full cursor-pointer transition-all items-center space-x-3"
         :class="[

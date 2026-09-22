@@ -181,9 +181,9 @@ async function handleCopyReview() {
 </script>
 
 <template>
-  <div class="bg-dota-bg text-slate-100 flex flex-1 flex-col select-none overflow-hidden">
+  <div class="text-slate-100 bg-dota-bg flex flex-1 flex-col select-none overflow-hidden">
     <!-- 顶部状态栏 -->
-    <header class="border-dota-border bg-dota-surface px-6 border-b flex shrink-0 h-14 items-center justify-between">
+    <header class="px-6 border-b border-dota-border bg-dota-surface flex shrink-0 h-14 items-center justify-between">
       <div class="flex items-center space-x-3">
         <Bot class="text-amber-400 h-5 w-5" />
         <h1 class="text-base text-amber-400 tracking-wide font-bold">
@@ -243,7 +243,7 @@ async function handleCopyReview() {
               <span :class="m.radiant_win === (m.player_slot < 128) ? 'text-emerald-400' : 'text-rose-400'">
                 {{ m.radiant_win === (m.player_slot < 128) ? '胜' : '负' }}
               </span>
-              <span class="text-[10px] text-slate-500">#{{ m.match_id }}</span>
+              <span class="text-slate-500 text-[10px]">#{{ m.match_id }}</span>
             </button>
           </div>
         </div>
@@ -307,9 +307,9 @@ async function handleCopyReview() {
             >
               <div class="flex items-center space-x-2.5">
                 <span class="text-slate-200 font-bold">{{ getHeroName(p.hero_id) }}</span>
-                <span v-if="isBoundPlayer(p)" class="text-[9px] text-amber-300 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20">您操纵</span>
+                <span v-if="isBoundPlayer(p)" class="text-amber-300 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[9px]">您操纵</span>
               </div>
-              <div class="text-[11px] text-slate-400 font-mono space-x-3">
+              <div class="text-slate-400 font-mono space-x-3 text-[11px]">
                 <span class="text-slate-200 font-bold">{{ p.kills }}/{{ p.deaths }}/{{ p.assists }}</span>
                 <span>净资产: <b class="text-amber-400">{{ p.net_worth || p.total_gold }}</b></span>
               </div>
@@ -335,9 +335,9 @@ async function handleCopyReview() {
             >
               <div class="flex items-center space-x-2.5">
                 <span class="text-slate-200 font-bold">{{ getHeroName(p.hero_id) }}</span>
-                <span v-if="isBoundPlayer(p)" class="text-[9px] text-amber-300 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20">您操纵</span>
+                <span v-if="isBoundPlayer(p)" class="text-amber-300 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[9px]">您操纵</span>
               </div>
-              <div class="text-[11px] text-slate-400 font-mono space-x-3">
+              <div class="text-slate-400 font-mono space-x-3 text-[11px]">
                 <span class="text-slate-200 font-bold">{{ p.kills }}/{{ p.deaths }}/{{ p.assists }}</span>
                 <span>净资产: <b class="text-amber-400">{{ p.net_worth || p.total_gold }}</b></span>
               </div>

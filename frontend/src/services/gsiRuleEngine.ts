@@ -1,6 +1,6 @@
 import type { CoachAdvice, ReminderCategoryKey } from '@/types'
 import { reactive } from 'vue'
-import { useAppStore } from '@/store'
+import { useAppStore, useBattleStore } from '@/stores'
 import { overlayApi } from '../api'
 import { HERO_CHINESE_NAMES } from '../data/heroNames'
 import { convertSteamId64ToAccountId, playerProfileService } from './playerProfileService'
@@ -289,8 +289,9 @@ class GsiRuleEngine {
   public processGsiSnapshot(snapshot: GsiSnapshot) {
     if (!snapshot || !snapshot.hero) return
 
-    const { setGsiConnected, getReminderMode, addAdvice, state } = useAppStore()
-    setGsiConnected(true)
+    const appStore = useAppStore()
+    const battleStore = useBattleStore()
+    battleStore.setGsiConnected(true)
 
     const hero = snapshot.hero
     const map = snapshot.map
@@ -416,7 +417,7 @@ class GsiRuleEngine {
       suggested_action?: string,
       ai_explanation?: string,
     ) => {
-      const mode = getReminderMode(category)
+      const mode = appStore.getReminderMode(category)
       // 0: 关闭 -> 完全静默，不进战术流
       if (mode === 0) return
 
@@ -434,15 +435,15 @@ class GsiRuleEngine {
       }
 
       // 1 或 2: 进文字战术流
-      addAdvice(adviceItem)
+      battleStore.addAdvice(adviceItem)
 
       // 2: 语音+文字播报
       if (mode === 2) {
         speechService.speak(`${title}。${text}`, {
           mode: 2,
-          rate: state.settings.voice_speed,
-          volume: state.settings.voice_volume,
-          voiceName: state.settings.edge_voice_name || state.settings.voice_name,
+          rate: appStore.settings.voice_speed,
+          volume: appStore.settings.voice_volume,
+          voiceName: appStore.settings.edge_voice_name || appStore.settings.voice_name,
         })
       }
     }
@@ -450,12 +451,12 @@ class GsiRuleEngine {
     // ==========================================
     // 0. 自动拉起独立置顶经济悬浮窗 (游戏开始自动浮窗)
     // ==========================================
-    if (isGameActive && state.settings.auto_overlay_on_game_start && !this.hasAutoLaunchedOverlay) {
+    if (isGameActive && appStore.settings.auto_overlay_on_game_start && !this.hasAutoLaunchedOverlay) {
       this.hasAutoLaunchedOverlay = true
       overlayApi.isOverlayRunning().then((running: boolean) => {
         if (!running) {
           overlayApi.toggleOverlayWindow().then(() => {
-            state.isOverlayRunning = true
+            appStore.isOverlayRunning = true
             triggerAlert(
               'macro_tempo',
               'AUTO_OVERLAY_LAUNCH',

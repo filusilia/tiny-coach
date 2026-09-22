@@ -50,7 +50,7 @@ if (-not $NoBuild) {
     $wails3Cmd = Get-Command wails3 -ErrorAction SilentlyContinue
     if ($wails3Cmd) {
         Write-Host '==> [1/4] 正在自动同步生成 Wails v3 类型安全前端绑定 (bindings)...' -ForegroundColor Cyan
-        & $wails3Cmd.Source generate bindings -names -ts -b
+        & $wails3Cmd.Source generate bindings -names -ts
     }
 
     Write-Host '==> [2/4] 正在构建前端电竞 HUD 静态资产 (Vite + Vue 3)...' -ForegroundColor Cyan

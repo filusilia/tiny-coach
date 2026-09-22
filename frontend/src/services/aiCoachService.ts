@@ -1,6 +1,6 @@
 import type { BattleContextDTO } from '../api/types'
 import type { AiEndpointTestResult } from '@/types'
-import { useAppStore } from '@/store'
+import { useAppStore } from '@/stores'
 import { aiApi, systemApi } from '../api'
 import { HERO_CHINESE_NAMES } from '../data/heroNames'
 import { playerProfileService } from './playerProfileService'
@@ -287,8 +287,8 @@ class AiCoachService {
     context: TacticalContext,
     timeoutMs: number = 8000,
   ): Promise<{ answer: string, modelUsed: string, isNpu: boolean }> {
-    const { state } = useAppStore()
-    const mode = state.settings.ai_mode
+    const { settings } = useAppStore()
+    const mode = settings.ai_mode
 
     // 1. 纯确定性规则引擎降级模式 (0 延迟/0 网络依赖/零开销)
     if (mode === 'rule_only') {
@@ -304,9 +304,9 @@ class AiCoachService {
 
     // 0. 优先调用 Go 原生战术问答引擎 (开工铁律第 6 条与第 9 条)
     try {
-      const endpoint = (isNpu ? state.settings.npu_endpoint : state.settings.cloud_base_url) || ''
-      const apiKey = (isNpu ? '' : state.settings.cloud_api_key) || ''
-      const model = (isNpu ? state.settings.npu_model : state.settings.cloud_model) || ''
+      const endpoint = (isNpu ? settings.npu_endpoint : settings.cloud_base_url) || ''
+      const apiKey = (isNpu ? '' : settings.cloud_api_key) || ''
+      const model = (isNpu ? settings.npu_model : settings.cloud_model) || ''
 
       const battleDto: BattleContextDTO = {
         ...context,
@@ -356,8 +356,8 @@ class AiCoachService {
     try {
       if (isNpu) {
         // 本地 AI / 本机 NPU 模式 (Ollama / LM Studio / DirectML endpoint)
-        const endpoint = (state.settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
-        const model = state.settings.npu_model || 'qwen3.5:1.5b'
+        const endpoint = (settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
+        const model = settings.npu_model || 'qwen3.5:1.5b'
 
         const res = await fetch(`${endpoint}/chat/completions`, {
           method: 'POST',
@@ -384,9 +384,9 @@ class AiCoachService {
         return { answer: content, modelUsed: `[NPU/Local] ${model}`, isNpu: true }
       } else {
         // 云端大模型模式
-        const endpoint = (state.settings.cloud_base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '')
-        const apiKey = state.settings.cloud_api_key || ''
-        const model = state.settings.cloud_model || 'deepseek-chat'
+        const endpoint = (settings.cloud_base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '')
+        const apiKey = settings.cloud_api_key || ''
+        const model = settings.cloud_model || 'deepseek-chat'
 
         if (!apiKey) {
           throw new Error('未配置云端 API Key，已自动为您降级至规则引擎')
@@ -461,14 +461,14 @@ class AiCoachService {
    * @param targetPlayerSlot 目标分析的玩家槽位 (若未指定则自动探测已绑定账号或首发选手)
    */
   public async generateMatchReview(match: any, targetPlayerSlot?: number, userContext?: string): Promise<MatchReviewResult> {
-    const { state } = useAppStore()
-    const mode = state.settings.ai_mode
+    const { settings } = useAppStore()
+    const mode = settings.ai_mode
 
     // 1. 寻找主视角玩家
     const players: any[] = match?.players || []
     let target = players.find(p => targetPlayerSlot !== undefined ? p.player_slot === targetPlayerSlot : false)
-    if (!target && state.settings.dota_player_id) {
-      target = players.find(p => String(p.account_id) === String(state.settings.dota_player_id))
+    if (!target && settings.dota_player_id) {
+      target = players.find(p => String(p.account_id) === String(settings.dota_player_id))
     }
     if (!target) {
       target = players[0] || {}
@@ -519,9 +519,9 @@ class AiCoachService {
 
     // 0. 优先调用 Go 原生赛后复盘分析引擎 (开工铁律第 6 条与第 9 条)
     try {
-      const endpoint = (isNpu ? state.settings.npu_endpoint : state.settings.cloud_base_url) || ''
-      const apiKey = (isNpu ? '' : state.settings.cloud_api_key) || ''
-      const model = (isNpu ? state.settings.npu_model : state.settings.cloud_model) || ''
+      const endpoint = (isNpu ? settings.npu_endpoint : settings.cloud_base_url) || ''
+      const apiKey = (isNpu ? '' : settings.cloud_api_key) || ''
+      const model = (isNpu ? settings.npu_model : settings.cloud_model) || ''
       const slot = targetPlayerSlot !== undefined ? targetPlayerSlot : -1
 
       // 规整提炼核心指标，杜绝将数兆字节的战斗日志原始 JSON 塞入大模型 Prompt 导致超限崩溃
@@ -570,8 +570,8 @@ class AiCoachService {
       let modelUsed = ''
 
       if (isNpu) {
-        const endpoint = (state.settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
-        const model = state.settings.npu_model || 'qwen3.5:1.5b'
+        const endpoint = (settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
+        const model = settings.npu_model || 'qwen3.5:1.5b'
         modelUsed = `[本地/NPU] ${model}`
 
         const res = await fetch(`${endpoint}/chat/completions`, {
@@ -593,9 +593,9 @@ class AiCoachService {
         const data = await res.json()
         rawText = data.choices?.[0]?.message?.content?.trim() || ''
       } else {
-        const endpoint = (state.settings.cloud_base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '')
-        const apiKey = state.settings.cloud_api_key || ''
-        const model = state.settings.cloud_model || 'deepseek-chat'
+        const endpoint = (settings.cloud_base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '')
+        const apiKey = settings.cloud_api_key || ''
+        const model = settings.cloud_model || 'deepseek-chat'
         modelUsed = `[云端API] ${model}`
 
         if (!apiKey) throw new Error('未配置云端 API Key')

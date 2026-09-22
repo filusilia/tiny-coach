@@ -22,7 +22,8 @@ interface WailsRuntimeWindow extends Window {
 export function useNativeNavigation() {
   const router = useRouter()
   const appStore = useAppStore()
-  let unlisten: (() => void) | null = null
+  let unlistenNav: (() => void) | null = null
+  let unlistenOverlay: (() => void) | null = null
 
   function handleNavigation(targetRoute: string) {
     if (!targetRoute) return
@@ -49,26 +50,44 @@ export function useNativeNavigation() {
   onMounted(() => {
     const win = window as WailsRuntimeWindow
     if (win.wails?.Events?.On) {
-      const cleanup = win.wails.Events.On('navigate_to', (eventPayload: unknown) => {
+      // 1. 监听原生菜单与托盘导航事件
+      const cleanupNav = win.wails.Events.On('navigate_to', (eventPayload: unknown) => {
         const route = typeof eventPayload === 'string'
           ? eventPayload
           : (eventPayload as { data?: string })?.data ?? ''
         handleNavigation(route)
       })
-      if (typeof cleanup === 'function') {
-        unlisten = cleanup
+      if (typeof cleanupNav === 'function') {
+        unlistenNav = cleanupNav
+      }
+
+      // 2. 监听悬浮窗显隐切换原生事件 (Alt+F2 或系统菜单触发时的双向状态同步)
+      const cleanupOverlay = win.wails.Events.On('overlay_state_change', (eventPayload: unknown) => {
+        const active = typeof eventPayload === 'boolean'
+          ? eventPayload
+          : Boolean((eventPayload as { data?: boolean })?.data ?? eventPayload)
+        appStore.isOverlayRunning = active
+        appStore.isOverlayOpen = active
+      })
+      if (typeof cleanupOverlay === 'function') {
+        unlistenOverlay = cleanupOverlay
       }
     }
   })
 
   onUnmounted(() => {
-    if (unlisten) {
-      unlisten()
-      unlisten = null
+    if (unlistenNav) {
+      unlistenNav()
+      unlistenNav = null
+    }
+    if (unlistenOverlay) {
+      unlistenOverlay()
+      unlistenOverlay = null
     }
     const win = window as WailsRuntimeWindow
     if (win.wails?.Events?.Off) {
       win.wails.Events.Off('navigate_to')
+      win.wails.Events.Off('overlay_state_change')
     }
   })
 

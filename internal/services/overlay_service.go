@@ -13,10 +13,11 @@ import (
 
 // OverlayService 独立桌面置顶悬浮窗服务
 type OverlayService struct {
-	mu         sync.RWMutex
-	isOverlay  bool
-	window     *application.WebviewWindow
-	overlayCmd *exec.Cmd
+	mu            sync.RWMutex
+	isOverlay     bool
+	window        *application.WebviewWindow
+	overlayWindow *application.WebviewWindow
+	overlayCmd    *exec.Cmd
 }
 
 var (
@@ -67,7 +68,10 @@ func (s *OverlayService) IsOverlayRunning() bool {
 // SetIgnoreMouseEvents 设置悬浮窗是否忽略鼠标事件 (点击完全穿透至游戏)
 func (s *OverlayService) SetIgnoreMouseEvents(ignore bool) {
 	s.mu.RLock()
-	win := s.window
+	win := s.overlayWindow
+	if win == nil {
+		win = s.window
+	}
 	s.mu.RUnlock()
 
 	if win != nil {
@@ -94,6 +98,7 @@ func (s *OverlayService) ToggleOverlayWindow() bool {
 			overlayWin.Focus()
 			hwnd := uintptr(overlayWin.NativeWindow())
 			if hwnd != 0 {
+				overlay.DetachWindowOwner(hwnd)
 				overlay.EnsureOverlayExtendedStyle(hwnd)
 				overlay.ForceTopMost(hwnd)
 			}
@@ -113,24 +118,29 @@ func (s *OverlayService) ToggleOverlayWindow() bool {
 			overlayWin = appInst.Window.NewWithOptions(application.WebviewWindowOptions{
 				Name:              "game-overlay",
 				Title:             "神盾教练 - 局内经济悬浮窗",
-				URL:               "/#/overlay",
+				URL:               "/index.html?window=overlay#/overlay",
 				Width:             340,
 				Height:            460,
 				Frameless:         true,
 				AlwaysOnTop:       true,
 				IgnoreMouseEvents: false,
 				BackgroundType:    application.BackgroundTypeTransparent,
+				BackgroundColour:  application.RGBA{Red: 0, Green: 0, Blue: 0, Alpha: 0},
 				Windows: application.WindowsWindow{
-					HiddenOnTaskbar: true,
+					HiddenOnTaskbar:                   true,
+					DisableFramelessWindowDecorations: true,
+					Theme:                             application.Dark,
 				},
 			})
 		}()
 
 		if overlayWin != nil {
+			s.overlayWindow = overlayWin
 			overlayWin.Show()
 			overlayWin.Focus()
 			hwnd := uintptr(overlayWin.NativeWindow())
 			if hwnd != 0 {
+				overlay.DetachWindowOwner(hwnd)
 				overlay.EnsureOverlayExtendedStyle(hwnd)
 				overlay.ForceTopMost(hwnd)
 			}

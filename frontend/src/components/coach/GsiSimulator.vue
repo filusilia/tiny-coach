@@ -10,7 +10,7 @@ import {
 } from '@lucide/vue'
 import { ref } from 'vue'
 import { speechService } from '../../services/speechService'
-import { useAppStore } from '../../store'
+import { useAppStore, useBattleStore } from '../../stores'
 
 interface SimulationPreset {
   id: string
@@ -157,13 +157,14 @@ const presets: SimulationPreset[] = [
   },
 ]
 
-const { state, addAdvice, setGsiConnected, getReminderMode } = useAppStore()
+const appStore = useAppStore()
+const battleStore = useBattleStore()
 
 function handleRunPreset(preset: SimulationPreset) {
-  setGsiConnected(true)
+  battleStore.setGsiConnected(true)
 
   // 根据当前三段式配置裁定
-  const mode = getReminderMode(preset.category)
+  const mode = appStore.getReminderMode(preset.category)
 
   // 1. 若当前类别为 0 (关闭)：不生成战术流，也不发声
   if (mode === 0) {
@@ -185,7 +186,7 @@ function handleRunPreset(preset: SimulationPreset) {
   }
 
   // 2. 模式 1 (仅文字) 与 模式 2 (语音+文字)：均展示文字战术流
-  addAdvice(adviceItem)
+  battleStore.addAdvice(adviceItem)
 
   // 3. 模式 2 (语音+文字)：通过 Edge-TTS 朗读
   if (mode === 2) {
@@ -193,9 +194,9 @@ function handleRunPreset(preset: SimulationPreset) {
       `${adviceItem.title}。${adviceItem.text}`,
       {
         mode: 2,
-        rate: state.settings.voice_speed,
-        volume: state.settings.voice_volume,
-        voiceName: state.settings.edge_voice_name || state.settings.voice_name,
+        rate: appStore.settings.voice_speed,
+        volume: appStore.settings.voice_volume,
+        voiceName: appStore.settings.edge_voice_name || appStore.settings.voice_name,
       },
     )
   }
@@ -203,15 +204,15 @@ function handleRunPreset(preset: SimulationPreset) {
 </script>
 
 <template>
-  <div class="bg-dota-panel border-dota-border p-4 border rounded-xl space-y-3">
-    <div class="border-dota-border pb-2.5 border-b flex flex-wrap gap-2 items-center justify-between">
+  <div class="p-4 border border-dota-border rounded-xl bg-dota-panel space-y-3">
+    <div class="pb-2.5 border-b border-dota-border flex flex-wrap gap-2 items-center justify-between">
       <div class="flex items-center space-x-2">
         <PlayCircle class="text-dota-gold h-4 w-4" />
-        <h3 class="text-dota-goldLight text-xs font-bold">
+        <h3 class="text-xs text-dota-goldLight font-bold">
           GSI 局内 9 类战术事件模拟注入
         </h3>
       </div>
-      <div class="text-dota-subtle text-[10px] flex items-center space-x-2">
+      <div class="text-dota-subtle flex items-center space-x-2 text-[10px]">
         <span v-if="closedFeedback" class="text-dota-red font-medium animate-pulse">
           {{ closedFeedback }}
         </span>
@@ -246,7 +247,7 @@ function handleRunPreset(preset: SimulationPreset) {
           />
           <!-- 当前生效模式徽章 -->
           <span
-            class="text-[9px] font-mono px-1.5 py-0.2 border rounded" :class="[
+            class="font-mono px-1.5 py-0.2 border rounded text-[9px]" :class="[
               getReminderMode(preset.category) === 2
                 ? 'bg-dota-gold/20 text-dota-gold border-dota-gold/40'
                 : getReminderMode(preset.category) === 1
@@ -265,13 +266,13 @@ function handleRunPreset(preset: SimulationPreset) {
         </div>
 
         <div class="mt-2 w-full">
-          <div class="text-dota-text group-hover:text-dota-goldLight text-xs font-bold flex items-center justify-between">
+          <div class="text-xs text-dota-text font-bold flex items-center justify-between group-hover:text-dota-goldLight">
             <span>{{ preset.title }}</span>
           </div>
-          <div class="text-dota-subtle text-[10px] mt-0.5 truncate" :title="preset.desc">
+          <div class="text-dota-subtle mt-0.5 truncate text-[10px]" :title="preset.desc">
             {{ preset.desc }}
           </div>
-          <div class="text-dota-muted border-dota-border/40 text-[9px] font-mono mt-1 pt-1 border-t flex items-center justify-between">
+          <div class="text-dota-muted font-mono mt-1 pt-1 border-t border-dota-border/40 flex items-center justify-between text-[9px]">
             <span>{{ preset.heroName }}</span>
             <span class="text-dota-subtle text-[9px]">{{ preset.categoryLabel }}</span>
           </div>

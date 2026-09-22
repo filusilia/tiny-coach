@@ -63,8 +63,13 @@ export const router = createRouter({
 router.beforeEach((to, _from, next) => {
   if (typeof window !== 'undefined') {
     const search = window.location.search || ''
-    if (search.includes('window=overlay') && to.path !== '/overlay') {
+    const isOverlayUrl = search.includes('window=overlay')
+    if (isOverlayUrl && to.path !== '/overlay') {
       return next('/overlay')
+    }
+    if (!isOverlayUrl && to.path === '/overlay') {
+      // 主窗口绝不内嵌渲染悬浮窗，杜绝主窗口层级混淆与无法脱出误解
+      return next('/coach')
     }
   }
   next()

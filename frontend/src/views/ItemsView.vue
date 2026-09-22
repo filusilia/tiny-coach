@@ -436,8 +436,8 @@ function onItemHover(item: CatalogItem) {
 </script>
 
 <template>
-  <div v-if="loading" class="text-dota-muted bg-dota-bg text-sm flex flex-1 items-center justify-center">
-    <div class="border-dota-gold mr-3 border-b-2 border-t-2 rounded-full h-8 w-8 animate-spin" />
+  <div v-if="loading" class="text-sm text-dota-muted bg-dota-bg flex flex-1 items-center justify-center">
+    <div class="mr-3 border-dota-gold border-b-2 border-t-2 rounded-full h-8 w-8 animate-spin" />
     正在构建 7.41e 现行有效物品与合成图谱数据库...
   </div>
 
@@ -447,9 +447,9 @@ function onItemHover(item: CatalogItem) {
     @mousemove="handleMouseMove"
   >
     <!-- 顶部单行高密度控制栏 (Dota 2 官网多层分类体系) -->
-    <div class="border-dota-border bg-dota-surface px-4 border-b flex shrink-0 gap-4 h-12 items-center justify-between">
+    <div class="px-4 border-b border-dota-border bg-dota-surface flex shrink-0 gap-4 h-12 items-center justify-between">
       <!-- 左侧：官网顶级分类切换 -->
-      <div class="bg-dota-panel border-dota-border p-0.5 border rounded-lg flex items-center space-x-1">
+      <div class="p-0.5 border border-dota-border rounded-lg bg-dota-panel flex items-center space-x-1">
         <button
           v-for="tab in MAIN_TABS"
           :key="tab.id"
@@ -484,7 +484,7 @@ function onItemHover(item: CatalogItem) {
       <div v-else class="flex-1" />
 
       <!-- 右侧：统计计数 -->
-      <div class="text-dota-subtle text-xs font-mono shrink-0">
+      <div class="text-xs text-dota-subtle font-mono shrink-0">
         共 {{ totalItemsCount }} 个物品
       </div>
     </div>
@@ -496,14 +496,14 @@ function onItemHover(item: CatalogItem) {
         <div class="flex items-center space-x-2.5">
           <div class="rounded-full h-4 w-1 shadow-sm" :class="group.accentColor" />
           <div class="flex items-baseline space-x-2">
-            <h2 class="text-dota-text text-sm tracking-wide font-extrabold">
+            <h2 class="text-sm text-dota-text tracking-wide font-extrabold">
               {{ group.title }}
             </h2>
-            <span class="text-dota-subtle text-[10px] tracking-wider font-mono font-semibold uppercase">
+            <span class="text-dota-subtle tracking-wider font-mono font-semibold uppercase text-[10px]">
               {{ group.enTitle }}
             </span>
           </div>
-          <span class="text-dota-subtle text-xs font-mono">({{ group.items.length }})</span>
+          <span class="text-xs text-dota-subtle font-mono">({{ group.items.length }})</span>
         </div>
 
         <!-- 官网 56x42 标准比例物品格网格 -->
@@ -516,7 +516,7 @@ function onItemHover(item: CatalogItem) {
             @mouseleave="hoveredItem = null"
           >
             <!-- 56x42 (w-14 h-10.5) 规格方格容器 -->
-            <div class="bg-dota-panel border-dota-border/80 group-hover:border-dota-gold border rounded h-10.5 w-14 transition-all relative overflow-hidden group-hover:shadow-[0_0_12px_rgba(229,193,88,0.35)] group-hover:scale-105">
+            <div class="border border-dota-border/80 rounded bg-dota-panel h-10.5 w-14 transition-all relative overflow-hidden group-hover:border-dota-gold group-hover:shadow-[0_0_12px_rgba(229,193,88,0.35)] group-hover:scale-105">
               <img
                 :src="getItemIcon(item)"
                 :alt="item.dname"
@@ -528,14 +528,14 @@ function onItemHover(item: CatalogItem) {
               <!-- 左上角主动/被动微型徽标 -->
               <div
                 v-if="getItemSkillTypes(item).hasActive"
-                class="text-[8px] text-slate-950 leading-none font-black px-1 py-0.5 rounded-br bg-amber-500 pointer-events-none shadow-sm left-0 top-0 absolute"
+                class="text-slate-950 leading-none font-black px-1 py-0.5 rounded-br bg-amber-500 pointer-events-none shadow-sm left-0 top-0 absolute text-[8px]"
                 title="主动技能装备"
               >
                 主
               </div>
               <div
                 v-else-if="getItemSkillTypes(item).hasPassive"
-                class="text-[8px] text-white leading-none font-black px-1 py-0.5 rounded-br bg-emerald-600 pointer-events-none shadow-sm left-0 top-0 absolute"
+                class="text-white leading-none font-black px-1 py-0.5 rounded-br bg-emerald-600 pointer-events-none shadow-sm left-0 top-0 absolute text-[8px]"
                 title="被动技能装备"
               >
                 被
@@ -544,20 +544,20 @@ function onItemHover(item: CatalogItem) {
               <!-- 右上角售价/中立阶级微型徽章 -->
               <div
                 v-if="item.cost > 0"
-                class="text-[8px] text-amber-300 font-bold font-mono px-1 border-b border-l border-white/10 rounded-bl bg-black/80 pointer-events-none right-0 top-0 absolute"
+                class="text-amber-300 font-bold font-mono px-1 border-b border-l border-white/10 rounded-bl bg-black/80 pointer-events-none right-0 top-0 absolute text-[8px]"
               >
                 {{ item.cost }}
               </div>
               <div
                 v-else-if="item.tier > 0"
-                class="text-[8px] text-emerald-300 font-bold font-mono px-1 border-b border-l border-emerald-500/30 rounded-bl bg-emerald-950/85 pointer-events-none right-0 top-0 absolute"
+                class="text-emerald-300 font-bold font-mono px-1 border-b border-l border-emerald-500/30 rounded-bl bg-emerald-950/85 pointer-events-none right-0 top-0 absolute text-[8px]"
               >
                 T{{ item.tier }}
               </div>
             </div>
 
             <!-- 下方中文品名 -->
-            <div class="text-dota-muted group-hover:text-dota-goldLight text-[10px] mt-1 text-center max-w-[56px] truncate transition-colors">
+            <div class="text-dota-muted mt-1 text-center max-w-[56px] truncate transition-colors text-[10px] group-hover:text-dota-goldLight">
               {{ item.dname }}
             </div>
           </div>
@@ -580,7 +580,7 @@ function onItemHover(item: CatalogItem) {
     >
       <!-- 1. 顶部：图标 + 名称 + 价格/阶级 + 分类 + 主动/被动标签 -->
       <div class="flex items-start space-x-3">
-        <div class="bg-dota-panel border-dota-gold/50 border rounded shrink-0 h-10.5 w-14 shadow-md overflow-hidden">
+        <div class="border border-dota-gold/50 rounded bg-dota-panel shrink-0 h-10.5 w-14 shadow-md overflow-hidden">
           <img
             :src="getItemIcon(hoveredItem)"
             :alt="hoveredItem.dname"
@@ -590,19 +590,19 @@ function onItemHover(item: CatalogItem) {
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center space-x-2">
-            <h3 class="text-dota-goldLight text-sm font-bold truncate">
+            <h3 class="text-sm text-dota-goldLight font-bold truncate">
               {{ hoveredItem.dname }}
             </h3>
             <!-- 主动/被动标签 -->
             <span
               v-if="getItemSkillTypes(hoveredItem).hasActive"
-              class="text-[9px] text-amber-300 font-bold px-1.5 py-0.2 border border-amber-500/50 rounded bg-amber-500/20 shrink-0"
+              class="text-amber-300 font-bold px-1.5 py-0.2 border border-amber-500/50 rounded bg-amber-500/20 shrink-0 text-[9px]"
             >
               主动技能
             </span>
             <span
               v-if="getItemSkillTypes(hoveredItem).hasPassive"
-              class="text-[9px] text-emerald-300 font-bold px-1.5 py-0.2 border border-emerald-500/50 rounded bg-emerald-500/20 shrink-0"
+              class="text-emerald-300 font-bold px-1.5 py-0.2 border border-emerald-500/50 rounded bg-emerald-500/20 shrink-0 text-[9px]"
             >
               被动技能
             </span>
@@ -623,15 +623,15 @@ function onItemHover(item: CatalogItem) {
       </div>
 
       <!-- 2. 紧凑网格属性加成展示 (2 列药丸排版，信息密度最大化) -->
-      <div v-if="hoveredItem.attrib" class="border-dota-border/60 pt-2 border-t space-y-1">
-        <div class="text-dota-subtle text-[10px] tracking-wider font-bold uppercase">
+      <div v-if="hoveredItem.attrib" class="pt-2 border-t border-dota-border/60 space-y-1">
+        <div class="text-dota-subtle tracking-wider font-bold uppercase text-[10px]">
           基础属性加成
         </div>
         <div class="gap-1.5 grid grid-cols-2">
           <div
             v-for="(attr, idx) in parseAttributes(hoveredItem.attrib)"
             :key="idx"
-            class="bg-dota-surface/90 border-dota-border/70 text-[11px] text-emerald-300 leading-tight font-mono px-2 py-1 border rounded flex shadow-xs items-center"
+            class="text-emerald-300 leading-tight font-mono px-2 py-1 border border-dota-border/70 rounded bg-dota-surface/90 flex shadow-xs items-center text-[11px]"
           >
             {{ attr }}
           </div>
@@ -639,12 +639,12 @@ function onItemHover(item: CatalogItem) {
       </div>
 
       <!-- 3. 技能与主动/被动效果描述 -->
-      <div v-if="hoveredItem.desc" class="text-dota-text bg-dota-surface/60 border-dota-border/40 text-xs leading-relaxed p-2.5 border rounded-lg whitespace-pre-line">
+      <div v-if="hoveredItem.desc" class="text-xs text-dota-text leading-relaxed p-2.5 border border-dota-border/40 rounded-lg bg-dota-surface/60 whitespace-pre-line">
         {{ cleanHtml(hoveredItem.desc) }}
       </div>
 
       <!-- 4. 冷却与魔耗 -->
-      <div v-if="hoveredItem.cd || hoveredItem.mc" class="text-dota-subtle border-dota-border/40 text-xs font-mono pt-1.5 border-t flex items-center space-x-4">
+      <div v-if="hoveredItem.cd || hoveredItem.mc" class="text-xs text-dota-subtle font-mono pt-1.5 border-t border-dota-border/40 flex items-center space-x-4">
         <div v-if="hoveredItem.cd" class="text-dota-gold flex items-center space-x-1">
           <Clock class="h-3.5 w-3.5" />
           <span>{{ hoveredItem.cd }}s 冷却</span>
@@ -656,8 +656,8 @@ function onItemHover(item: CatalogItem) {
       </div>
 
       <!-- 5. 合成配方与前置配件清单 (100% 补齐图标与价格) -->
-      <div v-if="hoveredItem.components && hoveredItem.components.length > 0" class="border-dota-border/60 pt-2.5 border-t space-y-1.5">
-        <div class="text-dota-goldLight text-xs font-bold flex items-center space-x-1.5">
+      <div v-if="hoveredItem.components && hoveredItem.components.length > 0" class="pt-2.5 border-t border-dota-border/60 space-y-1.5">
+        <div class="text-xs text-dota-goldLight font-bold flex items-center space-x-1.5">
           <Package class="text-dota-gold h-3.5 w-3.5" />
           <span>合成配方前置配件 ({{ hoveredItem.components.length }} 件):</span>
         </div>
@@ -665,17 +665,17 @@ function onItemHover(item: CatalogItem) {
           <div
             v-for="(compKey, i) in hoveredItem.components"
             :key="i"
-            class="bg-dota-surface/90 border-dota-border hover:border-dota-gold/60 px-2 py-1 border rounded flex shadow-sm transition-colors items-center space-x-1.5"
+            class="px-2 py-1 border border-dota-border rounded bg-dota-surface/90 flex shadow-sm transition-colors items-center space-x-1.5 hover:border-dota-gold/60"
           >
             <!-- 56x42 规格微缩图标 (保证绝对 URL 或占位图) -->
             <img
               :src="getItemIcon(compKey)"
               :alt="getComponentItem(compKey).dname"
-              class="border-dota-border/60 border rounded-xs shrink-0 h-4.5 w-6 object-cover"
+              class="border border-dota-border/60 rounded-xs shrink-0 h-4.5 w-6 object-cover"
               @error="(e) => handleImageFallback(e, getItemFallbackCdn(compKey))"
             >
-            <span class="text-dota-text text-xs font-medium">{{ getComponentItem(compKey).dname }}</span>
-            <span v-if="getComponentItem(compKey).cost > 0" class="text-dota-gold text-[10px] font-mono flex items-center">
+            <span class="text-xs text-dota-text font-medium">{{ getComponentItem(compKey).dname }}</span>
+            <span v-if="getComponentItem(compKey).cost > 0" class="text-dota-gold font-mono flex items-center text-[10px]">
               <Coins class="mr-0.5 h-2.5 w-2.5" />
               {{ getComponentItem(compKey).cost }}
             </span>
@@ -684,8 +684,8 @@ function onItemHover(item: CatalogItem) {
       </div>
 
       <!-- 6. 进阶合成去向 (可合成的进阶装备) -->
-      <div v-if="getUpgradesForItem(hoveredItem.key).length > 0" class="border-dota-border/60 pt-2 border-t space-y-1.5">
-        <div class="text-dota-cyan text-[11px] font-bold flex items-center space-x-1">
+      <div v-if="getUpgradesForItem(hoveredItem.key).length > 0" class="pt-2 border-t border-dota-border/60 space-y-1.5">
+        <div class="text-dota-cyan font-bold flex items-center space-x-1 text-[11px]">
           <GitBranch class="text-dota-cyan h-3 w-3" />
           <span>可用于进阶合成:</span>
         </div>
@@ -693,7 +693,7 @@ function onItemHover(item: CatalogItem) {
           <div
             v-for="upg in getUpgradesForItem(hoveredItem.key)"
             :key="upg.key"
-            class="bg-dota-surface/70 border-dota-border text-[10px] px-1.5 py-0.5 border rounded flex items-center space-x-1"
+            class="px-1.5 py-0.5 border border-dota-border rounded bg-dota-surface/70 flex items-center space-x-1 text-[10px]"
             :title="`${upg.dname} (${upg.cost}金)`"
           >
             <img

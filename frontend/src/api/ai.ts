@@ -1,6 +1,6 @@
 /**
  * AI 战术推理与大语言模型 API 模块 (src/api/ai.ts)
- * 封装端点连通性测试、远端模型探测、实时战况问答、赛后智能复盘与模型拉取
+ * 遵循 Wails v3 前后端绑定唯一事实来源铁律：优先直调 AppBindings
  */
 
 import type {
@@ -8,6 +8,7 @@ import type {
   BattleContextDTO,
   MatchReviewResultDTO,
 } from './types'
+import * as AppBindings from '../../bindings/aegis-coach/app'
 import { invokeWails } from './client'
 
 export const aiApi = {
@@ -20,6 +21,13 @@ export const aiApi = {
     apiKey: string,
     model: string,
   ): Promise<AiEndpointTestResultDTO> {
+    try {
+      const res = await AppBindings.TestAiEndpoint(mode, endpoint, apiKey, model)
+      if (res) return res as AiEndpointTestResultDTO
+    } catch (bindErr) {
+      console.warn('[aiApi] AppBindings.TestAiEndpoint 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<AiEndpointTestResultDTO>(
       [
         'main.App.TestAiEndpoint',
@@ -37,6 +45,13 @@ export const aiApi = {
    * 获取云端/兼容 OpenAI 接口的模型列表
    */
   async fetchCloudModels(baseUrl: string, apiKey: string): Promise<string[]> {
+    try {
+      const res = await AppBindings.FetchCloudModels(baseUrl, apiKey)
+      if (Array.isArray(res)) return res
+    } catch (bindErr) {
+      console.warn('[aiApi] AppBindings.FetchCloudModels 异常，尝试降级:', bindErr)
+    }
+
     const res = await invokeWails<string[]>(
       [
         'main.App.FetchCloudModels',
@@ -60,6 +75,13 @@ export const aiApi = {
     apiKey: string,
     model: string,
   ): Promise<string> {
+    try {
+      const res = await AppBindings.AskCoach(question, battleContext as any, mode, endpoint, apiKey, model)
+      if (typeof res === 'string') return res
+    } catch (bindErr) {
+      console.warn('[aiApi] AppBindings.AskCoach 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<string>(
       [
         'main.App.AskCoach',
@@ -87,6 +109,13 @@ export const aiApi = {
     apiKey: string,
     model: string,
   ): Promise<MatchReviewResultDTO> {
+    try {
+      const res = await AppBindings.GenerateMatchReview(matchId, matchDataJson, playerSlot, mode, endpoint, apiKey, model)
+      if (res) return res as MatchReviewResultDTO
+    } catch (bindErr) {
+      console.warn('[aiApi] AppBindings.GenerateMatchReview 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<MatchReviewResultDTO>(
       [
         'main.App.GenerateMatchReview',
@@ -107,6 +136,13 @@ export const aiApi = {
    * 向本地 Ollama 服务发起模型拉取/下载
    */
   async pullLocalModel(modelName: string, endpoint: string = ''): Promise<string> {
+    try {
+      const res = await AppBindings.PullLocalModel(modelName, endpoint)
+      if (typeof res === 'string') return res
+    } catch (bindErr) {
+      console.warn('[aiApi] AppBindings.PullLocalModel 异常，尝试降级:', bindErr)
+    }
+
     return invokeWails<string>(
       [
         'main.App.PullLocalModel',

@@ -7,11 +7,12 @@ import (
 	"os"
 
 	internalApp "aegis-coach/internal/app"
+	"aegis-coach/internal/models"
 	"aegis-coach/internal/overlay"
 	"aegis-coach/internal/services"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/w32"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 var (
@@ -118,6 +119,50 @@ func (a *App) IsGsiRunning() bool {
 	return a.App.IsGsiRunning()
 }
 
+func (a *App) NormalizeDotaAccountId(input string) (string, error) {
+	return a.App.NormalizeDotaAccountId(input)
+}
+
+func (a *App) GetPlayerProfile(accountIdInput string) (*models.PlayerProfileAnalysis, error) {
+	return a.App.GetPlayerProfile(accountIdInput)
+}
+
+func (a *App) GetMatchDetails(matchId string) (string, error) {
+	return a.App.GetMatchDetails(matchId)
+}
+
+func (a *App) GetPlayerRecentMatches(accountId string) (string, error) {
+	return a.App.GetPlayerRecentMatches(accountId)
+}
+
+func (a *App) TestAiEndpoint(mode, endpoint, apiKey, model string) (*models.AiEndpointTestResultDTO, error) {
+	return a.App.TestAiEndpoint(mode, endpoint, apiKey, model)
+}
+
+func (a *App) FetchCloudModels(baseUrl, apiKey string) ([]string, error) {
+	return a.App.FetchCloudModels(baseUrl, apiKey)
+}
+
+func (a *App) AskCoach(question string, ctx *models.BattleContextDTO, mode, endpoint, apiKey, model string) (string, error) {
+	return a.App.AskCoach(question, ctx, mode, endpoint, apiKey, model)
+}
+
+func (a *App) GenerateMatchReview(matchId, matchDataJson string, playerSlot int, mode, endpoint, apiKey, model string) (*models.MatchReviewResultDTO, error) {
+	return a.App.GenerateMatchReview(matchId, matchDataJson, playerSlot, mode, endpoint, apiKey, model)
+}
+
+func (a *App) PullLocalModel(modelName, endpoint string) (string, error) {
+	return a.App.PullLocalModel(modelName, endpoint)
+}
+
+func (a *App) TestTtsEndpoint(endpoint, apiKey, engineType, voice string) (string, error) {
+	return a.App.TestTtsEndpoint(endpoint, apiKey, engineType, voice)
+}
+
+func (a *App) CacheAllIcons() (map[string]int, error) {
+	return a.App.CacheAllIcons()
+}
+
 // main 应用程序入口函数 (基于 Wails v3.0.0-beta.23)
 // 职责收敛：仅负责 Wails 宿主初始化、窗口创建与多服务挂载
 func main() {
@@ -170,16 +215,18 @@ func main() {
 		window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 			Name:              "game-overlay",
 			Title:             "神盾教练 - 局内经济悬浮窗",
-			URL:               "/#/overlay",
+			URL:               "/index.html?window=overlay#/overlay",
 			Width:             340,
 			Height:            460,
 			Frameless:         true,
 			AlwaysOnTop:       true,
 			IgnoreMouseEvents: false,
 			BackgroundType:    application.BackgroundTypeTransparent,
+			BackgroundColour:  application.RGBA{Red: 0, Green: 0, Blue: 0, Alpha: 0},
 			Windows: application.WindowsWindow{
-				HiddenOnTaskbar: true,
-				ExStyle:         w32.WS_EX_TOOLWINDOW,
+				HiddenOnTaskbar:                   true,
+				DisableFramelessWindowDecorations: true,
+				Theme:                             application.Dark,
 			},
 		})
 		if window == nil {
@@ -217,6 +264,15 @@ func main() {
 	// 为主窗口显式注册 Alt+F2 快捷键响应
 	window.RegisterKeyBinding("Alt+F2", func(w application.Window) {
 		appLogic.ToggleOverlayWindow()
+	})
+
+	// 主窗口关闭生命周期守护：若悬浮窗正在运行，关闭主窗口时自动隐藏至托盘后台，确保悬浮窗独立运行
+	window.OnWindowEvent(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if appLogic.IsOverlayRunning() {
+			e.Cancel()
+			window.Hide()
+			log.Printf("[main-window] 独立悬浮窗处于激活态，主窗口转入后台托盘驻留")
+		}
 	})
 
 	// 构建 Wails v3 原生应用系统菜单 (Application Menu)

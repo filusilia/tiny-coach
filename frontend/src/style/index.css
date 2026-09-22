@@ -1,0 +1,159 @@
+/**
+ * 神盾教练全局设计令牌与基础样式系统 (src/style/index.css)
+ * 职责：集中存放全局主颜色、主字体大小、字体族与核心 CSS 变量参数，提供单一调整事实源。
+ */
+
+:root {
+  /* ==========================================================================
+     1. 主颜色系统 (Main Colors & Dota Theme Tokens)
+     可通过此处统一调整全局配色，所有引用 dota-* 类的组件将实时生效联动
+     ========================================================================== */
+  --color-dota-bg: #121824; /* 应用主背景色 (深蓝黑) */
+  --color-dota-surface: #182232; /* 表面层 / 侧边栏 / 顶栏背景色 */
+  --color-dota-panel: #1e293b; /* 面板 / 内容容器底色 */
+  --color-dota-card: #25334a; /* 悬浮卡片 / 内嵌卡片底色 */
+  --color-dota-hover: #2d3d57; /* 悬停与高亮背景色 */
+  --color-dota-border: #334155; /* 基础分割线与边框色 */
+  --color-dota-border-light: #475569; /* 次级高亮边框色 */
+  --color-dota-borderLight: #475569; /* 兼容驼峰别名 */
+
+  /* 电竞电光高亮色 */
+  --color-dota-gold: #e5c158; /* 神盾冠军主金黄色 */
+  --color-dota-gold-light: #f3d98b; /* 高光金白色 */
+  --color-dota-goldLight: #f3d98b; /* 兼容驼峰别名 */
+  --color-dota-cyan: #38bdf8; /* 科技青 / 魔法蓝 */
+  --color-dota-red: #ef4444; /* 警报红 / 危险 / 夜魇红 */
+  --color-dota-green: #10b981; /* 就绪绿 / 增益 / 天辉绿 */
+
+  /* 文本颜色梯度 */
+  --color-dota-text: #f8fafc; /* 主文本高亮纯白 */
+  --color-dota-muted: #cbd5e1; /* 次级正文浅灰色 */
+  --color-dota-subtle: #94a3b8; /* 弱化提示、占位符与元数据文字 */
+
+  /* 快捷系统参数 */
+  --color-main: var(--color-dota-text);
+  --bg-main: var(--color-dota-bg);
+  --border-main: var(--color-dota-border);
+
+  /* 业务状态与警报色 */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #38bdf8;
+
+  /* ==========================================================================
+     2. 基础暗色中性色阶梯 (Neutral Slate Palette Tokens)
+     将页面使用的 slate 颜色全量参数化，便于集中调整整体对比度与明暗层次
+     ========================================================================== */
+  --color-slate-950: #020617;
+  --color-slate-900: #0f172a;
+  --color-slate-800: #1e293b;
+  --color-slate-700: #334155;
+  --color-slate-600: #475569;
+  --color-slate-500: #64748b;
+  --color-slate-400: #94a3b8;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #f1f5f9;
+  --color-slate-50: #f8fafc;
+
+  /* ==========================================================================
+     3. 主字体与排版字号阶梯 (Typography Tokens)
+     集中调控微型角标、正文、各级标题大小
+     ========================================================================== */
+  --font-size-3xs: 8px; /* 极限微缩提示 */
+  --font-size-2xs: 9px; /* 极微缩属性、KDA辅助标签 */
+  --font-size-xs: 11px; /* 电竞HUD微缩信息、状态徽章 */
+  --font-size-sm: 12px; /* 次要正文、表格字段、分类Tab */
+  --font-size-base: 13px; /* 紧凑正文字号 */
+  --font-size-md: 14px; /* 标准系统正文字号 */
+  --font-size-lg: 16px; /* 卡片标题、侧栏分组标题 */
+  --font-size-xl: 18px; /* 视图大标题、比分核心数值 */
+  --font-size-2xl: 24px; /* 巨幕战况、倒计时大字 */
+
+  /* 系统主字体大小 (默认采用 14px 标准字号，修改此处可缩放全站基础排版) */
+  --font-size-main: var(--font-size-md);
+
+  /* 字体族体系 (优先高质量原生中英字体，严格兼容 Windows / macOS 电竞环境) */
+  --font-family-base:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Apple Color Emoji', 'Noto Color Emoji', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB',
+    'Noto Sans CJK SC', 'Source Han Sans SC', 'Malgun Gothic', 'Meiryo', 'Yu Gothic UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+
+  --font-family-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  /* ==========================================================================
+     4. 交互与边框圆角参数 (Radius & Transitions)
+     ========================================================================== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   5. 基础层全局规则 (Base Layer Reset)
+   ========================================================================== */
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  border-color: var(--color-dota-border);
+}
+
+html,
+body,
+#app {
+  background: transparent !important;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  color: var(--color-dota-text);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-main);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ==========================================================================
+   6. 全局沉浸式电竞滚动条 (加宽至 10px 提高拖拽便利性与操作手感)
+   ========================================================================== */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-dota-border) var(--color-dota-surface);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-dota-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-dota-border);
+  border-radius: 5px;
+  border: 2px solid var(--color-dota-surface);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-dota-border-light);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--color-dota-hover);
+}

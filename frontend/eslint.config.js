@@ -5,6 +5,7 @@ export default antfu({
   ignores: [
     'dist/**',
     'build/**',
+    'bindings/**',
   ],
   // 启用各种格式支持
   formatters: {

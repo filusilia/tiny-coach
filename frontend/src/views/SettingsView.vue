@@ -575,9 +575,9 @@ async function testTtsSpeechPlayback() {
 </script>
 
 <template>
-  <div class="bg-dota-bg text-slate-100 flex flex-1 flex-col select-none overflow-hidden">
+  <div class="text-slate-100 bg-dota-bg flex flex-1 flex-col select-none overflow-hidden">
     <!-- 1. 顶部标题栏 (纯标题展示，版本号移至最底部关于卡片) -->
-    <header class="border-dota-border bg-dota-surface px-6 border-b flex shrink-0 h-14 items-center justify-between">
+    <header class="px-6 border-b border-dota-border bg-dota-surface flex shrink-0 h-14 items-center justify-between">
       <div class="flex items-center space-x-3">
         <Sliders class="text-amber-400 h-5 w-5" />
         <h1 class="text-base text-amber-400 tracking-wide font-bold">
@@ -665,7 +665,7 @@ async function testTtsSpeechPlayback() {
               <div class="text-xs text-slate-200 font-bold">
                 {{ cat.label }}
               </div>
-              <div class="text-[11px] text-slate-400 line-clamp-1">
+              <div class="text-slate-400 line-clamp-1 text-[11px]">
                 {{ cat.description }}
               </div>
             </div>
@@ -796,9 +796,9 @@ async function testTtsSpeechPlayback() {
                   <div>
                     <div class="text-xs text-slate-100 font-extrabold flex items-center space-x-1.5">
                       <span>{{ m.name }}</span>
-                      <span v-if="m.isPriority" class="text-[10px] text-amber-400 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20">首选</span>
+                      <span v-if="m.isPriority" class="text-amber-400 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[10px]">首选</span>
                     </div>
-                    <div class="text-[11px] text-emerald-400 font-mono">
+                    <div class="text-emerald-400 font-mono text-[11px]">
                       {{ m.size }} · {{ m.contextWindow }}
                     </div>
                   </div>
@@ -815,11 +815,11 @@ async function testTtsSpeechPlayback() {
                   </button>
                 </div>
 
-                <p class="text-[11px] text-slate-400 leading-relaxed">
+                <p class="text-slate-400 leading-relaxed text-[11px]">
                   {{ m.description }}
                 </p>
 
-                <div class="text-[11px] pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
                   <span class="text-slate-500 font-mono">适用: {{ m.recommendedFor }}</span>
                   <div class="flex items-center space-x-1.5">
                     <button
@@ -951,12 +951,12 @@ async function testTtsSpeechPlayback() {
 
           <!-- 可选云端模型芯片列表（测试连接或拉取后呈现可选项） -->
           <div v-if="remoteModels.length > 0" class="pt-2 border-t border-slate-800/80 flex flex-wrap gap-1.5 items-center">
-            <span class="text-[11px] text-slate-400 mr-1 shrink-0">可用模型选项 (点击选用):</span>
+            <span class="text-slate-400 mr-1 shrink-0 text-[11px]">可用模型选项 (点击选用):</span>
             <button
               v-for="m in remoteModels"
               :key="m"
               type="button"
-              class="text-[11px] font-mono px-2.5 py-1 border rounded-lg flex cursor-pointer transition-all items-center space-x-1"
+              class="font-mono px-2.5 py-1 border rounded-lg flex cursor-pointer transition-all items-center space-x-1 text-[11px]"
               :class="appStore.settings.cloud_model === m
                 ? 'border-amber-500 bg-amber-500/20 text-amber-300 font-bold shadow-sm'
                 : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:text-white'"
@@ -983,7 +983,7 @@ async function testTtsSpeechPlayback() {
               {{ testResult.success ? `连通成功 (${testResult.latencyMs}ms)` : `探测失败: ${testResult.errorMessage || '请检查服务'}` }}
             </span>
           </div>
-          <span class="text-[11px] text-slate-500">超时判定：8000ms 自动转规则引擎</span>
+          <span class="text-slate-500 text-[11px]">超时判定：8000ms 自动转规则引擎</span>
         </div>
       </section>
 
@@ -1054,11 +1054,11 @@ async function testTtsSpeechPlayback() {
           >
             <div class="mb-1 flex items-center justify-between">
               <span class="text-xs text-slate-100 font-bold">{{ eng.name }}</span>
-              <span class="text-[10px] text-amber-300 font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20">
+              <span class="text-amber-300 font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[10px]">
                 {{ eng.badge }}
               </span>
             </div>
-            <p class="text-[11px] text-slate-300 leading-relaxed font-normal">
+            <p class="text-slate-300 leading-relaxed font-normal text-[11px]">
               {{ eng.desc }}
             </p>
           </div>
@@ -1194,7 +1194,7 @@ async function testTtsSpeechPlayback() {
               <div class="text-xs text-amber-400 font-bold">
                 {{ appStore.settings.dota_player_name }}
               </div>
-              <div class="text-[11px] text-slate-400 font-mono">
+              <div class="text-slate-400 font-mono text-[11px]">
                 ID: {{ appStore.settings.dota_player_id }} · 战绩画像已建立同步
               </div>
             </div>
@@ -1256,11 +1256,11 @@ async function testTtsSpeechPlayback() {
             <div class="space-y-0.5">
               <div class="text-xs text-slate-200 font-bold flex items-center space-x-1.5">
                 <span>本地图标缓存状态</span>
-                <span v-if="iconCacheStats" class="text-[10px] text-emerald-400 font-mono px-1.5 py-0.2 rounded bg-emerald-950/60 border border-emerald-500/30">
+                <span v-if="iconCacheStats" class="text-emerald-400 font-mono px-1.5 py-0.2 border border-emerald-500/30 rounded bg-emerald-950/60 text-[10px]">
                   已缓存英雄: {{ iconCacheStats.cached_heroes }} | 装备: {{ iconCacheStats.cached_items }}
                 </span>
               </div>
-              <div class="text-[11px] text-slate-400">
+              <div class="text-slate-400 text-[11px]">
                 默认优先加载本地缓存文件，离线秒级呈现；缺失时自动落盘并由官方 CDN 兜底。
               </div>
             </div>
@@ -1303,7 +1303,7 @@ async function testTtsSpeechPlayback() {
             <div>
               <div class="text-sm text-slate-100 font-extrabold flex items-center space-x-2">
                 <span>神盾教练 (AegisCoach)</span>
-                <span class="text-[10px] text-amber-400 font-bold font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20">
+                <span class="text-amber-400 font-bold font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[12px]">
                   v1.0.0 (Release 2026)
                 </span>
               </div>
@@ -1314,38 +1314,8 @@ async function testTtsSpeechPlayback() {
           </div>
           <span class="text-xs text-emerald-400 font-mono px-2 py-0.5 border border-emerald-800/60 rounded bg-emerald-950 flex items-center space-x-1">
             <CheckCircle2 class="h-3 w-3" />
-            <span>Valve GSI 官方认证标准</span>
+            <span>基于 Valve GSI</span>
           </span>
-        </div>
-
-        <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-900 gap-3 grid grid-cols-1 sm:grid-cols-3">
-          <div class="p-2.5 border border-slate-800/80 rounded-lg bg-slate-900/60 space-y-1">
-            <div class="text-slate-200 font-bold">
-              极轻混合架构
-            </div>
-            <div>Wails v3 + Go 1.27 + Vue 3 + TypeScript</div>
-            <div class="text-slate-500">
-              单可执行文件零外部运行时依赖
-            </div>
-          </div>
-          <div class="p-2.5 border border-slate-800/80 rounded-lg bg-slate-900/60 space-y-1">
-            <div class="text-slate-200 font-bold">
-              安全合规最高红线
-            </div>
-            <div>零内存注入 · 零 Hook 渲染 · 零模拟键鼠</div>
-            <div class="text-slate-500">
-              仅接收 Valve 原生 4444 端口 HTTP POST
-            </div>
-          </div>
-          <div class="p-2.5 border border-slate-800/80 rounded-lg bg-slate-900/60 space-y-1">
-            <div class="text-slate-200 font-bold">
-              开工铁律与数据隐私
-            </div>
-            <div>零伪造原则 · 本地凭据安全存储</div>
-            <div class="text-slate-500">
-              Token 与 Steam ID 严禁进入公共日志
-            </div>
-          </div>
         </div>
       </section>
     </div>

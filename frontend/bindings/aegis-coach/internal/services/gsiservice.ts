@@ -8,32 +8,33 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "/wails/runtime.js";
+import type { CancellablePromise as $CancellablePromise } from '@wailsio/runtime'
+import { Call as $Call } from '@wailsio/runtime'
 
 /**
  * GetLatestSnapshot 线程安全读取最新一帧 GSI 游戏快照 JSON 字符串
  */
 export function GetLatestSnapshot(): $CancellablePromise<string> {
-    return $Call.ByName("aegis-coach/internal/services.GsiService.GetLatestSnapshot");
+  return $Call.ByName('aegis-coach/internal/services.GsiService.GetLatestSnapshot')
 }
 
 /**
  * IsRunning 检查 GSI 监听服务当前是否处于活跃运行状态
  */
 export function IsRunning(): $CancellablePromise<boolean> {
-    return $Call.ByName("aegis-coach/internal/services.GsiService.IsRunning");
+  return $Call.ByName('aegis-coach/internal/services.GsiService.IsRunning')
 }
 
 /**
  * Start 启动 4444 端口原生 HTTP GSI 单通道监听服务
  */
 export function Start(): $CancellablePromise<void> {
-    return $Call.ByName("aegis-coach/internal/services.GsiService.Start");
+  return $Call.ByName('aegis-coach/internal/services.GsiService.Start')
 }
 
 /**
  * Stop 优雅关闭 GSI 服务
  */
 export function Stop(): $CancellablePromise<void> {
-    return $Call.ByName("aegis-coach/internal/services.GsiService.Stop");
+  return $Call.ByName('aegis-coach/internal/services.GsiService.Stop')
 }
