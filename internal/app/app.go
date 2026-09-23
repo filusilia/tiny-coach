@@ -26,10 +26,13 @@ type App struct {
 
 // NewApp 构造 App 门面实体
 func NewApp(isOverlay bool) *App {
+	overlaySvc := services.GetOverlayService(isOverlay)
+	overlaySvc.SetOverlayMode(isOverlay) // ★ 显式设置，避免 sync.Once 首次参数陷阱
+
 	return &App{
 		isOverlay:      isOverlay,
 		systemService:  services.GetSystemService(),
-		overlayService: services.GetOverlayService(isOverlay),
+		overlayService: overlaySvc,
 		gsiService:     services.GetGsiService(4444),
 		playerService:  services.GetPlayerService(),
 		aiService:      services.GetAiService(),
@@ -94,12 +97,24 @@ func (a *App) SetIgnoreMouseEvents(ignore bool) {
 	a.overlayService.SetIgnoreMouseEvents(ignore)
 }
 
+func (a *App) ToggleMouseThrough() bool {
+	return a.overlayService.ToggleMouseThrough()
+}
+
+func (a *App) ResetOverlayPosition() {
+	a.overlayService.ResetOverlayPosition()
+}
+
 func (a *App) GetLatestGsiSnapshot() string {
 	return a.gsiService.GetLatestSnapshot()
 }
 
 func (a *App) IsGsiRunning() bool {
 	return a.gsiService.IsRunning()
+}
+
+func (a *App) IsGsiConnected() bool {
+	return a.gsiService.IsConnected()
 }
 
 func (a *App) GetDefaultCacheDirectory() string {
@@ -180,4 +195,28 @@ func (a *App) TestTtsEndpoint(endpoint, apiKey, engineType, voice string) (strin
 
 func (a *App) CacheAllIcons() (map[string]int, error) {
 	return a.systemService.CacheAllIcons()
+}
+
+func (a *App) LoadCachedGameData(dataType string) (string, error) {
+	return a.systemService.LoadCachedGameData(dataType)
+}
+
+func (a *App) SaveCachedGameData(dataType string, content string) error {
+	return a.systemService.SaveCachedGameData(dataType, content)
+}
+
+func (a *App) LoadSettings() (string, error) {
+	return a.systemService.LoadSettings()
+}
+
+func (a *App) SaveSettings(settingsJson string) error {
+	return a.systemService.SaveSettings(settingsJson)
+}
+
+func (a *App) FetchLatestPatchInfo() (string, error) {
+	return a.systemService.FetchLatestPatchInfo()
+}
+
+func (a *App) CloseOverlay() {
+	a.overlayService.CloseOverlay()
 }

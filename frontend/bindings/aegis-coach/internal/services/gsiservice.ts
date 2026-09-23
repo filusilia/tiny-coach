@@ -8,33 +8,33 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type { CancellablePromise as $CancellablePromise } from '@wailsio/runtime'
-import { Call as $Call } from '@wailsio/runtime'
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 /**
- * GetLatestSnapshot 线程安全读取最新一帧 GSI 游戏快照 JSON 字符串
+ * GetLatestSnapshot 返回最新快照，空态返回明确的 disconnected 标记
  */
 export function GetLatestSnapshot(): $CancellablePromise<string> {
-  return $Call.ByName('aegis-coach/internal/services.GsiService.GetLatestSnapshot')
+    return $Call.ByID(2374951957);
 }
 
 /**
- * IsRunning 检查 GSI 监听服务当前是否处于活跃运行状态
+ * IsConnected 判断最近 3 秒内是否收到活跃心跳
+ */
+export function IsConnected(): $CancellablePromise<boolean> {
+    return $Call.ByID(15272077);
+}
+
+/**
+ * IsRunning 判断 GSI 监听是否活跃 (基于 listening 状态，避免假阳性)
  */
 export function IsRunning(): $CancellablePromise<boolean> {
-  return $Call.ByName('aegis-coach/internal/services.GsiService.IsRunning')
+    return $Call.ByID(3434984269);
 }
 
-/**
- * Start 启动 4444 端口原生 HTTP GSI 单通道监听服务
- */
 export function Start(): $CancellablePromise<void> {
-  return $Call.ByName('aegis-coach/internal/services.GsiService.Start')
+    return $Call.ByID(4037501826);
 }
 
-/**
- * Stop 优雅关闭 GSI 服务
- */
 export function Stop(): $CancellablePromise<void> {
-  return $Call.ByName('aegis-coach/internal/services.GsiService.Stop')
+    return $Call.ByID(3135648514);
 }

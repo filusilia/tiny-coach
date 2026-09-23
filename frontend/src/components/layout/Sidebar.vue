@@ -9,10 +9,10 @@ const route = useRoute()
 const appStore = useAppStore()
 
 const navItems = [
-  { id: 'coach' as const, path: '/coach', label: '实时教练', icon: '/assets/icons/app_256.png' },
-  { id: 'analysis' as const, path: '/analysis', label: '赛后分析', icon: '/assets/icons/rank_icon_8.png' },
-  { id: 'heroes' as const, path: '/heroes', label: '英雄资料', icon: '/assets/icons/hero_universal.png' },
-  { id: 'items' as const, path: '/items', label: '物品资料', icon: '/assets/icons/aghs_scepter.png' },
+  { id: 'coach' as const, path: '/coach', label: '实时教练', icon: '/assets/icons/coach_64.png' },
+  { id: 'analysis' as const, path: '/analysis', label: '赛后分析', icon: '/assets/icons/analysis_64.png' },
+  { id: 'heroes' as const, path: '/heroes', label: '英雄资料', icon: '/assets/icons/hero_64.png' },
+  { id: 'items' as const, path: '/items', label: '物品资料', icon: '/assets/icons/item_64.png' },
 ]
 
 const currentTab = computed(() => {
@@ -45,7 +45,7 @@ function navigate(id: 'heroes' | 'items' | 'coach' | 'analysis' | 'settings', pa
         ]"
         @click="navigate(item.id, item.path)"
       >
-        <img :src="item.icon" :alt="item.label" class="shrink-0 h-4 w-4 object-contain">
+        <img :src="item.icon" :alt="item.label" class="shrink-0 h-5 w-5 object-contain">
         <span>{{ item.label }}</span>
       </button>
     </nav>

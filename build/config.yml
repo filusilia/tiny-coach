@@ -3,8 +3,8 @@ binary: "神盾教练"
 version: "2.0.0"
 description: "Dota 2 实时战术助手"
 author:
-  name: "Antigravity"
-  email: "antigravity@aegis.local"
+  name: "ako"
+  email: "filus520@gmail.com"
 info:
   companyName: "AegisCoach"
   productName: "神盾教练"

@@ -63,9 +63,17 @@ export function useNativeNavigation() {
 
       // 2. 监听悬浮窗显隐切换原生事件 (Alt+F2 或系统菜单触发时的双向状态同步)
       const cleanupOverlay = win.wails.Events.On('overlay_state_change', (eventPayload: unknown) => {
-        const active = typeof eventPayload === 'boolean'
-          ? eventPayload
-          : Boolean((eventPayload as { data?: boolean })?.data ?? eventPayload)
+        let active = false
+        if (typeof eventPayload === 'boolean') {
+          active = eventPayload
+        } else if (eventPayload && typeof eventPayload === 'object') {
+          const raw = (eventPayload as { data?: unknown }).data ?? eventPayload
+          if (typeof raw === 'boolean') {
+            active = raw
+          } else if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'boolean') {
+            active = raw[0]
+          }
+        }
         appStore.isOverlayRunning = active
         appStore.isOverlayOpen = active
       })

@@ -57,6 +57,7 @@ const (
 	WS_EX_LAYERED       = 0x00080000
 	WS_EX_TOOLWINDOW    = 0x00000080
 	WS_EX_TOPMOST       = 0x00000008
+	WS_EX_TRANSPARENT   = 0x00000020 // 点击穿透核心扩展样式
 )
 
 // ---------------------------------------------------------------------------
@@ -91,8 +92,39 @@ func ForceTopMost(hwnd uintptr) {
 	}
 }
 
+// ApplyMouseThrough 针对指定 HWND 显式应用或关闭物理鼠标穿透
+func ApplyMouseThrough(hwnd uintptr, ignore bool) {
+	if hwnd == 0 {
+		return
+	}
+	exStyleRet, _, _ := procGetWindowLongPtrW.Call(hwnd, GWL_EXSTYLE)
+	if exStyleRet == 0 {
+		return
+	}
+	currExStyle := uintptr(exStyleRet)
+	var targetExStyle uintptr
+	if ignore {
+		targetExStyle = (currExStyle | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT) &^ (WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE)
+	} else {
+		targetExStyle = (currExStyle | WS_EX_TOOLWINDOW | WS_EX_TOPMOST) &^ (WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+	}
+
+	if currExStyle != targetExStyle {
+		_, _, _ = procSetWindowLongPtrW.Call(hwnd, GWL_EXSTYLE, targetExStyle)
+		ret, _, err := procSetWindowPos.Call(
+			hwnd,
+			HWND_TOPMOST,
+			0, 0, 0, 0,
+			SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_SHOWWINDOW,
+		)
+		if ret == 0 {
+			log.Printf("[overlay] ApplyMouseThrough SetWindowPos failed: %v", err)
+		}
+	}
+}
+
 // EnsureOverlayExtendedStyle 确保悬浮窗具备无边框透明及工具栏隐藏的扩展样式
-// 彻底剥离 Windows 系统原生标题栏、边框以及右上角原生小关闭按钮
+// 彻底剥离 Windows 系统原生标题栏、边框以及右上角原生小关闭按钮，且在开启鼠标穿透时严密保留穿透样式
 func EnsureOverlayExtendedStyle(hwnd uintptr) {
 	if hwnd == 0 {
 		return
@@ -118,11 +150,19 @@ func EnsureOverlayExtendedStyle(hwnd uintptr) {
 
 	// 3. 配置扩展样式 (GWL_EXSTYLE)
 	// 保持 ToolWindow (不在任务栏占位) 与 TopMost (全局置顶)
-	// 彻底剔除 WS_EX_LAYERED（避免阻断 DirectComposition 透明导致全白底板）与边框阴影
+	// 若当前处于鼠标穿透状态 (含 WS_EX_TRANSPARENT)，必须严密保留 WS_EX_TRANSPARENT 与 WS_EX_LAYERED
 	exStyleRet, _, _ := procGetWindowLongPtrW.Call(hwnd, GWL_EXSTYLE)
 	if exStyleRet != 0 {
 		currExStyle := uintptr(exStyleRet)
-		targetExStyle := (currExStyle | WS_EX_TOOLWINDOW | WS_EX_TOPMOST) &^ (WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE | WS_EX_LAYERED)
+		isTransparent := (currExStyle & WS_EX_TRANSPARENT) != 0
+
+		var targetExStyle uintptr
+		if isTransparent {
+			targetExStyle = (currExStyle | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT) &^ (WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE)
+		} else {
+			targetExStyle = (currExStyle | WS_EX_TOOLWINDOW | WS_EX_TOPMOST) &^ (WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+		}
+
 		if currExStyle != targetExStyle {
 			_, _, _ = procSetWindowLongPtrW.Call(hwnd, GWL_EXSTYLE, targetExStyle)
 			styleChanged = true

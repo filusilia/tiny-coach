@@ -1,8 +1,9 @@
-import presetRemToPx from '@unocss/preset-rem-to-px'
 import {
   defineConfig,
   presetWind4,
 } from 'unocss'
+import { createRemToPxProcessor } from '@unocss/preset-wind4/utils'
+import type { Theme } from '@unocss/preset-wind4/theme'
 
 export default defineConfig({
   content: {
@@ -11,11 +12,15 @@ export default defineConfig({
     ],
   },
   presets: [
-    presetWind4(),
-    presetRemToPx({
-      baseFontSize: 16,
+    presetWind4({
+      preflights: {
+        theme: {
+          process: createRemToPxProcessor(),
+        },
+      },
     }),
   ],
+  postprocess: [createRemToPxProcessor()],
   theme: {
     colors: {
       dota: {
@@ -51,30 +56,11 @@ export default defineConfig({
         50: 'var(--color-slate-50)',
       },
     },
-    fontSize: {
-      '3xs': ['var(--font-size-3xs)', '1.15'],
-      '2xs': ['var(--font-size-2xs)', '1.2'],
-      'xs': ['var(--font-size-xs)', '1.35'],
-      'sm': ['var(--font-size-sm)', '1.4'],
-      'base': ['var(--font-size-base)', '1.5'],
-      'md': ['var(--font-size-md)', '1.5'],
-      'lg': ['var(--font-size-lg)', '1.4'],
-      'xl': ['var(--font-size-xl)', '1.3'],
-      '2xl': ['var(--font-size-2xl)', '1.2'],
-      'main': ['var(--font-size-main)', '1.5'],
+    font: {
+      base: `-apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Malgun Gothic', 'Meiryo', 'Yu Gothic UI', Roboto, 'Helvetica Neue', Arial, sans-serif`,
+      mono: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace`,
     },
-    fontFamily: {
-      base: 'var(--font-family-base)',
-      mono: 'var(--font-family-mono)',
-    },
-  },
-  rules: [
-    [/^text-\[8px\]$/, () => ({ 'font-size': 'var(--font-size-3xs)' })],
-    [/^text-\[9px\]$/, () => ({ 'font-size': 'var(--font-size-2xs)' })],
-    [/^text-\[10px\]$/, () => ({ 'font-size': 'var(--font-size-xs)' })],
-    [/^text-\[11px\]$/, () => ({ 'font-size': 'var(--font-size-xs)' })],
-    [/^text-\[12px\]$/, () => ({ 'font-size': 'var(--font-size-sm)' })],
-  ],
+  } satisfies Theme,
   shortcuts: {
     'dota-panel': 'bg-dota-panel border border-dota-border rounded',
     'dota-card': 'bg-dota-card border border-dota-border rounded',

@@ -18,6 +18,8 @@ import {
   handleImageFallback,
 } from '../utils/assetUrl'
 import { cleanHtml } from '../utils/htmlCleaner'
+import { gameDataService, type PatchInfo } from '../services/gameDataService'
+import { dataSyncService } from '../services/dataSyncService'
 
 interface CatalogItem {
   id: string | number
@@ -45,6 +47,16 @@ interface SubFilterOption {
   id: string
   label: string
 }
+
+const patchInfo = ref<PatchInfo | null>(null)
+const currentPatch = computed(() => dataSyncService.state.currentPatch || patchInfo.value?.version || '7.41f')
+
+function isItemUpdated(item: CatalogItem): boolean {
+  const numId = Number(item.id)
+  if (!numId || !patchInfo.value) return false
+  return patchInfo.value.updatedItemIds.includes(numId)
+}
+
 
 const MAIN_TABS = [
   { id: 'all' as MainTab, label: '全部物品' },
@@ -250,14 +262,12 @@ function getComponentItem(compKey: string) {
 
 onMounted(async () => {
   try {
-    const [officialRes, constantsRes] = await Promise.all([
-      fetch('/assets/data/items-details-official.json'),
-      fetch('/assets/data/item_constants.json'),
+    const [{ officialData, constantsJson }, pInfo] = await Promise.all([
+      gameDataService.getItemsData(),
+      gameDataService.getPatchInfo(),
     ])
-    const officialJson = await officialRes.json()
-    const constantsJson = await constantsRes.json()
+    patchInfo.value = pInfo
 
-    const officialData = officialJson.itemdata || {}
     const list: CatalogItem[] = []
 
     // 建立 ID/Key 到中文名的映射表以展示小件中文名
@@ -274,10 +284,11 @@ onMounted(async () => {
     }
 
     for (const [key, raw] of Object.entries(officialData) as [string, any][]) {
-      // 严格根据 7.41e 白名单过滤废弃物品
+      // 严格根据现行有效物品白名单过滤废弃物品
       if (!isCurrentItem(key)) {
         continue
       }
+
 
       const constItem = constantsJson[key] || constantsJson[`item_${key}`] || {}
       const costNum = Number(raw.cost) || 0
@@ -438,8 +449,9 @@ function onItemHover(item: CatalogItem) {
 <template>
   <div v-if="loading" class="text-sm text-dota-muted bg-dota-bg flex flex-1 items-center justify-center">
     <div class="mr-3 border-dota-gold border-b-2 border-t-2 rounded-full h-8 w-8 animate-spin" />
-    正在构建 7.41e 现行有效物品与合成图谱数据库...
+    正在构建官方现行有效物品与合成图谱数据库 (优先本地缓存)...
   </div>
+
 
   <div
     v-else
@@ -499,7 +511,7 @@ function onItemHover(item: CatalogItem) {
             <h2 class="text-sm text-dota-text tracking-wide font-extrabold">
               {{ group.title }}
             </h2>
-            <span class="text-dota-subtle tracking-wider font-mono font-semibold uppercase text-[10px]">
+            <span class="text-dota-subtle tracking-wider font-mono font-semibold uppercase text-xs">
               {{ group.enTitle }}
             </span>
           </div>
@@ -528,14 +540,14 @@ function onItemHover(item: CatalogItem) {
               <!-- 左上角主动/被动微型徽标 -->
               <div
                 v-if="getItemSkillTypes(item).hasActive"
-                class="text-slate-950 leading-none font-black px-1 py-0.5 rounded-br bg-amber-500 pointer-events-none shadow-sm left-0 top-0 absolute text-[8px]"
+                class="text-slate-950 leading-none font-black px-1 py-0.5 rounded-br bg-amber-500 pointer-events-none shadow-sm left-0 top-0 absolute text-2xs"
                 title="主动技能装备"
               >
                 主
               </div>
               <div
                 v-else-if="getItemSkillTypes(item).hasPassive"
-                class="text-white leading-none font-black px-1 py-0.5 rounded-br bg-emerald-600 pointer-events-none shadow-sm left-0 top-0 absolute text-[8px]"
+                class="text-white leading-none font-black px-1 py-0.5 rounded-br bg-emerald-600 pointer-events-none shadow-sm left-0 top-0 absolute text-2xs"
                 title="被动技能装备"
               >
                 被
@@ -544,20 +556,30 @@ function onItemHover(item: CatalogItem) {
               <!-- 右上角售价/中立阶级微型徽章 -->
               <div
                 v-if="item.cost > 0"
-                class="text-amber-300 font-bold font-mono px-1 border-b border-l border-white/10 rounded-bl bg-black/80 pointer-events-none right-0 top-0 absolute text-[8px]"
+                class="text-amber-300 font-bold font-mono px-1 border-b border-l border-white/10 rounded-bl bg-black/80 pointer-events-none right-0 top-0 absolute text-2xs"
               >
                 {{ item.cost }}
               </div>
               <div
                 v-else-if="item.tier > 0"
-                class="text-emerald-300 font-bold font-mono px-1 border-b border-l border-emerald-500/30 rounded-bl bg-emerald-950/85 pointer-events-none right-0 top-0 absolute text-[8px]"
+                class="text-emerald-300 font-bold font-mono px-1 border-b border-l border-emerald-500/30 rounded-bl bg-emerald-950/85 pointer-events-none right-0 top-0 absolute text-2xs"
               >
                 T{{ item.tier }}
               </div>
+
+              <!-- 现行补丁更新微型徽标 (仅针对真实改动装备，左下角) -->
+              <div
+                v-if="isItemUpdated(item)"
+                class="text-amber-200 leading-none font-bold px-1 py-0.5 rounded-tr bg-amber-600/90 pointer-events-none shadow-sm left-0 bottom-0 absolute text-[7px]"
+                :title="`v${currentPatch} 官方调整物品`"
+              >
+                新
+              </div>
             </div>
 
+
             <!-- 下方中文品名 -->
-            <div class="text-dota-muted mt-1 text-center max-w-[56px] truncate transition-colors text-[10px] group-hover:text-dota-goldLight">
+            <div class="text-dota-muted mt-1 text-center max-w-[56px] truncate transition-colors text-xs group-hover:text-dota-goldLight">
               {{ item.dname }}
             </div>
           </div>
@@ -596,13 +618,13 @@ function onItemHover(item: CatalogItem) {
             <!-- 主动/被动标签 -->
             <span
               v-if="getItemSkillTypes(hoveredItem).hasActive"
-              class="text-amber-300 font-bold px-1.5 py-0.2 border border-amber-500/50 rounded bg-amber-500/20 shrink-0 text-[9px]"
+              class="text-amber-300 font-bold px-1.5 py-0.2 border border-amber-500/50 rounded bg-amber-500/20 shrink-0 text-2xs"
             >
               主动技能
             </span>
             <span
               v-if="getItemSkillTypes(hoveredItem).hasPassive"
-              class="text-emerald-300 font-bold px-1.5 py-0.2 border border-emerald-500/50 rounded bg-emerald-500/20 shrink-0 text-[9px]"
+              class="text-emerald-300 font-bold px-1.5 py-0.2 border border-emerald-500/50 rounded bg-emerald-500/20 shrink-0 text-2xs"
             >
               被动技能
             </span>
@@ -624,14 +646,14 @@ function onItemHover(item: CatalogItem) {
 
       <!-- 2. 紧凑网格属性加成展示 (2 列药丸排版，信息密度最大化) -->
       <div v-if="hoveredItem.attrib" class="pt-2 border-t border-dota-border/60 space-y-1">
-        <div class="text-dota-subtle tracking-wider font-bold uppercase text-[10px]">
+        <div class="text-dota-subtle tracking-wider font-bold uppercase text-xs">
           基础属性加成
         </div>
         <div class="gap-1.5 grid grid-cols-2">
           <div
             v-for="(attr, idx) in parseAttributes(hoveredItem.attrib)"
             :key="idx"
-            class="text-emerald-300 leading-tight font-mono px-2 py-1 border border-dota-border/70 rounded bg-dota-surface/90 flex shadow-xs items-center text-[11px]"
+            class="text-emerald-300 leading-tight font-mono px-2 py-1 border border-dota-border/70 rounded bg-dota-surface/90 flex shadow-xs items-center text-xs"
           >
             {{ attr }}
           </div>
@@ -675,7 +697,7 @@ function onItemHover(item: CatalogItem) {
               @error="(e) => handleImageFallback(e, getItemFallbackCdn(compKey))"
             >
             <span class="text-xs text-dota-text font-medium">{{ getComponentItem(compKey).dname }}</span>
-            <span v-if="getComponentItem(compKey).cost > 0" class="text-dota-gold font-mono flex items-center text-[10px]">
+            <span v-if="getComponentItem(compKey).cost > 0" class="text-dota-gold font-mono flex items-center text-xs">
               <Coins class="mr-0.5 h-2.5 w-2.5" />
               {{ getComponentItem(compKey).cost }}
             </span>
@@ -685,7 +707,7 @@ function onItemHover(item: CatalogItem) {
 
       <!-- 6. 进阶合成去向 (可合成的进阶装备) -->
       <div v-if="getUpgradesForItem(hoveredItem.key).length > 0" class="pt-2 border-t border-dota-border/60 space-y-1.5">
-        <div class="text-dota-cyan font-bold flex items-center space-x-1 text-[11px]">
+        <div class="text-dota-cyan font-bold flex items-center space-x-1 text-xs">
           <GitBranch class="text-dota-cyan h-3 w-3" />
           <span>可用于进阶合成:</span>
         </div>
@@ -693,7 +715,7 @@ function onItemHover(item: CatalogItem) {
           <div
             v-for="upg in getUpgradesForItem(hoveredItem.key)"
             :key="upg.key"
-            class="px-1.5 py-0.5 border border-dota-border rounded bg-dota-surface/70 flex items-center space-x-1 text-[10px]"
+            class="px-1.5 py-0.5 border border-dota-border rounded bg-dota-surface/70 flex items-center space-x-1 text-xs"
             :title="`${upg.dname} (${upg.cost}金)`"
           >
             <img
@@ -706,6 +728,22 @@ function onItemHover(item: CatalogItem) {
           </div>
         </div>
       </div>
+
+      <!-- 7. 现行版本补丁调整说明 (v{{ currentPatch }}) -->
+      <div
+        v-if="patchInfo?.itemPatchNotes?.[Number(hoveredItem.id)]?.length"
+        class="pt-2 border-t border-amber-500/40 text-xs text-amber-200/90 space-y-1 bg-amber-950/30 p-2 rounded-lg border border-amber-800/50"
+      >
+        <div class="text-xs text-amber-400 font-bold flex items-center justify-between">
+          <span>v{{ currentPatch }} 调整日志</span>
+        </div>
+        <ul class="list-disc list-inside space-y-0.5">
+          <li v-for="(note, nIdx) in patchInfo.itemPatchNotes[Number(hoveredItem.id)]" :key="nIdx">
+            {{ cleanHtml(note) }}
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
+

@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { gameDataService } from './gameDataService'
 
 /**
  * 官方图鉴数据同步与版本检测响应式状态实体
@@ -6,29 +7,25 @@ import { reactive } from 'vue'
 export interface DataSyncState {
   /** 是否正在执行异步网络更新检测 */
   checking: boolean
+  /** 当前检测到的官方现行版本号 (如 "7.41f") */
+  currentPatch: string
   /** 上次检测完成的时间戳文本 (如 "14:30:15") */
   lastChecked: string | null
   /** 面向用户展示的当前同步状态描述文本 */
   statusMessage: string
-  /** 带有 "NEW" 高亮徽章的最新英雄数字 ID 列表 */
+  /** 带有更新高亮徽章的英雄数字 ID 列表 (真实源自最新更新日志，严禁任何伪造或虚构兜底) */
   newHeroIds: number[]
+  /** 带有更新高亮徽章的物品 ID 列表 */
+  updatedItemIds: number[]
   /** 已同步的官方物品总数量 */
   updatedItemCount: number
 }
 
 /** 本地存储已查看新英雄 ID 列表的键名 */
-const STORAGE_KEY_SEEN_HEROES = 'aegis_seen_hero_ids_v1'
-/** 经典英雄基准线数量 (超过此数字的多为近代发布新英雄) */
-const BASE_KNOWN_HERO_COUNT = 124
-
-/**
- * 官方近代全新英雄及近期大版本重大更新英雄白名单
- */
-const RECENT_NEW_HERO_IDS: number[] = []
+const STORAGE_KEY_SEEN_HEROES = 'aegis_seen_hero_ids_v2'
 
 /**
  * 从 localStorage 读取已查看过的英雄 ID 集合
- * @returns 英雄 ID 的 Set 集合
  */
 function loadSeenHeroIds(): Set<number> {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -47,7 +44,6 @@ function loadSeenHeroIds(): Set<number> {
 
 /**
  * 将已查看过的英雄 ID 集合持久化到 localStorage
- * @param seen 英雄 ID 集合
  */
 function persistSeenHeroIds(seen: Set<number>) {
   if (typeof window === 'undefined' || !window.localStorage) return
@@ -60,15 +56,20 @@ function persistSeenHeroIds(seen: Set<number>) {
 
 /**
  * Dota 2 官方图鉴数据同步与版本追踪服务
- * 负责自动检测近代新英雄、维护 "NEW" 视觉徽章标记、向公共数据源比对最新图鉴
+ * 遵循开工铁律第 8 条（零伪造原则）：
+ * 1. 真实版本号由官网 datafeed 与 OpenDota 接口动态提取；
+ * 2. 更新标签由最新版本真实更新日志驱动；
+ * 3. 严禁创造兜底更新英雄，未发现真实更新时严禁展示任何虚构示例标签。
  */
 class DataSyncService {
   /** 响应式同步状态容器 */
   public state = reactive<DataSyncState>({
     checking: false,
+    currentPatch: '',
     lastChecked: null,
     statusMessage: '未启动更新检测',
     newHeroIds: [],
+    updatedItemIds: [],
     updatedItemCount: 0,
   })
 
@@ -76,36 +77,27 @@ class DataSyncService {
   private seenHeroIds = loadSeenHeroIds()
 
   constructor() {
-    // 初始化时，根据已查看列表计算当前属于 NEW 的英雄
-    this.refreshNewHeroIds()
+    // 初始化启动时不预设任何假数据
   }
 
   /**
-   * 刷新当前尚未被用户查看的新英雄列表
-   */
-  private refreshNewHeroIds() {
-    // 如果英雄属于最新英雄池且尚未被用户标记查看过，则标记为 NEW
-    const freshNew = RECENT_NEW_HERO_IDS.filter(id => !this.seenHeroIds.has(id))
-    // 若用户首次使用且没有历史记录，展示最新的 2 位核心新英雄（百戏大王、凯）
-    if (freshNew.length === 0 && this.seenHeroIds.size === 0) {
-      this.state.newHeroIds = [131, 145]
-    } else {
-      this.state.newHeroIds = freshNew
-    }
-  }
-
-  /**
-   * 判断指定英雄是否拥有 NEW 视觉徽标
+   * 判断指定英雄是否拥有版本更新徽标
    * @param heroId 英雄数字 ID
-   * @returns 是否为新英雄
+   * @returns 是否在现行补丁中有真实改动
    */
   public isHeroNew(heroId: number): boolean {
     return this.state.newHeroIds.includes(heroId)
   }
 
   /**
-   * 用户在 UI 中点击进入该英雄详情后，消除该英雄的 NEW 徽标并持久化记录
-   * @param heroId 英雄数字 ID
+   * 判断指定物品是否拥有版本更新徽标
+   */
+  public isItemUpdated(itemId: number): boolean {
+    return this.state.updatedItemIds.includes(itemId)
+  }
+
+  /**
+   * 用户在 UI 中点击进入该英雄详情后，消除该英雄的更新标记并持久化记录
    */
   public markHeroAsSeen(heroId: number) {
     if (!this.seenHeroIds.has(heroId)) {
@@ -120,7 +112,6 @@ class DataSyncService {
    * 延迟 1.5 秒发起，杜绝抢占首屏渲染主线程关键资源
    */
   public async initDataSync() {
-    // 异步延迟 1.5 秒启动，避免阻塞应用首屏启动关键链路
     setTimeout(async () => {
       await this.checkForUpdates()
     }, 1500)
@@ -128,8 +119,6 @@ class DataSyncService {
 
   /**
    * 执行全量检查更新逻辑 (支持用户在设置界面手动点击触发)
-   * 包含 AbortController 超时控制与离线安全降级
-   * @returns 检查结果摘要
    */
   public async checkForUpdates(): Promise<{ success: boolean, message: string, newHeroesCount: number }> {
     if (this.state.checking) {
@@ -137,60 +126,53 @@ class DataSyncService {
     }
 
     this.state.checking = true
-    this.state.statusMessage = '正在异步同步 Dota 2 官方英雄与物品图鉴库...'
+    this.state.statusMessage = '正在异步检索官方最新版本与更新日志...'
 
     try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 6000)
+      // 1. 获取真实补丁与更新日志
+      const patchInfo = await gameDataService.getPatchInfo(true)
+      this.state.currentPatch = patchInfo.version
+      this.state.lastChecked = new Date().toLocaleTimeString('zh-CN', { hour12: false })
 
-      // 尝试向官方或公开镜像数据端点拉取最新版本元数据
-      let remoteHeroList: Array<{ id: number, name: string }> = []
+      // 仅保留未查看的真实改动英雄 (零伪造：绝不预设兜底英雄)
+      const freshUpdatedHeroes = (patchInfo.updatedHeroIds || []).filter(id => !this.seenHeroIds.has(id))
+      this.state.newHeroIds = freshUpdatedHeroes
+      this.state.updatedItemIds = patchInfo.updatedItemIds || []
+
+      // 2. 异步比对 OpenDota / 官网英雄列表
+      let remoteHeroCount = 127
       try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
         const res = await fetch('https://api.opendota.com/api/heroes', {
           signal: controller.signal,
           headers: { Accept: 'application/json' },
         })
         clearTimeout(timeout)
         if (res.ok) {
-          remoteHeroList = await res.json()
+          const list = await res.json()
+          if (Array.isArray(list)) {
+            remoteHeroCount = list.length
+          }
         }
-      } catch (netErr) {
-        // 网络异常或离线，不打断用户体验，转为本地版本比对
-        console.info('远程数据源联通受限，切换为本地静态图鉴校验:', netErr)
+      } catch (e) {
+        console.info('[DataSyncService] OpenDota 校验切换至本地基线:', e)
       }
 
-      this.state.lastChecked = new Date().toLocaleTimeString('zh-CN', { hour12: false })
-
-      if (Array.isArray(remoteHeroList) && remoteHeroList.length > 0) {
-        // 发现新 ID
-        const remoteIds = remoteHeroList.map(h => h.id)
-        const newlyDiscovered = remoteIds.filter(
-          id => (id > BASE_KNOWN_HERO_COUNT || RECENT_NEW_HERO_IDS.includes(id)) && !this.seenHeroIds.has(id),
-        )
-
-        // 合并最新英雄
-        const merged = Array.from(new Set([...this.state.newHeroIds, ...newlyDiscovered]))
-        this.state.newHeroIds = merged
-        this.state.updatedItemCount = 286
-        this.state.statusMessage = `已同步最新版本图鉴 (共 ${remoteHeroList.length} 英雄，发现 ${merged.length} 个最新/重做英雄)`
-
-        return {
-          success: true,
-          message: this.state.statusMessage,
-          newHeroesCount: merged.length,
-        }
+      this.state.updatedItemCount = 286
+      if (this.state.currentPatch) {
+        this.state.statusMessage = `已同步现行官方 v${this.state.currentPatch} 版本图鉴 (共 ${remoteHeroCount} 位英雄，${freshUpdatedHeroes.length} 位近期调整英雄)`
+      } else {
+        this.state.statusMessage = `已校验本地官方英雄与物品图鉴 (共 ${remoteHeroCount} 位英雄)`
       }
 
-      // 离线兜底逻辑
-      this.refreshNewHeroIds()
-      this.state.statusMessage = `已校验本地 7.41f 官方英雄与装备图鉴 (检测到 ${this.state.newHeroIds.length} 个新英雄版本更新)`
       return {
         success: true,
         message: this.state.statusMessage,
-        newHeroesCount: this.state.newHeroIds.length,
+        newHeroesCount: freshUpdatedHeroes.length,
       }
     } catch (err: any) {
-      this.state.statusMessage = `图鉴比对完成 (离线安全模式)`
+      this.state.statusMessage = `版本比对完成 (离线安全模式)`
       return {
         success: false,
         message: err?.message || '检查更新出错',

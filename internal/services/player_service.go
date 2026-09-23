@@ -67,7 +67,7 @@ func GetPlayerService() *PlayerService {
 					IdleConnTimeout:     60 * time.Second,
 				},
 			},
-			storageManager: storage.NewManager(),
+			storageManager: storage.GetManager(), // ★ 使用全局单例，与 SystemService 共享
 			profileCache:   make(map[string]cachedProfileWrapper),
 		}
 	})
@@ -207,13 +207,24 @@ func (s *PlayerService) GetPlayerProfile(accountIdInput string) (*models.PlayerP
 	return analysis, nil
 }
 
-// GetMatchDetails 查询单场公开比赛详情原始 JSON
+// GetMatchDetails 查询单场公开比赛详情原始 JSON (优先本地磁盘不可变缓存)
 func (s *PlayerService) GetMatchDetails(matchId string) (string, error) {
 	cleanId := strings.TrimSpace(matchId)
 	if cleanId == "" {
 		return "", fmt.Errorf("比赛 ID 不能为空")
 	}
 
+	// ★ 1. 优先检查本地磁盘不可变缓存
+	cacheDir := filepath.Join(s.storageManager.GetCacheDirectory(), "matches")
+	_ = os.MkdirAll(cacheDir, 0755)
+	cacheFile := filepath.Join(cacheDir, fmt.Sprintf("match_%s.json", cleanId))
+
+	if data, err := os.ReadFile(cacheFile); err == nil && len(data) > 0 {
+		log.Printf("[PlayerService] 命中本地比赛缓存: %s", cacheFile)
+		return string(data), nil
+	}
+
+	// 2. 未命中则请求 OpenDota
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
@@ -239,6 +250,14 @@ func (s *PlayerService) GetMatchDetails(matchId string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// ★ 3. 异步落盘（失败仅记录日志，不影响主流程）
+	go func(path string, content []byte) {
+		if err := os.WriteFile(path, content, 0644); err != nil {
+			log.Printf("[PlayerService] 写入比赛缓存失败 %s: %v", path, err)
+		}
+	}(cacheFile, body)
+
 	return string(body), nil
 }
 

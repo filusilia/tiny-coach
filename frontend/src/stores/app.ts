@@ -27,11 +27,18 @@ function loadPersistedSettings(): Partial<AppSettings> {
 }
 
 function persistSettings(settings: AppSettings) {
-  if (typeof window === 'undefined' || !window.localStorage) return
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+    } catch (err) {
+      console.warn('保存本地配置失败:', err)
+    }
+  }
+  // 同步原子化持久化落盘至设置文件夹的 settings.json
   try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
-  } catch (err) {
-    console.warn('保存本地配置失败:', err)
+    systemApi.saveSettings(JSON.stringify(settings)).catch(() => {})
+  } catch {
+    // 忽略未就绪调用
   }
 }
 
@@ -80,6 +87,9 @@ export const useAppStore = defineStore('app', () => {
     voice_ssml_enabled: true,
     auto_show_overlay: false,
     auto_overlay_on_game_start: true,
+    overlay_opacity: 90,
+    hero_rank_tier: 7,
+    hero_sort_mode: 'win_desc',
     cache_directory: '',
     dota_player_id: '',
     dota_player_name: '',
@@ -303,6 +313,27 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function toggleMouseThrough(): Promise<boolean> {
+    try {
+      const active = await overlayApi.toggleMouseThrough()
+      showToast(active ? '悬浮窗鼠标穿透已开启 (HUD 纯观战，点击直通游戏)' : '悬浮窗鼠标穿透已关闭 (可正常拖拽点击)', 'info')
+      return active
+    } catch (e: any) {
+      console.warn('[AppStore] 切换鼠标穿透异常:', e)
+      return false
+    }
+  }
+
+  async function resetOverlayPosition(): Promise<void> {
+    try {
+      await overlayApi.resetOverlayPosition()
+      showToast('已将悬浮窗重置居中并清除历史位置记忆', 'success')
+    } catch (e: any) {
+      console.warn('[AppStore] 重置悬浮窗位置异常:', e)
+      showToast('重置悬浮窗位置失败', 'error')
+    }
+  }
+
   function showToast(
     message: string,
     type: 'info' | 'success' | 'warning' | 'error' = 'info',
@@ -322,6 +353,45 @@ export const useAppStore = defineStore('app', () => {
     toast.visible = false
   }
 
+  /**
+   * 遵循“先从设置文件夹内取设置，没有再新建”的权威生命周期
+   */
+  async function initSettings(): Promise<void> {
+    try {
+      const raw = await systemApi.loadSettings()
+      if (raw && raw.trim()) {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object') {
+          Object.assign(settings, parsed)
+          if (parsed.reminder_modes) {
+            settings.reminder_modes = {
+              ...DEFAULT_REMINDER_MODES,
+              ...parsed.reminder_modes,
+            }
+          }
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+          }
+          console.log('[AppStore] 成功从设置文件夹同步最新配置')
+        }
+      }
+    } catch (e) {
+      console.warn('[AppStore] 优先从设置文件夹读取配置失败，维持现有配置:', e)
+    }
+  }
+
+  let settingsInitPromise: Promise<void> | null = null
+
+  /**
+   * 确保设置已从本地设置文件夹优先载入完成 (单例并发安全)
+   */
+  async function ensureSettingsLoaded(): Promise<void> {
+    if (!settingsInitPromise) {
+      settingsInitPromise = initSettings()
+    }
+    return settingsInitPromise
+  }
+
   return {
     currentTab,
     searchQuery,
@@ -329,6 +399,8 @@ export const useAppStore = defineStore('app', () => {
     isOverlayRunning,
     toast,
     settings,
+    initSettings,
+    ensureSettingsLoaded,
     setCurrentTab,
     setSearchQuery,
     setIsOverlayOpen,
@@ -347,6 +419,8 @@ export const useAppStore = defineStore('app', () => {
     selectModelFile,
     checkOverlayStatus,
     toggleStandaloneOverlay,
+    toggleMouseThrough,
+    resetOverlayPosition,
     showToast,
     hideToast,
   }

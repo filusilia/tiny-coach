@@ -9,145 +9,180 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type { CancellablePromise as $CancellablePromise } from '@wailsio/runtime'
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
-import type * as application$0 from '../github.com/wailsapp/wails/v3/pkg/application/models.js'
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
-import { Call as $Call, Create as $Create } from '@wailsio/runtime'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as models$0 from './internal/models/models.js'
+import * as models$0 from "./internal/models/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as application$0 from "../github.com/wailsapp/wails/v3/pkg/application/models.js";
 
 export function AskCoach(question: string, ctx: models$0.BattleContextDTO | null, mode: string, endpoint: string, apiKey: string, model: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.AskCoach', question, ctx, mode, endpoint, apiKey, model)
+    return $Call.ByID(3305823276, question, ctx, mode, endpoint, apiKey, model);
 }
 
 export function CacheAllIcons(): $CancellablePromise<{ [_ in string]?: number }> {
-  return $Call.ByName('main.App.CacheAllIcons').then(($result: any) => {
-    return $$createType0($result)
-  })
+    return $Call.ByID(693903610).then(($result: any) => {
+        return $$createType0($result);
+    });
 }
 
 export function ClearCacheDirectory(dir: string): $CancellablePromise<void> {
-  return $Call.ByName('main.App.ClearCacheDirectory', dir)
+    return $Call.ByID(38320011, dir);
+}
+
+export function CloseOverlay(): $CancellablePromise<void> {
+    return $Call.ByID(1516919001);
 }
 
 export function EnsureCacheDirectories(customDir: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.EnsureCacheDirectories', customDir)
+    return $Call.ByID(3301300082, customDir);
 }
 
 export function FetchCloudModels(baseUrl: string, apiKey: string): $CancellablePromise<string[]> {
-  return $Call.ByName('main.App.FetchCloudModels', baseUrl, apiKey).then(($result: any) => {
-    return $$createType1($result)
-  })
+    return $Call.ByID(633273194, baseUrl, apiKey).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+export function FetchLatestPatchInfo(): $CancellablePromise<string> {
+    return $Call.ByID(705408726);
 }
 
 export function GenerateMatchReview(matchId: string, matchDataJson: string, playerSlot: number, mode: string, endpoint: string, apiKey: string, model: string): $CancellablePromise<models$0.MatchReviewResultDTO | null> {
-  return $Call.ByName('main.App.GenerateMatchReview', matchId, matchDataJson, playerSlot, mode, endpoint, apiKey, model).then(($result: any) => {
-    return $$createType3($result)
-  })
+    return $Call.ByID(639605379, matchId, matchDataJson, playerSlot, mode, endpoint, apiKey, model).then(($result: any) => {
+        return $$createType3($result);
+    });
 }
 
 export function GetCacheDirectory(): $CancellablePromise<string> {
-  return $Call.ByName('main.App.GetCacheDirectory')
+    return $Call.ByID(321868802);
 }
 
 export function GetDefaultCacheDirectory(): $CancellablePromise<string> {
-  return $Call.ByName('main.App.GetDefaultCacheDirectory')
+    return $Call.ByID(3424452369);
 }
 
 export function GetLatestGsiSnapshot(): $CancellablePromise<string> {
-  return $Call.ByName('main.App.GetLatestGsiSnapshot')
+    return $Call.ByID(3889770261);
 }
 
 export function GetMatchDetails(matchId: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.GetMatchDetails', matchId)
+    return $Call.ByID(2830157918, matchId);
 }
 
 export function GetPlayerProfile(accountIdInput: string): $CancellablePromise<models$0.PlayerProfileAnalysis | null> {
-  return $Call.ByName('main.App.GetPlayerProfile', accountIdInput).then(($result: any) => {
-    return $$createType5($result)
-  })
+    return $Call.ByID(1209417459, accountIdInput).then(($result: any) => {
+        return $$createType5($result);
+    });
 }
 
 export function GetPlayerRecentMatches(accountId: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.GetPlayerRecentMatches', accountId)
+    return $Call.ByID(2671993470, accountId);
+}
+
+export function IsGsiConnected(): $CancellablePromise<boolean> {
+    return $Call.ByID(850908665);
 }
 
 export function IsGsiRunning(): $CancellablePromise<boolean> {
-  return $Call.ByName('main.App.IsGsiRunning')
+    return $Call.ByID(896799081);
 }
 
 export function IsOverlayMode(): $CancellablePromise<boolean> {
-  return $Call.ByName('main.App.IsOverlayMode')
+    return $Call.ByID(1840909716);
 }
 
 export function IsOverlayRunning(): $CancellablePromise<boolean> {
-  return $Call.ByName('main.App.IsOverlayRunning')
+    return $Call.ByID(3849421898);
+}
+
+export function LoadCachedGameData(dataType: string): $CancellablePromise<string> {
+    return $Call.ByID(2618588949, dataType);
+}
+
+export function LoadSettings(): $CancellablePromise<string> {
+    return $Call.ByID(3551729052);
 }
 
 export function NormalizeDotaAccountId(input: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.NormalizeDotaAccountId', input)
+    return $Call.ByID(2226903124, input);
 }
 
 export function OpenCacheDirectory(dir: string): $CancellablePromise<void> {
-  return $Call.ByName('main.App.OpenCacheDirectory', dir)
+    return $Call.ByID(3867934268, dir);
 }
 
 export function PullLocalModel(modelName: string, endpoint: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.PullLocalModel', modelName, endpoint)
+    return $Call.ByID(2369420066, modelName, endpoint);
+}
+
+export function ResetOverlayPosition(): $CancellablePromise<void> {
+    return $Call.ByID(1434314427);
+}
+
+export function SaveCachedGameData(dataType: string, content: string): $CancellablePromise<void> {
+    return $Call.ByID(1495604208, dataType, content);
+}
+
+export function SaveSettings(settingsJson: string): $CancellablePromise<void> {
+    return $Call.ByID(1949631069, settingsJson);
 }
 
 export function ScanLocalModelFiles(): $CancellablePromise<string[]> {
-  return $Call.ByName('main.App.ScanLocalModelFiles').then(($result: any) => {
-    return $$createType1($result)
-  })
+    return $Call.ByID(926917735).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 export function SelectDirectoryDialog(): $CancellablePromise<string> {
-  return $Call.ByName('main.App.SelectDirectoryDialog')
+    return $Call.ByID(981456648);
 }
 
 export function SelectModelFileDialog(): $CancellablePromise<string> {
-  return $Call.ByName('main.App.SelectModelFileDialog')
+    return $Call.ByID(3135932252);
 }
 
 export function SetCacheDirectory(customDir: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.SetCacheDirectory', customDir)
+    return $Call.ByID(3957403494, customDir);
 }
 
 export function SetIgnoreMouseEvents(ignore: boolean): $CancellablePromise<void> {
-  return $Call.ByName('main.App.SetIgnoreMouseEvents', ignore)
+    return $Call.ByID(4221531513, ignore);
 }
 
 /**
  * SetWindow 关联原生 WebviewWindow 句柄
  */
 export function SetWindow(w: application$0.WebviewWindow | null): $CancellablePromise<void> {
-  return $Call.ByName('main.App.SetWindow', w)
+    return $Call.ByID(3654517795, w);
 }
 
 export function TestAiEndpoint(mode: string, endpoint: string, apiKey: string, model: string): $CancellablePromise<models$0.AiEndpointTestResultDTO | null> {
-  return $Call.ByName('main.App.TestAiEndpoint', mode, endpoint, apiKey, model).then(($result: any) => {
-    return $$createType7($result)
-  })
+    return $Call.ByID(2007491450, mode, endpoint, apiKey, model).then(($result: any) => {
+        return $$createType7($result);
+    });
 }
 
 export function TestTtsEndpoint(endpoint: string, apiKey: string, engineType: string, voice: string): $CancellablePromise<string> {
-  return $Call.ByName('main.App.TestTtsEndpoint', endpoint, apiKey, engineType, voice)
+    return $Call.ByID(2607026959, endpoint, apiKey, engineType, voice);
+}
+
+export function ToggleMouseThrough(): $CancellablePromise<boolean> {
+    return $Call.ByID(334995549);
 }
 
 export function ToggleOverlayWindow(): $CancellablePromise<boolean> {
-  return $Call.ByName('main.App.ToggleOverlayWindow')
+    return $Call.ByID(2188126483);
 }
 
 // Private type creation functions
-const $$createType0 = $Create.Map($Create.Any, $Create.Any)
-const $$createType1 = $Create.Array($Create.Any)
-const $$createType2 = models$0.MatchReviewResultDTO.createFrom
-const $$createType3 = $Create.Nullable($$createType2)
-const $$createType4 = models$0.PlayerProfileAnalysis.createFrom
-const $$createType5 = $Create.Nullable($$createType4)
-const $$createType6 = models$0.AiEndpointTestResultDTO.createFrom
-const $$createType7 = $Create.Nullable($$createType6)
+const $$createType0 = $Create.Map($Create.Any, $Create.Any);
+const $$createType1 = $Create.Array($Create.Any);
+const $$createType2 = models$0.MatchReviewResultDTO.createFrom;
+const $$createType3 = $Create.Nullable($$createType2);
+const $$createType4 = models$0.PlayerProfileAnalysis.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);
+const $$createType6 = models$0.AiEndpointTestResultDTO.createFrom;
+const $$createType7 = $Create.Nullable($$createType6);

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint:fix": "eslint . --fix",
+    "bindings": "wails3 generate bindings -ts -clean=true -d ./bindings",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,7 +22,7 @@
     "@antfu/eslint-config": "^9.5.1",
     "@types/node": "^26.6.1",
     "@unocss/eslint-plugin": "^66.10.1",
-    "@unocss/preset-rem-to-px": "^66.10.1",
+    "@unocss/preset-wind4": "^66.10.5",
     "@vitejs/plugin-vue": "^6.0.9",
     "eslint": "^10.10.0",
     "eslint-plugin-format": "^2.0.1",

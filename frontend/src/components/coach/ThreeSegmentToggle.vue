@@ -40,7 +40,7 @@ function handleSelect(val: BroadcastMode) {
       :disabled="disabled"
       class="font-medium rounded flex transition-all items-center space-x-1"
       :class="[
-        size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
+        size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs',
         modelValue === 0
           ? 'bg-dota-red/20 text-dota-red border border-dota-red/40 shadow-xs'
           : 'text-dota-subtle hover:text-dota-text hover:bg-dota-hover/50 border border-transparent',
@@ -59,7 +59,7 @@ function handleSelect(val: BroadcastMode) {
       :disabled="disabled"
       class="font-medium rounded flex transition-all items-center space-x-1"
       :class="[
-        size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
+        size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs',
         modelValue === 1
           ? 'bg-dota-cyan/20 text-dota-cyan border border-dota-cyan/40 shadow-xs'
           : 'text-dota-subtle hover:text-dota-text hover:bg-dota-hover/50 border border-transparent',
@@ -78,7 +78,7 @@ function handleSelect(val: BroadcastMode) {
       :disabled="disabled"
       class="font-medium rounded flex transition-all items-center space-x-1"
       :class="[
-        size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
+        size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs',
         modelValue === 2
           ? 'bg-dota-gold/20 text-dota-gold border border-dota-gold/40 shadow-xs font-semibold'
           : 'text-dota-subtle hover:text-dota-text hover:bg-dota-hover/50 border border-transparent',

@@ -313,4 +313,75 @@ export const systemApi = {
       'services.SystemService.CacheAllIcons',
     ])
   },
+
+  /**
+   * 从本地缓存文件夹中优先读取结构化游戏数据
+   */
+  async loadCachedGameData(dataType: string): Promise<string> {
+    try {
+      return await AppBindings.LoadCachedGameData(dataType)
+    } catch {
+      return invokeWails<string>([
+        'main.App.LoadCachedGameData',
+        'aegis-coach/internal/services.SystemService.LoadCachedGameData',
+      ], dataType)
+    }
+  },
+
+  /**
+   * 将官方/OpenDota拉取的最新完整结构化数据持久化至本地缓存目录
+   */
+  async saveCachedGameData(dataType: string, content: string): Promise<void> {
+    try {
+      await AppBindings.SaveCachedGameData(dataType, content)
+    } catch {
+      await invokeWails<void>([
+        'main.App.SaveCachedGameData',
+        'aegis-coach/internal/services.SystemService.SaveCachedGameData',
+      ], dataType, content)
+    }
+  },
+
+  /**
+   * 优先从设置文件夹内读取应用配置，若不存在或损坏则自动新建并返回默认配置
+   */
+  async loadSettings(): Promise<string> {
+    try {
+      return await AppBindings.LoadSettings()
+    } catch {
+      return invokeWails<string>([
+        'main.App.LoadSettings',
+        'aegis-coach/internal/services.SystemService.LoadSettings',
+      ])
+    }
+  },
+
+  /**
+   * 将应用最新完整配置安全原子化落盘持久化至设置文件夹 settings.json
+   */
+  async saveSettings(settingsJson: string): Promise<void> {
+    try {
+      await AppBindings.SaveSettings(settingsJson)
+    } catch {
+      await invokeWails<void>([
+        'main.App.SaveSettings',
+        'aegis-coach/internal/services.SystemService.SaveSettings',
+      ], settingsJson)
+    }
+  },
+
+  /**
+   * 从后端原生抓取 Valve 官方最新版本号与详细更新日志并自动缓存落盘 (彻底消除 WebView2 CORS 拦截)
+   */
+  async fetchLatestPatchInfo(): Promise<string> {
+    try {
+      return await AppBindings.FetchLatestPatchInfo()
+    } catch {
+      return invokeWails<string>([
+        'main.App.FetchLatestPatchInfo',
+        'aegis-coach/internal/services.SystemService.FetchLatestPatchInfo',
+      ])
+    }
+  },
 }
+

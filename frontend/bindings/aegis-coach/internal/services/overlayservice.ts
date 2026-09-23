@@ -8,51 +8,83 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type { CancellablePromise as $CancellablePromise } from '@wailsio/runtime'
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as application$0 from '../../../github.com/wailsapp/wails/v3/pkg/application/models.js'
+import * as application$0 from "../../../github.com/wailsapp/wails/v3/pkg/application/models.js";
 
-import { Call as $Call } from '@wailsio/runtime'
+/**
+ * CloseOverlay 彻底关闭并销毁悬浮窗（窗口实例与子进程）
+ */
+export function CloseOverlay(): $CancellablePromise<void> {
+    return $Call.ByID(3905273147);
+}
 
 /**
  * IsOverlayMode 查询当前实例是否为独立悬浮窗进程模式
  */
 export function IsOverlayMode(): $CancellablePromise<boolean> {
-  return $Call.ByName('aegis-coach/internal/services.OverlayService.IsOverlayMode')
+    return $Call.ByID(3365091158);
 }
 
 /**
  * IsOverlayRunning 查询悬浮窗是否正在后台运行或处于可见状态
  */
 export function IsOverlayRunning(): $CancellablePromise<boolean> {
-  return $Call.ByName('aegis-coach/internal/services.OverlayService.IsOverlayRunning')
+    return $Call.ByID(3847123888);
+}
+
+export function LoadSavedPosition(): $CancellablePromise<[number, number, boolean]> {
+    return $Call.ByID(3654715573);
+}
+
+/**
+ * ResetOverlayPosition 重置悬浮窗至屏幕中央并清理记忆位置
+ */
+export function ResetOverlayPosition(): $CancellablePromise<void> {
+    return $Call.ByID(3258736201);
 }
 
 /**
  * SetIgnoreMouseEvents 设置悬浮窗是否忽略鼠标事件 (点击完全穿透至游戏)
  */
 export function SetIgnoreMouseEvents(ignore: boolean): $CancellablePromise<void> {
-  return $Call.ByName('aegis-coach/internal/services.OverlayService.SetIgnoreMouseEvents', ignore)
+    return $Call.ByID(2851693579, ignore);
+}
+
+/**
+ * SetOverlayMode 显式设置当前进程模式
+ * 用于彻底解决 sync.Once + 构造传参陷阱：单例全局唯一，但 isOverlay 需在初始化时被确定性更新
+ */
+export function SetOverlayMode(isOverlay: boolean): $CancellablePromise<void> {
+    return $Call.ByID(2431590884, isOverlay);
 }
 
 /**
  * SetWindow 关联原生窗口句柄
  */
 export function SetWindow(w: application$0.WebviewWindow | null): $CancellablePromise<void> {
-  return $Call.ByName('aegis-coach/internal/services.OverlayService.SetWindow', w)
+    return $Call.ByID(283911653, w);
 }
 
 /**
  * StopTerminatingOverlay 优雅终止悬浮窗子进程
  */
 export function StopTerminatingOverlay(): $CancellablePromise<void> {
-  return $Call.ByName('aegis-coach/internal/services.OverlayService.StopTerminatingOverlay')
+    return $Call.ByID(1871206523);
+}
+
+/**
+ * ToggleMouseThrough 切换悬浮窗鼠标穿透
+ */
+export function ToggleMouseThrough(): $CancellablePromise<boolean> {
+    return $Call.ByID(4136860207);
 }
 
 /**
  * ToggleOverlayWindow 切换局内独立置顶经济悬浮窗显隐状态
  */
 export function ToggleOverlayWindow(): $CancellablePromise<boolean> {
-  return $Call.ByName('aegis-coach/internal/services.OverlayService.ToggleOverlayWindow')
+    return $Call.ByID(1173362825);
 }

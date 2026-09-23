@@ -8,57 +8,56 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type { CancellablePromise as $CancellablePromise } from '@wailsio/runtime'
-import { Call as $Call, Create as $Create } from '@wailsio/runtime'
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as models$0 from '../models/models.js'
+import * as models$0 from "../models/models.js";
 
 /**
- * AskCoach 进行即时战术问答推演 (统一在 Go 侧完成 Prompt 拼接与安全脱敏)
+ * AskCoach 即时战术问答（不做规则降级，AI 无效时返回详细错误）
  */
 export function AskCoach(question: string, ctx: models$0.BattleContextDTO | null, mode: string, endpoint: string, apiKey: string, model: string): $CancellablePromise<string> {
-  return $Call.ByName('aegis-coach/internal/services.AiService.AskCoach', question, ctx, mode, endpoint, apiKey, model)
+    return $Call.ByID(1293918872, question, ctx, mode, endpoint, apiKey, model);
 }
 
 /**
  * FetchCloudModels 获取云端或兼容端点的模型列表
  */
 export function FetchCloudModels(baseUrl: string, apiKey: string): $CancellablePromise<string[]> {
-  return $Call.ByName('aegis-coach/internal/services.AiService.FetchCloudModels', baseUrl, apiKey).then(($result: any) => {
-    return $$createType0($result)
-  })
+    return $Call.ByID(1527202446, baseUrl, apiKey).then(($result: any) => {
+        return $$createType0($result);
+    });
 }
 
 /**
- * GenerateMatchReview 生成赛后 AI 深度复盘报告
+ * GenerateMatchReview 赛后 AI 深度复盘报告 (4 维度结构化)
  */
 export function GenerateMatchReview(matchId: string, matchDataJson: string, playerSlot: number, mode: string, endpoint: string, apiKey: string, model: string): $CancellablePromise<models$0.MatchReviewResultDTO | null> {
-  return $Call.ByName('aegis-coach/internal/services.AiService.GenerateMatchReview', matchId, matchDataJson, playerSlot, mode, endpoint, apiKey, model).then(($result: any) => {
-    return $$createType2($result)
-  })
+    return $Call.ByID(1961510799, matchId, matchDataJson, playerSlot, mode, endpoint, apiKey, model).then(($result: any) => {
+        return $$createType2($result);
+    });
 }
 
 /**
- * PullLocalModel 向本地 Ollama 服务或通过命令行发起模型下载拉取
+ * PullLocalModel 向本地 Ollama 服务发起模型下载拉取
  */
 export function PullLocalModel(modelName: string, endpoint: string): $CancellablePromise<string> {
-  return $Call.ByName('aegis-coach/internal/services.AiService.PullLocalModel', modelName, endpoint)
+    return $Call.ByID(2459806718, modelName, endpoint);
 }
 
 /**
  * TestAiEndpoint 测试本地或云端大模型端点连通性
  */
 export function TestAiEndpoint(mode: string, endpoint: string, apiKey: string, model: string): $CancellablePromise<models$0.AiEndpointTestResultDTO | null> {
-  return $Call.ByName('aegis-coach/internal/services.AiService.TestAiEndpoint', mode, endpoint, apiKey, model).then(($result: any) => {
-    return $$createType4($result)
-  })
+    return $Call.ByID(2524935350, mode, endpoint, apiKey, model).then(($result: any) => {
+        return $$createType4($result);
+    });
 }
 
 // Private type creation functions
-const $$createType0 = $Create.Array($Create.Any)
-const $$createType1 = models$0.MatchReviewResultDTO.createFrom
-const $$createType2 = $Create.Nullable($$createType1)
-const $$createType3 = models$0.AiEndpointTestResultDTO.createFrom
-const $$createType4 = $Create.Nullable($$createType3)
+const $$createType0 = $Create.Array($Create.Any);
+const $$createType1 = models$0.MatchReviewResultDTO.createFrom;
+const $$createType2 = $Create.Nullable($$createType1);
+const $$createType3 = models$0.AiEndpointTestResultDTO.createFrom;
+const $$createType4 = $Create.Nullable($$createType3);

@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"syscall"
 
 	internalApp "aegis-coach/internal/app"
 	"aegis-coach/internal/models"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -111,12 +113,24 @@ func (a *App) SetIgnoreMouseEvents(ignore bool) {
 	a.App.SetIgnoreMouseEvents(ignore)
 }
 
+func (a *App) ToggleMouseThrough() bool {
+	return a.App.ToggleMouseThrough()
+}
+
+func (a *App) ResetOverlayPosition() {
+	a.App.ResetOverlayPosition()
+}
+
 func (a *App) GetLatestGsiSnapshot() string {
 	return a.App.GetLatestGsiSnapshot()
 }
 
 func (a *App) IsGsiRunning() bool {
 	return a.App.IsGsiRunning()
+}
+
+func (a *App) IsGsiConnected() bool {
+	return a.App.IsGsiConnected()
 }
 
 func (a *App) NormalizeDotaAccountId(input string) (string, error) {
@@ -163,6 +177,48 @@ func (a *App) CacheAllIcons() (map[string]int, error) {
 	return a.App.CacheAllIcons()
 }
 
+func (a *App) LoadCachedGameData(dataType string) (string, error) {
+	return a.App.LoadCachedGameData(dataType)
+}
+
+func (a *App) SaveCachedGameData(dataType string, content string) error {
+	return a.App.SaveCachedGameData(dataType, content)
+}
+
+func (a *App) LoadSettings() (string, error) {
+	return a.App.LoadSettings()
+}
+
+func (a *App) SaveSettings(settingsJson string) error {
+	return a.App.SaveSettings(settingsJson)
+}
+
+func (a *App) FetchLatestPatchInfo() (string, error) {
+	return a.App.FetchLatestPatchInfo()
+}
+
+func (a *App) CloseOverlay() {
+	a.App.CloseOverlay()
+}
+
+// showExitConfirmDialog 唤起 Windows 原生模态确认弹窗：当悬浮窗开启时询问用户是否确定关闭软件
+func showExitConfirmDialog(win *application.WebviewWindow) bool {
+	var hwnd uintptr
+	if win != nil && win.NativeWindow() != nil {
+		hwnd = uintptr(win.NativeWindow())
+	}
+	title, _ := syscall.UTF16PtrFromString("神盾教练 - 退出确认")
+	text, _ := syscall.UTF16PtrFromString("局内独立置顶悬浮窗当前处于开启状态。\n\n是否确定要退出神盾教练？\n（退出软件将同时关闭悬浮窗）")
+	// MB_YESNO (0x00000004) | MB_ICONQUESTION (0x00000020) | MB_DEFBUTTON2 (0x00000100)
+	ret, err := windows.MessageBox(windows.HWND(hwnd), text, title, windows.MB_YESNO|windows.MB_ICONQUESTION|windows.MB_DEFBUTTON2)
+	if err != nil {
+		log.Printf("[main-window] 弹出退出确认框失败: %v", err)
+		return true
+	}
+	// IDYES = 6 代表用户点击“是”
+	return ret == 6
+}
+
 // main 应用程序入口函数 (基于 Wails v3.0.0-beta.23)
 // 职责收敛：仅负责 Wails 宿主初始化、窗口创建与多服务挂载
 func main() {
@@ -180,6 +236,7 @@ func main() {
 	appLogic := NewApp(isOverlay)
 	systemService := services.GetSystemService()
 	overlayService := services.GetOverlayService(isOverlay)
+	overlayService.SetOverlayMode(isOverlay) // ★ 显式覆盖 sync.Once 首次参数陷阱
 	gsiService := services.GetGsiService(4444)
 	playerService := services.GetPlayerService()
 	aiService := services.GetAiService()
@@ -211,11 +268,11 @@ func main() {
 	})
 
 	if isOverlay {
-		// 独立脱离主 App 的原生桌面置顶经济悬浮窗 (无边框、透明、始终置顶、Alt+Tab 隐藏)
-		window := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		x, y, hasPos := overlayService.LoadSavedPosition()
+		opts := application.WebviewWindowOptions{
 			Name:              "game-overlay",
 			Title:             "神盾教练 - 局内经济悬浮窗",
-			URL:               "/index.html?window=overlay#/overlay",
+			URL:               "/index.html?window=overlay&mode=overlay#/overlay",
 			Width:             340,
 			Height:            460,
 			Frameless:         true,
@@ -228,11 +285,22 @@ func main() {
 				DisableFramelessWindowDecorations: true,
 				Theme:                             application.Dark,
 			},
-		})
+		}
+		if hasPos {
+			opts.InitialPosition = application.WindowXY
+			opts.X = x
+			opts.Y = y
+		}
+
+		// 独立脱离主 App 的原生桌面置顶经济悬浮窗 (无边框、透明、始终置顶、Alt+Tab 隐藏)
+		window := app.Window.NewWithOptions(opts)
 		if window == nil {
 			log.Fatalf("[FATAL] 独立悬浮窗创建失败：WebviewWindow 为 nil")
 		}
 		appLogic.SetWindow(window)
+		if hasPos {
+			window.SetPosition(x, y)
+		}
 
 		// 启动 WinAPI 全局置顶失效恢复保活协程 (500ms 周期保活)
 		go overlay.StartTopMostRefresher(window)
@@ -261,18 +329,32 @@ func main() {
 	}
 	appLogic.SetWindow(window)
 
-	// 为主窗口显式注册 Alt+F2 快捷键响应
+	// 为主窗口显式注册 Alt+F2 / Alt+F3 快捷键响应
 	window.RegisterKeyBinding("Alt+F2", func(w application.Window) {
 		appLogic.ToggleOverlayWindow()
 	})
+	window.RegisterKeyBinding("Alt+F3", func(w application.Window) {
+		appLogic.ToggleMouseThrough()
+	})
 
-	// 主窗口关闭生命周期守护：若悬浮窗正在运行，关闭主窗口时自动隐藏至托盘后台，确保悬浮窗独立运行
+	// 主窗口关闭生命周期守护：
+	// 若悬浮窗当前处于激活态，拦截关闭动作并唤起原生确认弹窗，提示用户“悬浮窗开启，是否要关闭”
+	// 用户确认退出则同步关闭悬浮窗并退出软件；若悬浮窗未打开，直接退出程序
 	window.OnWindowEvent(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		if appLogic.IsOverlayRunning() {
 			e.Cancel()
-			window.Hide()
-			log.Printf("[main-window] 独立悬浮窗处于激活态，主窗口转入后台托盘驻留")
+			if showExitConfirmDialog(window) {
+				log.Printf("[main-window] 用户确认关闭软件，正在销毁悬浮窗并退出应用程序...")
+				appLogic.CloseOverlay()
+				app.Quit()
+			} else {
+				log.Printf("[main-window] 用户取消退出，保持软件与悬浮窗继续运行")
+			}
+			return
 		}
+		log.Printf("[main-window] 主窗口正在关闭，退出软件...")
+		appLogic.CloseOverlay()
+		app.Quit()
 	})
 
 	// 构建 Wails v3 原生应用系统菜单 (Application Menu)
@@ -289,6 +371,14 @@ func main() {
 	fileMenu.Add("退出神盾教练").
 		SetAccelerator("CmdOrCtrl+Q").
 		OnClick(func(ctx *application.Context) {
+			if appLogic.IsOverlayRunning() {
+				if showExitConfirmDialog(window) {
+					appLogic.CloseOverlay()
+					app.Quit()
+				}
+				return
+			}
+			appLogic.CloseOverlay()
 			app.Quit()
 		})
 
@@ -298,6 +388,11 @@ func main() {
 		SetAccelerator("Alt+F2").
 		OnClick(func(ctx *application.Context) {
 			appLogic.ToggleOverlayWindow()
+		})
+	viewMenu.Add("切换悬浮窗鼠标穿透").
+		SetAccelerator("Alt+F3").
+		OnClick(func(ctx *application.Context) {
+			appLogic.ToggleMouseThrough()
 		})
 	viewMenu.AddSeparator()
 	viewMenu.Add("实时战况看板").
@@ -348,6 +443,9 @@ func main() {
 		trayMenu.Add("切换对局悬浮窗 (Alt+F2)").OnClick(func(ctx *application.Context) {
 			appLogic.ToggleOverlayWindow()
 		})
+		trayMenu.Add("切换鼠标穿透 (Alt+F3)").OnClick(func(ctx *application.Context) {
+			appLogic.ToggleMouseThrough()
+		})
 		trayMenu.AddSeparator()
 		trayMenu.Add("实时战况看板").OnClick(func(ctx *application.Context) {
 			if window != nil {
@@ -365,6 +463,14 @@ func main() {
 		})
 		trayMenu.AddSeparator()
 		trayMenu.Add("退出程序").OnClick(func(ctx *application.Context) {
+			if appLogic.IsOverlayRunning() {
+				if showExitConfirmDialog(window) {
+					appLogic.CloseOverlay()
+					app.Quit()
+				}
+				return
+			}
+			appLogic.CloseOverlay()
 			app.Quit()
 		})
 		tray.SetMenu(trayMenu)

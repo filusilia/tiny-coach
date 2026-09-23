@@ -265,7 +265,8 @@ export function normalizeItemKey(name: string): string {
 }
 
 /**
- * 校验物品是否为 7.41e 现行有效物品 (剔除所有已废弃物品)
+ * 校验物品是否为现行官方有效物品 (剔除所有已废弃物品)
+ * @param itemKey 物品代号
  */
 export function isCurrentItem(name: string): boolean {
   const key = normalizeItemKey(name)

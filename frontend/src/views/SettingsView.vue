@@ -43,7 +43,9 @@ import {
 } from '../services/aiCoachService'
 import { normalizeDotaAccountId, playerProfileService } from '../services/playerProfileService'
 import { speechService } from '../services/speechService'
+import { gameDataService } from '../services/gameDataService'
 import { useAppStore } from '../stores'
+
 
 const appStore = useAppStore()
 
@@ -157,15 +159,26 @@ async function refreshIconCacheStats() {
 async function handleCacheAllIcons() {
   cachingIcons.value = true
   try {
+    // 1. 预热下载并持久化结构化游戏数据 (英雄数据、官方技能细节、物品图鉴、现行版本与更新日志)
+    await Promise.allSettled([
+      gameDataService.getHeroStats(),
+      gameDataService.getOfficialHeroesDetails(),
+      gameDataService.getItemsData(),
+      gameDataService.getPatchInfo(true),
+    ])
+
+    // 2. 并发下载官方英雄头像与物品图标至本地缓存目录
     const stats = await systemApi.cacheAllIcons()
     iconCacheStats.value = stats
-    appStore.showToast(`本地图标缓存就绪！已缓存英雄: ${stats.cached_heroes} 个，物品: ${stats.cached_items} 个`, 'success')
+    const dlMsg = stats.downloaded ? `，新拉取 ${stats.downloaded} 个图标` : ''
+    appStore.showToast(`本地数据与官方图鉴缓存就绪！已缓存英雄: ${stats.cached_heroes} 个，物品: ${stats.cached_items} 个${dlMsg}，数据文件已落盘`, 'success')
   } catch (err: any) {
-    appStore.showToast(`缓存图标失败: ${err?.message || '未知错误'}`, 'error')
+    appStore.showToast(`缓存数据失败: ${err?.message || '未知错误'}`, 'error')
   } finally {
     cachingIcons.value = false
   }
 }
+
 
 onMounted(async () => {
   await appStore.syncCacheDirectory()
@@ -260,13 +273,6 @@ async function copyOllamaCommand(modelId: string) {
   } catch {
     appStore.showToast(`命令: ${cmd}`, 'info')
   }
-}
-
-/**
- * 在系统默认浏览器中打开 ModelScope 魔搭社区端侧 GGUF 选型页
- */
-function openModelScopePage() {
-  window.open('https://www.modelscope.cn/models?name=qwen3.5', '_blank')
 }
 
 /**
@@ -665,7 +671,7 @@ async function testTtsSpeechPlayback() {
               <div class="text-xs text-slate-200 font-bold">
                 {{ cat.label }}
               </div>
-              <div class="text-slate-400 line-clamp-1 text-[11px]">
+              <div class="text-slate-400 line-clamp-1 text-xs">
                 {{ cat.description }}
               </div>
             </div>
@@ -772,13 +778,6 @@ async function testTtsSpeechPlayback() {
                 <Sparkles class="text-amber-400 h-3.5 w-3.5" />
                 <span>精选端侧模型 (专为 16GB 物理内存 + Dota 2 双开严苛优化，开销 ≤ 2GB)</span>
               </span>
-              <button
-                class="text-amber-400 flex cursor-pointer items-center space-x-1 hover:text-amber-300"
-                @click="openModelScopePage"
-              >
-                <span>前往魔搭社区选型</span>
-                <ExternalLink class="h-3 w-3" />
-              </button>
             </div>
 
             <div class="gap-3 grid grid-cols-1 md:grid-cols-2">
@@ -796,9 +795,9 @@ async function testTtsSpeechPlayback() {
                   <div>
                     <div class="text-xs text-slate-100 font-extrabold flex items-center space-x-1.5">
                       <span>{{ m.name }}</span>
-                      <span v-if="m.isPriority" class="text-amber-400 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[10px]">首选</span>
+                      <span v-if="m.isPriority" class="text-amber-400 font-mono px-1 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-xs">首选</span>
                     </div>
-                    <div class="text-emerald-400 font-mono text-[11px]">
+                    <div class="text-emerald-400 font-mono text-xs">
                       {{ m.size }} · {{ m.contextWindow }}
                     </div>
                   </div>
@@ -815,11 +814,11 @@ async function testTtsSpeechPlayback() {
                   </button>
                 </div>
 
-                <p class="text-slate-400 leading-relaxed text-[11px]">
+                <p class="text-slate-400 leading-relaxed text-xs">
                   {{ m.description }}
                 </p>
 
-                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
                   <span class="text-slate-500 font-mono">适用: {{ m.recommendedFor }}</span>
                   <div class="flex items-center space-x-1.5">
                     <button
@@ -951,12 +950,12 @@ async function testTtsSpeechPlayback() {
 
           <!-- 可选云端模型芯片列表（测试连接或拉取后呈现可选项） -->
           <div v-if="remoteModels.length > 0" class="pt-2 border-t border-slate-800/80 flex flex-wrap gap-1.5 items-center">
-            <span class="text-slate-400 mr-1 shrink-0 text-[11px]">可用模型选项 (点击选用):</span>
+            <span class="text-slate-400 mr-1 shrink-0 text-xs">可用模型选项 (点击选用):</span>
             <button
               v-for="m in remoteModels"
               :key="m"
               type="button"
-              class="font-mono px-2.5 py-1 border rounded-lg flex cursor-pointer transition-all items-center space-x-1 text-[11px]"
+              class="font-mono px-2.5 py-1 border rounded-lg flex cursor-pointer transition-all items-center space-x-1 text-xs"
               :class="appStore.settings.cloud_model === m
                 ? 'border-amber-500 bg-amber-500/20 text-amber-300 font-bold shadow-sm'
                 : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:text-white'"
@@ -983,7 +982,7 @@ async function testTtsSpeechPlayback() {
               {{ testResult.success ? `连通成功 (${testResult.latencyMs}ms)` : `探测失败: ${testResult.errorMessage || '请检查服务'}` }}
             </span>
           </div>
-          <span class="text-slate-500 text-[11px]">超时判定：8000ms 自动转规则引擎</span>
+          <span class="text-slate-500 text-xs">超时判定：8000ms 自动转规则引擎</span>
         </div>
       </section>
 
@@ -1054,11 +1053,11 @@ async function testTtsSpeechPlayback() {
           >
             <div class="mb-1 flex items-center justify-between">
               <span class="text-xs text-slate-100 font-bold">{{ eng.name }}</span>
-              <span class="text-amber-300 font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[10px]">
+              <span class="text-amber-300 font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-xs">
                 {{ eng.badge }}
               </span>
             </div>
-            <p class="text-slate-300 leading-relaxed font-normal text-[11px]">
+            <p class="text-slate-300 leading-relaxed font-normal text-xs">
               {{ eng.desc }}
             </p>
           </div>
@@ -1194,7 +1193,7 @@ async function testTtsSpeechPlayback() {
               <div class="text-xs text-amber-400 font-bold">
                 {{ appStore.settings.dota_player_name }}
               </div>
-              <div class="text-slate-400 font-mono text-[11px]">
+              <div class="text-slate-400 font-mono text-xs">
                 ID: {{ appStore.settings.dota_player_id }} · 战绩画像已建立同步
               </div>
             </div>
@@ -1256,11 +1255,11 @@ async function testTtsSpeechPlayback() {
             <div class="space-y-0.5">
               <div class="text-xs text-slate-200 font-bold flex items-center space-x-1.5">
                 <span>本地图标缓存状态</span>
-                <span v-if="iconCacheStats" class="text-emerald-400 font-mono px-1.5 py-0.2 border border-emerald-500/30 rounded bg-emerald-950/60 text-[10px]">
+                <span v-if="iconCacheStats" class="text-emerald-400 font-mono px-1.5 py-0.2 border border-emerald-500/30 rounded bg-emerald-950/60 text-xs">
                   已缓存英雄: {{ iconCacheStats.cached_heroes }} | 装备: {{ iconCacheStats.cached_items }}
                 </span>
               </div>
-              <div class="text-slate-400 text-[11px]">
+              <div class="text-slate-400 text-xs">
                 默认优先加载本地缓存文件，离线秒级呈现；缺失时自动落盘并由官方 CDN 兜底。
               </div>
             </div>
@@ -1292,7 +1291,85 @@ async function testTtsSpeechPlayback() {
       </section>
 
       <!-- ========================================================================= -->
-      <!-- 模块 6：关于神盾教练 (About AegisCoach，移至最底部) -->
+      <!-- 模块 6：局内经济独立置顶悬浮窗设置 (Overlay HUD Settings) -->
+      <!-- ========================================================================= -->
+      <section class="p-5 border border-slate-700/80 rounded-2xl bg-slate-900/90 shadow-xl space-y-4">
+        <div class="flex items-center space-x-3">
+          <Shield class="text-amber-400 h-5 w-5" />
+          <div>
+            <h2 class="text-sm text-slate-100 font-bold">
+              局内独立置顶经济悬浮窗
+            </h2>
+            <p class="text-xs text-slate-400">
+              配置置顶半透明电竞 HUD 的外观透明度、自动弹出行为及鼠标穿透观战策略
+            </p>
+          </div>
+        </div>
+
+        <div class="p-4 border border-slate-800 rounded-xl bg-slate-950/60 space-y-4">
+          <!-- 悬浮窗透明度调节滑动条 -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-xs text-slate-200 font-bold">悬浮窗不透明度 (Opacity)</label>
+              <span class="text-xs text-amber-400 font-mono font-bold">{{ appStore.settings.overlay_opacity ?? 90 }}%</span>
+            </div>
+            <div class="flex gap-3 items-center">
+              <span class="text-xs text-slate-400 font-mono">30%</span>
+              <input
+                v-model.number="appStore.settings.overlay_opacity"
+                type="range"
+                min="30"
+                max="100"
+                step="5"
+                class="appearance-none accent-amber-500 rounded-lg bg-slate-800 flex-1 h-1.5 cursor-pointer"
+                @input="appStore.updateSettings({ overlay_opacity: appStore.settings.overlay_opacity })"
+              >
+              <span class="text-xs text-slate-400 font-mono">100%</span>
+            </div>
+            <p class="text-xs text-slate-400">
+              调节悬浮窗底板与信息整体透明度，确保既能洞察战局经济，又不遮挡英雄血量与小地图。
+            </p>
+          </div>
+
+          <div class="pt-3 border-t border-slate-800/80 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <!-- 自动呼出开关 -->
+            <div class="p-3 border border-slate-800 rounded-lg bg-slate-900/60 flex items-center justify-between">
+              <div>
+                <div class="text-xs text-slate-200 font-bold">对局开始自动呼出</div>
+                <div class="text-xs text-slate-400">建立真实 GSI 连接并选定英雄后自动开启</div>
+              </div>
+              <input
+                type="checkbox"
+                class="h-4 w-4 rounded accent-amber-500 cursor-pointer"
+                :checked="appStore.settings.auto_overlay_on_game_start"
+                @change="(e) => appStore.updateSettings({ auto_overlay_on_game_start: (e.target as HTMLInputElement).checked })"
+              >
+            </div>
+
+            <!-- 快捷键提示与位置重置 -->
+            <div class="p-3 border border-slate-800 rounded-lg bg-slate-900/60 flex items-center justify-between">
+              <div>
+                <div class="text-xs text-slate-200 font-bold">交互与穿透快捷键</div>
+                <div class="text-xs text-slate-400">
+                  <kbd class="px-1 py-0.5 border border-slate-700 rounded bg-slate-800 font-mono text-xs text-slate-300">Alt+F2</kbd> 显隐 |
+                  <kbd class="px-1 py-0.5 border border-slate-700 rounded bg-slate-800 font-mono text-xs text-slate-300">Alt+F3</kbd> 穿透 (顶部锁仅锁定拖拽位置，游戏内点击穿透请按 Alt+F3)
+                </div>
+
+              </div>
+              <button
+                class="text-xs text-slate-300 px-2.5 py-1.5 border border-slate-700 rounded-lg bg-slate-800 cursor-pointer hover:bg-slate-700 transition-colors shrink-0"
+                title="清除记忆并重置悬浮窗至主显示器中央"
+                @click="appStore.resetOverlayPosition"
+              >
+                重置位置
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- 模块 7：关于神盾教练 (About AegisCoach，移至最底部) -->
       <!-- ========================================================================= -->
       <section class="p-5 border border-slate-800 rounded-2xl bg-slate-950/80 shadow-xl space-y-3">
         <div class="flex items-center justify-between">
@@ -1303,7 +1380,7 @@ async function testTtsSpeechPlayback() {
             <div>
               <div class="text-sm text-slate-100 font-extrabold flex items-center space-x-2">
                 <span>神盾教练 (AegisCoach)</span>
-                <span class="text-amber-400 font-bold font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-[12px]">
+                <span class="text-amber-400 font-bold font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20 text-sm">
                   v1.0.0 (Release 2026)
                 </span>
               </div>

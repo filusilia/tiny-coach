@@ -399,6 +399,12 @@ export interface AppSettings {
   auto_show_overlay: boolean
   /** 兼容字段: 游戏启动时自动呼出悬浮窗 */
   auto_overlay_on_game_start: boolean
+  /** 局内经济悬浮窗不透明度 (30 ~ 100，默认 90) */
+  overlay_opacity?: number
+  /** 英雄数据库天梯段位环境偏好 (1~8，默认 7: 超凡入圣) */
+  hero_rank_tier?: number
+  /** 英雄数据库列表排序方式偏好 ('win_desc' | 'pick_desc' | 'id_asc') */
+  hero_sort_mode?: 'win_desc' | 'pick_desc' | 'id_asc'
   /** 用户配置的自定义文件缓存存储目录路径 */
   cache_directory: string
   /** 绑定的 Dota 2 玩家 32 位数字账号 ID (如 12345678) */

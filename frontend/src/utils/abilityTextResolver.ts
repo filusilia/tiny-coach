@@ -230,7 +230,7 @@ export function formatValues(values: (number | string)[] | undefined | null): st
 }
 
 /** 占位符宏正则：支持 %key%、{s:key}、{d:key}、{f:key}、{g:key}、{{key}}、{key} */
-const PLACEHOLDER_REGEX = /%(\w+)%|\{([sdfg]?:?\w+)\}|\{\{(\w+)\}\}/g
+const PLACEHOLDER_REGEX = /%(\w+)%|\{([sdfg]?:?\w+)}|\{\{(\w+)}}/g
 
 /**
  * 提取技能或天赋文本模板中的所有待替换宏变量键名列表
@@ -630,12 +630,12 @@ export function resolveTalentText(talent?: OfficialTalent | null, hero?: Officia
 
     if (resolvedValue !== null) {
       const escapedKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
-      const pattern = new RegExp(`(%${escapedKey}%|\\{[sdfg]?:?${escapedKey}\\}|\\{\\{${escapedKey}\\}\\})`, 'gi')
+      const pattern = new RegExp(`(%${escapedKey}%|\{[sdfg]?:?${escapedKey}\}|\{\{${escapedKey}\}})`, 'gi')
       text = text.replace(pattern, resolvedValue)
     } else {
       // 安全回退，不裸露 {s:...}
       const escapedKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
-      const pattern = new RegExp(`(%${escapedKey}%|\\{[sdfg]?:?${escapedKey}\\}|\\{\\{${escapedKey}\\}\\})`, 'gi')
+      const pattern = new RegExp(`(%${escapedKey}%|\{[sdfg]?:?${escapedKey}\}|\{\{${escapedKey}\}})`, 'gi')
       text = text.replace(pattern, '数值待同步')
     }
   }
@@ -670,87 +670,4 @@ export function isEffectiveShardUpgrade(ability: OfficialAbility, hero?: Officia
     return classification.status === 'valid' || classification.status === 'resolved_by_alias' || classification.status === 'resolved_by_snapshot'
   }
   return false
-}
-
-/**
- * 兼容旧接口命名: 判断是否为有效神杖升级
- */
-export function isValidScepterUpgrade(ability: OfficialAbility): boolean {
-  return isEffectiveScepterUpgrade(ability)
-}
-
-/**
- * 兼容旧接口命名: 判断是否为有效魔晶升级
- */
-export function isValidShardUpgrade(ability: OfficialAbility): boolean {
-  return isEffectiveShardUpgrade(ability)
-}
-
-/**
- * 生成全量 127 英雄技能文本审计清单
- * @param heroes 全量英雄数据列表
- * @returns 审计条目数组
- */
-export function generateHeroTextAudit(heroes: OfficialHero[]): HeroTextAuditItem[] {
-  const auditList: HeroTextAuditItem[] = []
-
-  for (const hero of heroes) {
-    const heroShort = hero.name.replace('npc_dota_hero_', '')
-
-    for (const a of hero.abilities) {
-      // 独立授予技能
-      if (a.ability_is_granted_by_scepter || a.ability_is_granted_by_shard) {
-        auditList.push({
-          hero_id: hero.id,
-          hero_name: heroShort,
-          ability_name: a.name,
-          kind: a.ability_is_granted_by_scepter ? 'scepter' : 'shard',
-          status: 'granted_ability',
-          resolution: `ability_is_granted_by_* == true, treated as standalone ability`,
-          missing_keys: [],
-          evidence: {
-            granted_by_scepter: !!a.ability_is_granted_by_scepter,
-            granted_by_shard: !!a.ability_is_granted_by_shard,
-          },
-          original_text: a.desc_loc || '',
-        })
-      }
-
-      // 神杖模板审计
-      if (a.scepter_loc && a.scepter_loc.trim()) {
-        const res = classifyAbilityUpgrade(a, 'scepter', hero)
-        auditList.push({
-          hero_id: hero.id,
-          hero_name: heroShort,
-          ability_name: a.name,
-          kind: 'scepter',
-          status: res.status,
-          resolution: res.resolution,
-          missing_keys: res.missingKeys,
-          evidence: res.evidence,
-          original_text: a.scepter_loc,
-          resolved_text: res.resolvedText,
-        })
-      }
-
-      // 魔晶模板审计
-      if (a.shard_loc && a.shard_loc.trim()) {
-        const res = classifyAbilityUpgrade(a, 'shard', hero)
-        auditList.push({
-          hero_id: hero.id,
-          hero_name: heroShort,
-          ability_name: a.name,
-          kind: 'shard',
-          status: res.status,
-          resolution: res.resolution,
-          missing_keys: res.missingKeys,
-          evidence: res.evidence,
-          original_text: a.shard_loc,
-          resolved_text: res.resolvedText,
-        })
-      }
-    }
-  }
-
-  return auditList
 }

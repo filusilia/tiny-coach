@@ -212,7 +212,7 @@ function handleRunPreset(preset: SimulationPreset) {
           GSI 局内 9 类战术事件模拟注入
         </h3>
       </div>
-      <div class="text-dota-subtle flex items-center space-x-2 text-[10px]">
+      <div class="text-dota-subtle flex items-center space-x-2 text-xs">
         <span v-if="closedFeedback" class="text-dota-red font-medium animate-pulse">
           {{ closedFeedback }}
         </span>
@@ -247,7 +247,7 @@ function handleRunPreset(preset: SimulationPreset) {
           />
           <!-- 当前生效模式徽章 -->
           <span
-            class="font-mono px-1.5 py-0.2 border rounded text-[9px]" :class="[
+            class="font-mono px-1.5 py-0.2 border rounded text-2xs" :class="[
               getReminderMode(preset.category) === 2
                 ? 'bg-dota-gold/20 text-dota-gold border-dota-gold/40'
                 : getReminderMode(preset.category) === 1
@@ -269,12 +269,12 @@ function handleRunPreset(preset: SimulationPreset) {
           <div class="text-xs text-dota-text font-bold flex items-center justify-between group-hover:text-dota-goldLight">
             <span>{{ preset.title }}</span>
           </div>
-          <div class="text-dota-subtle mt-0.5 truncate text-[10px]" :title="preset.desc">
+          <div class="text-dota-subtle mt-0.5 truncate text-xs" :title="preset.desc">
             {{ preset.desc }}
           </div>
-          <div class="text-dota-muted font-mono mt-1 pt-1 border-t border-dota-border/40 flex items-center justify-between text-[9px]">
+          <div class="text-dota-muted font-mono mt-1 pt-1 border-t border-dota-border/40 flex items-center justify-between text-2xs">
             <span>{{ preset.heroName }}</span>
-            <span class="text-dota-subtle text-[9px]">{{ preset.categoryLabel }}</span>
+            <span class="text-dota-subtle text-2xs">{{ preset.categoryLabel }}</span>
           </div>
         </div>
       </button>

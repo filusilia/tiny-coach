@@ -17,9 +17,24 @@ type Manager struct {
 	customCacheDir string
 }
 
-// NewManager 构造本地持久化管理器
+var (
+	managerInstance *Manager
+	managerOnce     sync.Once
+)
+
+// GetManager 获取全局唯一 storage.Manager 单例
+// 关键：SystemService、PlayerService 必须共用同一实例，否则 SetCacheDirectory 后各服务看到不同的路径
+func GetManager() *Manager {
+	managerOnce.Do(func() {
+		managerInstance = &Manager{}
+	})
+	return managerInstance
+}
+
+// NewManager 保留旧调用兼容性，内部返回全局单例
+// Deprecated: 新代码请使用 GetManager()
 func NewManager() *Manager {
-	return &Manager{}
+	return GetManager()
 }
 
 // GetUserDocumentsDir 读取 Windows 用户真实的“我的文档”物理路径
@@ -89,6 +104,7 @@ func (m *Manager) EnsureCacheDirectories(customDir string) (string, error) {
 	baseDir := m.ResolveBaseCacheDir(customDir)
 
 	subDirs := []string{
+		"data",      // 结构化设置与官方游戏数据缓存
 		"heroes",    // 英雄静态数据与官方快照缓存
 		"items",     // 现行物品图谱与合成路线缓存
 		"abilities", // 技能图标与效果快照缓存

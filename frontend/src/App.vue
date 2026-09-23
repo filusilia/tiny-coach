@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { AlertCircle, CheckCircle2, Info, X } from '@lucide/vue'
-import { onMounted, ref } from 'vue'
-import { overlayApi } from './api'
+import { defineAsyncComponent, onMounted, ref } from 'vue'
 import Sidebar from './components/layout/Sidebar.vue'
 import TitleBar from './components/layout/TitleBar.vue'
 import { useGsiStream } from './composables/useGsiStream'
@@ -9,47 +8,51 @@ import { useNativeNavigation } from './composables/useNativeNavigation'
 import { dataSyncService } from './services/dataSyncService'
 import { gsiRuleEngine } from './services/gsiRuleEngine'
 import { useAppStore } from './stores/app'
-import OverlayView from './views/OverlayView.vue'
+
+// 按需异步懒加载悬浮窗组件
+const OverlayView = defineAsyncComponent(() => import('./views/OverlayView.vue'))
 
 const appStore = useAppStore()
 
-// 启用 GSI 10Hz 流合并与原生菜单导航集成
-useGsiStream()
-useNativeNavigation()
-
-function checkOverlayModeFromUrl(): boolean {
+/**
+ * 确定性同步判定当前窗口是否为独立悬浮窗模式 (完全同步、即时裁定，杜绝异步闪烁与回退)
+ */
+function checkIsOverlayWindow(): boolean {
   if (typeof window === 'undefined') return false
-  const params = new URLSearchParams(window.location.search)
-  return params.get('window') === 'overlay' || window.location.hash.includes('overlay')
+  const search = window.location.search || ''
+  const hash = window.location.hash || ''
+  const href = window.location.href || ''
+  const params = new URLSearchParams(search)
+
+  return params.get('window') === 'overlay' ||
+    params.get('mode') === 'overlay' ||
+    search.includes('window=overlay') ||
+    search.includes('mode=overlay') ||
+    hash.includes('window=overlay') ||
+    hash.includes('mode=overlay') ||
+    hash.includes('/overlay') ||
+    href.includes('mode=overlay') ||
+    window.name === 'game-overlay'
 }
 
-const isStandaloneOverlay = ref(checkOverlayModeFromUrl())
+const isStandaloneOverlay = ref(checkIsOverlayWindow())
+
+// 1. GSI 实时流在两个窗口中均需要消费（悬浮窗呈现战局快照，主界面呈现战况面板）
+useGsiStream()
+
+// 2. 原生系统菜单导航仅在主窗口生效，悬浮窗严禁响应导航事件以防视图被意外篡改
+if (!isStandaloneOverlay.value) {
+  useNativeNavigation()
+}
 
 onMounted(async () => {
-  try {
-    const mode = await overlayApi.isOverlayMode()
-    if (mode) {
-      isStandaloneOverlay.value = true
-    }
-  } catch (e) {
-    console.warn('[App] 检测是否为悬浮窗模式失败:', e)
-  }
-
   if (!isStandaloneOverlay.value) {
     gsiRuleEngine.init()
+    await appStore.initSettings()
     appStore.syncCacheDirectory()
     appStore.checkOverlayStatus()
     dataSyncService.initDataSync()
-
-    // 注册全局 Alt+F2 快捷键响应，确保前端获得焦点时一触即发
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.altKey && (e.key === 'F2' || e.code === 'F2')) {
-        e.preventDefault()
-        overlayApi.toggleOverlayWindow().catch((err) => {
-          console.warn('[App] Alt+F2 切换悬浮窗异常:', err)
-        })
-      }
-    })
+    // 注意：Alt+F2 快捷键已统一由 Go 宿主层 (RegisterKeyBinding) 与原生菜单加速键全局托管，此处绝不重复绑定
   }
 })
 </script>

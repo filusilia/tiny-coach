@@ -9,7 +9,6 @@ import AnalysisView from '../views/AnalysisView.vue'
 import CoachView from '../views/CoachView.vue'
 import HeroesView from '../views/HeroesView.vue'
 import ItemsView from '../views/ItemsView.vue'
-import OverlayView from '../views/OverlayView.vue'
 import SettingsView from '../views/SettingsView.vue'
 
 const routes: RouteRecordRaw[] = [
@@ -50,7 +49,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/overlay',
     name: 'Overlay',
-    component: OverlayView,
+    component: () => import('../views/OverlayView.vue'),
     meta: { isOverlay: true, title: '经济雷达悬浮窗' },
   },
 ]
@@ -63,11 +62,24 @@ export const router = createRouter({
 router.beforeEach((to, _from, next) => {
   if (typeof window !== 'undefined') {
     const search = window.location.search || ''
-    const isOverlayUrl = search.includes('window=overlay')
-    if (isOverlayUrl && to.path !== '/overlay') {
+    const hash = window.location.hash || ''
+    const href = window.location.href || ''
+    const params = new URLSearchParams(search)
+
+    const isOverlayMode = params.get('window') === 'overlay' ||
+      params.get('mode') === 'overlay' ||
+      search.includes('window=overlay') ||
+      search.includes('mode=overlay') ||
+      hash.includes('window=overlay') ||
+      hash.includes('mode=overlay') ||
+      hash.includes('/overlay') ||
+      href.includes('mode=overlay') ||
+      window.name === 'game-overlay'
+
+    if (isOverlayMode && to.path !== '/overlay') {
       return next('/overlay')
     }
-    if (!isOverlayUrl && to.path === '/overlay') {
+    if (!isOverlayMode && to.path === '/overlay') {
       // 主窗口绝不内嵌渲染悬浮窗，杜绝主窗口层级混淆与无法脱出误解
       return next('/coach')
     }
