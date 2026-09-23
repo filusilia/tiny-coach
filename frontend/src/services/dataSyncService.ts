@@ -139,24 +139,15 @@ class DataSyncService {
       this.state.newHeroIds = freshUpdatedHeroes
       this.state.updatedItemIds = patchInfo.updatedItemIds || []
 
-      // 2. 异步比对 OpenDota / 官网英雄列表
+      // 2. 统一通过 gameDataService 获取权威英雄数据统计
       let remoteHeroCount = 127
       try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 5000)
-        const res = await fetch('https://api.opendota.com/api/heroes', {
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        })
-        clearTimeout(timeout)
-        if (res.ok) {
-          const list = await res.json()
-          if (Array.isArray(list)) {
-            remoteHeroCount = list.length
-          }
+        const stats = await gameDataService.getHeroStats()
+        if (Array.isArray(stats) && stats.length > 0) {
+          remoteHeroCount = stats.length
         }
       } catch (e) {
-        console.info('[DataSyncService] OpenDota 校验切换至本地基线:', e)
+        console.info('[DataSyncService] 获取英雄统计切换至本地基线:', e)
       }
 
       this.state.updatedItemCount = 286

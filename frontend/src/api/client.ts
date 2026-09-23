@@ -1,22 +1,15 @@
 /**
- * Wails v3 IPC 强类型底层调用封装客户端 (src/api/client.ts)
+ * Wails v3 IPC 强类型统一调用客户端 (src/api/client.ts)
  * 职责：
- * 1. 统一屏蔽 Wails v3 的跨进程通信细节与方法寻址差异常态
- * 2. 具备多候选服务名自动回退重试能力 (例如 services.SystemService vs app.App)
- * 3. 统一入参序列化校验与统一错误格式化
+ * 1. 优先使用 Wails 代码生成器导出的强类型绑定方法直连 Go 后端
+ * 2. 在方法未导出或编译命名空间差异时，按候选 FQN 自动逐级降级重试
+ * 3. 区分“方法不存在”与“业务执行异常”，避免异常被误吞
  */
 
-export class ApiError extends Error {
-  public readonly method: string
-  public readonly rawError: unknown
+import { Call } from '@wailsio/runtime'
+import { ApiError, isCancelError, isMethodMissing } from './errors'
 
-  constructor(method: string, message: string, rawError?: unknown) {
-    super(`[API Error] 调用 '${method}' 失败: ${message}`)
-    this.name = 'ApiError'
-    this.method = method
-    this.rawError = rawError
-  }
-}
+export { ApiError, isCancelError, isMethodMissing }
 
 interface WailsRuntimeWindow extends Window {
   wails?: {
@@ -36,14 +29,13 @@ interface WailsRuntimeWindow extends Window {
       Emit?: (eventName: string, ...args: unknown[]) => void
     }
   }
-  go?: Record<string, unknown>
 }
 
 /**
  * 自动扩充候选方法列表，保证无论编译环境如何均能 100% 匹配 Go 后端导出的绑定
  * 优先级：传入候选 -> main.App.<MethodName> -> aegis-coach/internal/services.<Service>.<MethodName> -> services.<Service>.<MethodName>
  */
-function expandMethodCandidates(candidates: string[]): string[] {
+export function expandMethodCandidates(candidates: string[]): string[] {
   const result: string[] = []
   const seen = new Set<string>()
 
@@ -73,6 +65,8 @@ function expandMethodCandidates(candidates: string[]): string[] {
       `services.SystemService.${methodName}`,
       `services.OverlayService.${methodName}`,
       `services.AiService.${methodName}`,
+      `services.PlayerService.${methodName}`,
+      `services.GsiService.${methodName}`,
       `app.App.${methodName}`,
     ]
 
@@ -88,7 +82,41 @@ function expandMethodCandidates(candidates: string[]): string[] {
 }
 
 /**
- * 安全调用 Wails 后端导出的绑定方法
+ * 统一 Go 调用核心入口
+ * 优先执行 AppBindings 强类型方法；若因绑定缺失报错，则平滑降级按候选 FQN 逐级尝试 Call.ByName
+ * 若为业务错误或用户主动取消，则直接抛出原始异常，绝不盲目降级
+ *
+ * @param bindingFn 强类型绑定函数包装器，例如 () => AppBindings.GetCacheDirectory()
+ * @param fallbackCandidates 降级备用 FQN 列表，例如 ['main.App.GetCacheDirectory']
+ * @param args 传递给后端的参数（用于降级时的 ByName 调用）
+ */
+export async function callGo<T>(
+  bindingFn: () => Promise<T>,
+  fallbackCandidates?: string[],
+  ...args: unknown[]
+): Promise<T> {
+  try {
+    return await bindingFn()
+  } catch (bindErr: unknown) {
+    if (isCancelError(bindErr)) {
+      throw bindErr
+    }
+    // 只有在方法不存在/未绑定时才尝试降级；若属于业务报错直接向外抛出
+    if (!isMethodMissing(bindErr)) {
+      throw bindErr
+    }
+
+    if (!fallbackCandidates || fallbackCandidates.length === 0) {
+      throw bindErr
+    }
+
+    console.warn(`[Wails IPC] 强类型绑定未命中或异常，执行降级寻址:`, fallbackCandidates[0])
+    return await invokeWails<T>(fallbackCandidates, ...args)
+  }
+}
+
+/**
+ * 降级与动态调用 Wails 后端绑定方法
  * @param methodCandidates 方法名候选列表（按优先级依次尝试）
  * @param args 传递给后端的参数
  */
@@ -96,86 +124,67 @@ export async function invokeWails<T>(
   methodCandidates: string[],
   ...args: unknown[]
 ): Promise<T> {
-  const win = window as WailsRuntimeWindow
+  const win = typeof window !== 'undefined' ? (window as WailsRuntimeWindow) : null
   const allCandidates = expandMethodCandidates(methodCandidates)
-  // 参数安全清洗：将 undefined 转换为 ""，确保数组完整性，防止 Go 反射参数缺失报错
+  // 参数安全清洗：将 undefined 转换为 ""，防止 Go 反射参数缺失报错
   const cleanArgs = (args || []).map(arg => (arg === undefined ? '' : arg))
 
   let lastError: unknown = null
 
-  // 1. 优先通过 Wails v3 Call.Call / Call.ByName / Call 逐个候选尝试
-  const wailsCall = win.wails?.Call
+  // 1. 优先通过 Wails v3 官方 @wailsio/runtime Call.ByName 逐个候选尝试
+  for (const method of allCandidates) {
+    try {
+      if (Call && typeof Call.ByName === 'function') {
+        const result = (await Call.ByName(method, ...cleanArgs)) as T
+        return result
+      }
+    } catch (err: unknown) {
+      if (isCancelError(err)) {
+        throw err
+      }
+      lastError = err
+      if (isMethodMissing(err)) {
+        continue
+      }
+      // 业务逻辑错误或运行时执行异常直接抛出
+      console.warn(`[Wails IPC] 调用 '${method}' 业务报错:`, err)
+      throw new ApiError(method, String((err as any)?.message || err), err)
+    }
+  }
+
+  // 2. 兼容全局 window.wails?.Call 机制
+  const wailsCall = win?.wails?.Call
   if (wailsCall) {
     for (const method of allCandidates) {
       try {
-        // 1.1 优先使用 Wails v3 官方推荐的 ByName 快速寻址通道
         if (typeof (wailsCall as any).ByName === 'function') {
           const result = (await (wailsCall as any).ByName(method, ...cleanArgs)) as T
           return result
         }
-        // 1.2 兼容对象化 Call 签名
         if (typeof (wailsCall as any).Call === 'function') {
           const result = (await (wailsCall as any).Call({ methodName: method, args: cleanArgs })) as T
           return result
         }
-        // 1.3 兼容直接函数调用
         if (typeof wailsCall === 'function') {
           const result = (await (wailsCall as any)({ methodName: method, args: cleanArgs })) as T
           return result
         }
       } catch (err: unknown) {
+        if (isCancelError(err)) {
+          throw err
+        }
         lastError = err
-        const errMsg = String(err)
-        const lowerMsg = errMsg.toLowerCase()
-        const isMethodMissing
-          = lowerMsg.includes('unknown bound method')
-            || lowerMsg.includes('is not a function')
-            || lowerMsg.includes('referenceerror')
-            || lowerMsg.includes('method not found')
-            || lowerMsg.includes('not found')
-            || lowerMsg.includes('undefined')
-            || lowerMsg.includes('no method')
-            || lowerMsg.includes('cannot read properties of undefined')
-        if (isMethodMissing) {
+        if (isMethodMissing(err)) {
           continue
         }
-        // 若为真正的后端业务逻辑错误或运行时执行异常，直接向外抛出真实原因
-        console.warn(`[Wails IPC] 调用 '${method}' 业务或运行时报错:`, err)
-        throw new ApiError(method, errMsg, err)
+        console.warn(`[Wails IPC] 调用 '${method}' 运行时报错:`, err)
+        throw new ApiError(method, String((err as any)?.message || err), err)
       }
     }
   }
 
-  // 2. 尝试从 window.go 命名空间树中定位函数执行
-  if (win.go) {
-    for (const method of allCandidates) {
-      try {
-        const parts = method.split('.')
-        let target: unknown = win.go
-        for (const part of parts) {
-          if (target && typeof target === 'object' && part in target) {
-            target = (target as Record<string, unknown>)[part]
-          } else {
-            target = undefined
-            break
-          }
-        }
-        if (typeof target === 'function') {
-          return (await target(...args)) as T
-        }
-      } catch (err) {
-        lastError = err
-        const errMsg = String(err)
-        if (errMsg.includes('not found') || errMsg.includes('undefined')) {
-          continue
-        }
-        throw new ApiError(method, errMsg, err)
-      }
-    }
-  }
-
-  // 3. 开发环境独立浏览器预览提示与保底
-  if (!win.wails && !win.go) {
+  // 3. 浏览器开发环境沙箱无桌面端环境提示
+  if (!win?.wails && (typeof window !== 'undefined')) {
     console.warn(`[Mock Mode] Wails 桌面运行时未就绪，模拟调用: ${methodCandidates[0]}`, args)
     return null as unknown as T
   }

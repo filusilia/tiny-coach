@@ -6,35 +6,10 @@ import { HERO_CHINESE_NAMES } from '../data/heroNames'
 import { playerProfileService } from './playerProfileService'
 
 /**
- * 战术提问实战上下文快照实体
- * 用于向端侧 NPU 或云端大模型组装实战环境 Prompt
+ * 战术提问实战上下文快照实体，统一使用契约层 BattleContextDTO
  */
-export interface TacticalContext {
-  /** 英雄数字 ID */
-  heroId?: number
-  /** 英雄本地化名称 (如 "敌法师") */
-  heroName?: string
-  /** 英雄当前等级 */
-  heroLevel?: number
-  /** 当前生命值百分比 (0 ~ 100) */
-  healthPercent?: number
-  /** 当前魔法值百分比 (0 ~ 100) */
-  manaPercent?: number
-  /** 当前手头持有的金钱 */
-  gold?: number
-  /** 比赛对局时钟秒数 */
-  clockTime?: number
-  /** 战绩 KDA 字符串 (如 "5/1/8") */
-  kda?: string
-  /** 身上已持有的物品列表 */
-  items?: string[]
-  /** 英雄当前主要技能及就绪/冷却状态 */
-  abilities?: string[]
-  /** 选手手动录入的敌情备忘录 (如 "火枪无买活") */
-  userNotes?: string
-  /** 绑定的玩家近期战绩与英雄熟练度画像摘要 */
-  playerProfileSnippet?: string
-}
+export type TacticalContext = BattleContextDTO
+
 
 /**
  * 端侧 NPU / 本地 Ollama 推荐模型配置实体

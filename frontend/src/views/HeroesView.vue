@@ -5,11 +5,19 @@ import type { HeroStat } from '@/types'
 import { ArrowLeft, ChevronDown, Clock, Droplet, Shield, ShoppingBag, Sparkles } from '@lucide/vue'
 import { computed, onMounted, ref } from 'vue'
 import { useAppStore } from '@/stores'
+import { resolveAbilityLore } from '../data/abilityLore'
 import { HERO_ALIASES } from '../data/aliases'
 import { getHeroGuideData } from '../data/heroGuides'
 import { HERO_CHINESE_NAMES } from '../data/heroNames'
 import { dataSyncService } from '../services/dataSyncService'
 import { gameDataService } from '../services/gameDataService'
+import {
+  decodeAbilityBehavior,
+  getAbilityLevelValues,
+  getDamageTypeLabel,
+  getDispellableLabel,
+  getImmunityLabel,
+} from '../utils/abilityMeta'
 import {
   isEffectiveScepterUpgrade,
   isEffectiveShardUpgrade,
@@ -268,6 +276,17 @@ const activeAbilityTags = computed<{ text: string, cls: string }[]>(() => {
   if (!a) return []
   const tags: { text: string, cls: string }[] = []
 
+  // 技能类型（由官网 behavior 64 位标志解码，未知时显式提示「资料待同步」）
+  const behavior = decodeAbilityBehavior(a.behavior)
+  if (behavior.primary) {
+    tags.push({
+      text: behavior.modifiers.length
+        ? `${behavior.primary} · ${behavior.modifiers.join(' · ')}`
+        : behavior.primary,
+      cls: 'text-slate-300 border-slate-600/60 bg-slate-800/60',
+    })
+  }
+
   if (a.ability_is_innate) {
     tags.push({
       text: '先天技能',
@@ -298,6 +317,34 @@ const activeAbilityTags = computed<{ text: string, cls: string }[]>(() => {
   }
   return tags
 })
+
+// 技能结构化属性面板（严格对齐官网「技能详情」口径：技能类型/伤害类型/无视减益免疫/可以驱散）
+const activeAbilityMetaRows = computed<{ label: string, value: string }[]>(() => {
+  const a = activeSelectedAbility.value
+  if (!a) return []
+  const behavior = decodeAbilityBehavior(a.behavior)
+  return [
+    {
+      label: '技能类型',
+      value: behavior.modifiers.length
+        ? `${behavior.primary} · ${behavior.modifiers.join(' · ')}`
+        : behavior.primary,
+    },
+    { label: '伤害类型', value: getDamageTypeLabel(a.damage) },
+    { label: '无视减益免疫', value: getImmunityLabel(a.immunity) },
+    { label: '可以驱散', value: getDispellableLabel(a.dispellable) },
+  ]
+})
+
+// 技能各等级数值（仅取官网带中文标签的 special_values）
+const activeAbilityLevelValues = computed(() =>
+  getAbilityLevelValues(activeSelectedAbility.value || undefined),
+)
+
+// 技能背景介绍（官网原文优先，官网缺失时使用项目补充文案并标注来源）
+const activeAbilityLore = computed(() =>
+  resolveAbilityLore(activeSelectedAbility.value || undefined),
+)
 
 // 英雄实战机制技巧与出装
 const heroGuide = computed(() => {
@@ -600,10 +647,10 @@ const currentAbilityPatchNotes = computed(() => {
               ]"
               @click="selectTalents"
             >
-              <span class="border border-dota-gold/40 rounded-lg bg-dota-card inline-flex h-10 w-10 items-center justify-center relative overflow-hidden">
-                <Shield class="text-dota-gold h-5 w-5" />
+              <span class="border border-dota-gold/40 rounded-lg bg-dota-card inline-flex h-12 w-12 items-center justify-center relative overflow-hidden">
+                <Shield class="text-dota-gold h-6 w-6" />
               </span>
-              <span class="text-xs font-medium mt-0.5 text-center max-w-12.5 truncate">天赋树</span>
+              <span class="text-xs font-medium mt-0.5 text-center max-w-14 truncate">天赋树</span>
             </button>
 
             <!-- 先天技能 + 常规技能 -->
@@ -621,7 +668,7 @@ const currentAbilityPatchNotes = computed(() => {
                 ]"
                 @click="selectAbility(innateAbility.name)"
               >
-                <span class="rounded-lg bg-dota-card inline-flex h-10 w-10 relative overflow-hidden">
+                <span class="rounded-lg bg-dota-card inline-flex h-12 w-12 relative overflow-hidden">
                   <img
                     :src="getAbilityIconUrl(innateAbility.name)"
                     :alt="innateAbility.name_loc"
@@ -631,7 +678,7 @@ const currentAbilityPatchNotes = computed(() => {
                   >
                   <img src="/assets/icons/innate_icon.png" alt="先天遮罩" class="h-full w-full pointer-events-none inset-0 absolute object-contain">
                 </span>
-                <span class="text-xs font-medium mt-0.5 text-center max-w-12.5 truncate">{{ innateAbility.name_loc || innateAbility.name }}</span>
+                <span class="text-xs font-medium mt-0.5 text-center max-w-14 truncate">{{ innateAbility.name_loc || innateAbility.name }}</span>
               </button>
 
               <!-- 常规技能列表 -->
@@ -648,7 +695,7 @@ const currentAbilityPatchNotes = computed(() => {
                 ]"
                 @click="selectAbility(ability.name)"
               >
-                <span class="rounded-lg bg-dota-card inline-flex h-10 w-10 relative overflow-hidden">
+                <span class="rounded-lg bg-dota-card inline-flex h-12 w-12 relative overflow-hidden">
                   <img
                     :src="getAbilityIconUrl(ability.name)"
                     :alt="ability.name_loc || ability.name"
@@ -668,7 +715,7 @@ const currentAbilityPatchNotes = computed(() => {
                     class="h-full w-full pointer-events-none inset-0 absolute object-contain"
                   >
                 </span>
-                <span class="text-xs font-medium mt-0.5 text-center max-w-12.5 truncate">{{ ability.name_loc || ability.name }}</span>
+                <span class="text-xs font-medium mt-0.5 text-center max-w-14 truncate">{{ ability.name_loc || ability.name }}</span>
               </button>
             </div>
           </div>
@@ -677,10 +724,10 @@ const currentAbilityPatchNotes = computed(() => {
         <!-- 展台详细内容区 -->
         <div class="p-5 border border-dota-border/70 rounded-xl bg-dota-surface/90 shadow-lg">
           <!-- 模式 A：技能详细全景展示 -->
-          <div v-if="selectedShowcaseTab === 'ability' && activeSelectedAbility" class="space-y-4">
-            <div class="pb-3.5 border-b border-dota-border/50 flex flex-col gap-3 justify-between sm:flex-row sm:items-center">
-              <div class="flex items-center space-x-3.5">
-                <span class="border-2 border-dota-border rounded-xl bg-dota-card inline-flex shrink-0 h-18 w-18 shadow-md relative overflow-hidden">
+          <div v-if="selectedShowcaseTab === 'ability' && activeSelectedAbility" class="space-y-2.5">
+            <div class="pb-2.5 border-b border-dota-border/50 flex flex-col gap-2.5 justify-between sm:flex-row sm:items-center">
+              <div class="flex items-center space-x-3">
+                <span class="border-2 border-dota-border rounded-xl bg-dota-card inline-flex shrink-0 h-20 w-20 shadow-md relative overflow-hidden">
                   <img
                     :src="getAbilityIconUrl(activeSelectedAbility.name)"
                     :alt="activeSelectedAbility.name_loc"
@@ -710,12 +757,7 @@ const currentAbilityPatchNotes = computed(() => {
                 <div class="space-y-1">
                   <div class="flex flex-wrap gap-y-1 items-center space-x-2">
                     <h3 class="text-lg text-dota-goldLight font-extrabold">{{ activeSelectedAbility.name_loc || activeSelectedAbility.name }}</h3>
-                    <span
-                      v-for="tag in activeAbilityTags"
-                      :key="tag.text"
-                      class="text-xs font-medium px-2 py-0.5 border rounded"
-                      :class="tag.cls"
-                    >
+                    <span v-for="tag in activeAbilityTags" :key="tag.text" class="text-xs font-medium px-2 py-0.5 border rounded" :class="tag.cls">
                       {{ tag.text }}
                     </span>
                   </div>
@@ -735,15 +777,54 @@ const currentAbilityPatchNotes = computed(() => {
               </div>
             </div>
 
-            <div class="text-xs text-dota-text leading-relaxed p-4 border border-dota-border/40 rounded-xl bg-dota-panel/60 whitespace-pre-line">
-              {{
-                cleanHtml(
-                  resolveAbilityText(activeSelectedAbility.desc_loc, activeSelectedAbility, "none", activeDetails || undefined),
-                )
-              }}
+            <!-- 技能描述 -->
+            <div class="text-xs text-dota-text leading-relaxed px-3 py-2.5 border border-dota-border/40 rounded-lg bg-dota-panel/60 whitespace-pre-line">
+              {{ cleanHtml(resolveAbilityText(activeSelectedAbility.desc_loc, activeSelectedAbility, "none", activeDetails || undefined)) }}
             </div>
 
-            <div class="pt-1 gap-3.5 grid grid-cols-1 md:grid-cols-2">
+            <!-- 技能结构化属性条（对齐官网技能详情口径，紧凑单行排布） -->
+            <div class="px-1 flex flex-wrap gap-x-3.5 gap-y-1">
+              <span
+                v-for="row in activeAbilityMetaRows"
+                :key="row.label"
+                class="text-2xs flex gap-1 items-baseline"
+              >
+                <span class="text-dota-subtle">{{ row.label }}</span>
+                <span class="text-dota-text font-semibold">{{ row.value }}</span>
+              </span>
+            </div>
+
+            <!-- 各等级数值（模仿官网：中文标签在上、数值在下） -->
+            <div
+              v-if="activeAbilityLevelValues.length > 0"
+              class="gap-x-2.5 gap-y-1.5 grid grid-cols-2 sm:grid-cols-3"
+            >
+              <div
+                v-for="v in activeAbilityLevelValues"
+                :key="v.label"
+                class="px-2 py-1 border border-dota-border/25 rounded bg-black/25"
+              >
+                <div class="text-2xs text-dota-muted truncate" :title="cleanHtml(v.label)">
+                  {{ cleanHtml(v.label) }}
+                </div>
+                <div class="text-xs text-dota-goldLight font-bold font-mono truncate" :title="v.display">
+                  {{ v.display }}
+                </div>
+              </div>
+            </div>
+
+            <!-- 技能背景介绍：官网 lore 原文优先，缺失时用项目补充文案并内联标注；不显示「背景介绍」标题 -->
+            <p
+              v-if="activeAbilityLore"
+              class="text-xs text-dota-text/85 leading-relaxed pl-2.5 border-dota-gold/40 border-l-2 italic"
+            >
+              {{ activeAbilityLore.text }}<span
+                v-if="activeAbilityLore.source === 'project'"
+                class="text-2xs text-dota-muted not-italic"
+              >（项目补充）</span>
+            </p>
+
+            <div class="gap-3 grid grid-cols-1 md:grid-cols-2">
               <div
                 v-if=" isEffectiveScepterUpgrade(activeSelectedAbility, activeDetails || undefined) "
                 class="text-xs text-dota-goldLight p-3.5 border border-dota-gold/40 rounded-xl flex shadow-md items-start from-dota-gold/15 to-dota-panel/80 bg-gradient-to-r space-x-3"
@@ -753,15 +834,10 @@ const currentAbilityPatchNotes = computed(() => {
                 </div>
                 <div class="flex-1 space-y-1">
                   <div class="text-xs text-dota-gold font-bold flex items-center space-x-1.5">
-                    <span>阿哈利姆神杖强化效果</span>
-                    <span class="text-2xs text-dota-gold px-1.5 py-0.5 border border-dota-gold/40 rounded bg-dota-gold/20">神杖加成</span>
+                    <span>阿哈利姆神杖</span>
                   </div>
                   <p class="text-xs text-dota-text leading-relaxed">
-                    {{
-                      cleanHtml(
-                        resolveAbilityText(activeSelectedAbility.scepter_loc, activeSelectedAbility, "scepter", activeDetails || undefined),
-                      )
-                    }}
+                    {{ cleanHtml(resolveAbilityText(activeSelectedAbility.scepter_loc, activeSelectedAbility, "scepter", activeDetails || undefined)) }}
                   </p>
                 </div>
               </div>
@@ -776,14 +852,9 @@ const currentAbilityPatchNotes = computed(() => {
                 <div class="flex-1 space-y-1">
                   <div class="text-xs text-dota-cyan font-bold flex items-center space-x-1.5">
                     <span>阿哈利姆魔晶</span>
-                    <span class="text-2xs text-dota-cyan px-1.5 py-0.5 border border-dota-cyan/40 rounded bg-dota-cyan/20">魔晶加成</span>
                   </div>
                   <p class="text-xs text-dota-text leading-relaxed">
-                    {{
-                      cleanHtml(
-                        resolveAbilityText(activeSelectedAbility.shard_loc, activeSelectedAbility, "shard", activeDetails || undefined),
-                      )
-                    }}
+                    {{ cleanHtml(resolveAbilityText(activeSelectedAbility.shard_loc, activeSelectedAbility, "shard", activeDetails || undefined)) }}
                   </p>
                 </div>
               </div>

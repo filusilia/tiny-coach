@@ -5,6 +5,7 @@
 
 export { aiApi } from './ai'
 export * from './client'
+export * from './errors'
 export { gsiApi } from './gsi'
 export { overlayApi } from './overlay'
 export { playerApi } from './player'

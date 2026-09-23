@@ -300,9 +300,9 @@ class PlayerProfileService {
           : (anyP.recentHeroes || [])
 
         const topHeroes: HeroPerformance[] = rawHeroes.map((h: any) => {
-          const matches = h.matches ?? h.games ?? 0
-          const wins = h.wins ?? h.win ?? 0
-          const winRate = h.winRate ?? h.winrate ?? (matches > 0 ? Math.round((wins / matches) * 100) : 0)
+          const matches = h.matches ?? 0
+          const wins = h.wins ?? 0
+          const winRate = h.winRate ?? (matches > 0 ? Math.round((wins / matches) * 100) : 0)
           return {
             heroId: h.heroId,
             heroName: h.heroName || HERO_CHINESE_NAMES[h.heroId] || `英雄 #${h.heroId}`,
@@ -315,12 +315,11 @@ class PlayerProfileService {
           }
         })
 
-        const totalMatches = anyP.totalMatches ?? anyP.totalGames ?? 20
-        const wins = anyP.wins ?? anyP.winGames ?? 0
-        const losses = anyP.losses ?? Math.max(0, totalMatches - wins)
-        const winRate = anyP.winRate ?? anyP.winrate ?? (totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0)
-        const summary = anyP.tacticalSummary
-          || (anyP.tags && anyP.tags.length > 0 ? anyP.tags.join('；') : '天梯实力选手')
+        const totalMatches = nativeProfile.totalMatches || 20
+        const wins = nativeProfile.wins || 0
+        const losses = nativeProfile.losses ?? Math.max(0, totalMatches - wins)
+        const winRate = nativeProfile.winRate ?? (totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0)
+        const summary = nativeProfile.tacticalSummary || '天梯实力选手'
 
         const mappedProfile: PlayerProfileAnalysis = {
           accountId: anyP.accountId,
