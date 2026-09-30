@@ -4,8 +4,36 @@ const assert = require('assert');
 
 console.log('[test-hero-ui] 开始验证英雄页与段位环境重构规范...');
 
-const heroesPagePath = path.resolve(__dirname, '..', 'frontend', 'src', 'pages', 'HeroesPage.vue');
-const heroesPageContent = fs.readFileSync(heroesPagePath, 'utf8');
+function readComponentOrPage(mainFile, subDir) {
+  const p1 = path.resolve(__dirname, '../frontend/src/pages', mainFile);
+  if (fs.existsSync(p1)) {
+    return fs.readFileSync(p1, 'utf8');
+  }
+  const viewFile = path.resolve(__dirname, '../frontend/src/views', mainFile.replace('Page', 'View'));
+  let content = '';
+  if (fs.existsSync(viewFile)) {
+    content += fs.readFileSync(viewFile, 'utf8') + '\n';
+  }
+  if (subDir) {
+    const subDirPath = path.resolve(__dirname, '../frontend/src/views', subDir);
+    function walkDir(dir) {
+      if (!fs.existsSync(dir)) return;
+      const files = fs.readdirSync(dir);
+      for (const f of files) {
+        const full = path.join(dir, f);
+        if (fs.statSync(full).isDirectory()) {
+          walkDir(full);
+        } else if (f.endsWith('.vue') || f.endsWith('.ts')) {
+          content += fs.readFileSync(full, 'utf8') + '\n';
+        }
+      }
+    }
+    walkDir(subDirPath);
+  }
+  return content;
+}
+
+const heroesPageContent = readComponentOrPage('HeroesPage.vue', 'heroes');
 
 // 1. 验证段位环境图标与 8 级段位
 assert(heroesPageContent.includes("currentRankOption.icon"), '段位环境必须显示段位官方图标');

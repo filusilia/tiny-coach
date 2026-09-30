@@ -15,6 +15,7 @@
  */
 
 import type { OfficialAbility } from './abilityTextResolver'
+import { cleanInlineText } from './htmlCleaner'
 
 /** 施法行为位标志定义（仅收录官网「技能详情」会展示的已知低位） */
 interface BehaviorFlag {
@@ -203,6 +204,9 @@ export function getAbilityLevelValues(
     const rawLabel = (sv.heading_loc || '').trim()
     if (!rawLabel) continue
 
+    const cleanedLabel = cleanInlineText(rawLabel).replace(/[：:]\s*$/, '').trim()
+    if (!cleanedLabel) continue
+
     const values = (sv.values_float?.length
       ? sv.values_float
       : sv.values_int?.length
@@ -224,7 +228,7 @@ export function getAbilityLevelValues(
       : formatted.join(' / ')
 
     result.push({
-      label: rawLabel.replace(/[：:]\s*$/, ''),
+      label: cleanedLabel,
       display,
       isPercentage: percent,
     })

@@ -6,10 +6,10 @@
  * 3. 驱动 playerApi 与后端网关交互
  */
 
-import type { PlayerProfileAnalysis } from '../api/types'
+import type { PlayerProfileAnalysis } from '@/api/types'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { playerApi } from '../api'
+import { playerApi } from '@/api'
 
 export const usePlayerStore = defineStore('player', () => {
   /** 当前绑定的玩家数字账号 ID */
@@ -59,7 +59,7 @@ export const usePlayerStore = defineStore('player', () => {
     try {
       const res = await playerApi.getPlayerProfile(queryId)
       profile.value = res
-      if (!accountId.value) {
+      if (res && !accountId.value) {
         accountId.value = res.accountId
       }
       return res

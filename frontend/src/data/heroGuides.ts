@@ -1,6 +1,10 @@
 /**
- * 英雄专属战术实战指南与阶段性推荐出装实体
+ * 英雄专属战术实战指南与核心对局技巧库 (src/data/heroGuides.ts)
+ * 严格遵循开工铁律第 8 条（零伪造原则）：
+ * 本模块仅收录 100% 真实的英雄核心机制、技能微操细节与宏观战术要领 (tips)；
+ * 严禁在此硬编码任何离线出装兜底 (builds)，出装数据严格由 OpenDota 在线真实大数据提供。
  */
+
 export interface HeroGuideData {
   /** 英雄核心机制与对局技巧要领列表 */
   tips: {
@@ -9,79 +13,17 @@ export interface HeroGuideData {
     /** 实战建议详细解析内容 */
     content: string
   }[]
-  /** 阶段性出装推荐列表 (出门、前期、中期、后期) */
-  builds: {
-    /** 游戏对局阶段标签 (如 "出门装备", "前期核心") */
-    stage: string
-    /** 当前阶段推荐购买的物品列表 */
-    items: {
-      /** 物品内部英文字符串代号 */
-      name?: string
-      /** 物品本地化中文名称 */
-      dname: string
-      /** 物品购买金钱成本 */
-      cost: number
-      /** 物品高清图标 CDN 地址 */
-      img: string
-    }[]
-  }[]
 }
 
-// 常见 7.41f 现行物品常数映射 (本地缓存优先)
-const COMMON_ITEMS: Record<string, { dname: string, cost: number, img: string }> = {
-  tango: { dname: '知识古树/吃树', cost: 90, img: '/cache/items/tango.png' },
-  branches: { dname: '铁树枝桠', cost: 50, img: '/cache/items/branches.png' },
-  magic_stick: { dname: '魔棒', cost: 200, img: '/cache/items/magic_stick.png' },
-  magic_wand: { dname: '魔杖', cost: 450, img: '/cache/items/magic_wand.png' },
-  circlet: { dname: '贵族圆环', cost: 155, img: '/cache/items/circlet.png' },
-  slippers: { dname: '敏捷便鞋', cost: 140, img: '/cache/items/slippers.png' },
-  gauntlets: { dname: '力量手套', cost: 140, img: '/cache/items/gauntlets.png' },
-  mantle: { dname: '智力斗篷', cost: 140, img: '/cache/items/mantle.png' },
-  wraith_band: { dname: '怨灵系带', cost: 505, img: '/cache/items/wraith_band.png' },
-  bracer: { dname: '护腕', cost: 505, img: '/cache/items/bracer.png' },
-  null_talisman: { dname: '空灵挂件', cost: 505, img: '/cache/items/null_talisman.png' },
-  power_treads: { dname: '动力鞋(假腿)', cost: 1400, img: '/cache/items/power_treads.png' },
-  phase_boots: { dname: '相位鞋', cost: 1500, img: '/cache/items/phase_boots.png' },
-  arcane_boots: { dname: '奥术鞋', cost: 1300, img: '/cache/items/arcane_boots.png' },
-  blink: { dname: '科勒的匕首(跳刀)', cost: 2250, img: '/cache/items/blink.png' },
-  black_king_bar: { dname: '黑皇杖(BKB)', cost: 4050, img: '/cache/items/black_king_bar.png' },
-  ultimate_scepter: { dname: '阿哈利姆神杖', cost: 4200, img: '/cache/items/ultimate_scepter.png' },
-  aghanims_shard: { dname: '阿哈利姆魔晶', cost: 1400, img: '/cache/items/aghanims_shard.png' },
-  manta: { dname: '幻影斧(分身斧)', cost: 4600, img: '/cache/items/manta.png' },
-  bfury: { dname: '狂战斧', cost: 4100, img: '/cache/items/bfury.png' },
-  satanic: { dname: '撒旦之邪力', cost: 5050, img: '/cache/items/satanic.png' },
-  greater_crit: { dname: '代达罗斯之殇(大炮)', cost: 5200, img: '/cache/items/greater_crit.png' },
-  assault: { dname: '强袭胸甲', cost: 5125, img: '/cache/items/assault.png' },
-  shivas_guard: { dname: '希瓦的守护', cost: 5175, img: '/cache/items/shivas_guard.png' },
-  heart: { dname: '恐鳌之心(龙心)', cost: 5200, img: '/cache/items/heart.png' },
-  butterfly: { dname: '蝴蝶', cost: 5450, img: '/cache/items/butterfly.png' },
-  skadi: { dname: '斯嘉蒂之眼(冰眼)', cost: 5300, img: '/cache/items/skadi.png' },
-  refresher: { dname: '刷新球', cost: 5000, img: '/cache/items/refresher.png' },
-  heavens_halberd: { dname: '天堂之戟', cost: 3300, img: '/cache/items/heavens_halberd.png' },
-  armlet: { dname: '莫尔迪基安的臂章', cost: 2500, img: '/cache/items/armlet.png' },
-  dragon_lance: { dname: '魔龙枪', cost: 2000, img: '/cache/items/dragon_lance.png' },
-  hurricane_pike: { dname: '飓风长戟(大推推)', cost: 4550, img: '/cache/items/hurricane_pike.png' },
-  diffusal_blade: { dname: '净魂之刃(散失)', cost: 2500, img: '/cache/items/diffusal_blade.png' },
-  octarine_core: { dname: '玲珑心', cost: 5100, img: '/cache/items/octarine_core.png' },
-  glimmer_cape: { dname: '微光披风', cost: 2150, img: '/cache/items/glimmer_cape.png' },
-  force_staff: { dname: '原力法杖(推推棒)', cost: 2200, img: '/cache/items/force_staff.png' },
-}
-
-// 英雄专属定制技巧与出装
+// 英雄专属定制打法技巧与核心机制
 const HERO_SPECIFIC_GUIDES: Record<number, HeroGuideData> = {
   // 1. 敌法师
   1: {
     tips: [
       { title: '对线消耗与兵线仇恨', content: '利用「法力损毁」的主动灼烧魔法效果，对线期手动右键点击敌方英雄消耗，注意拉扯小兵仇恨保护补刀节奏。' },
       { title: '法术反制开启时机', content: '「法术反制」具备极短的施法前摇，可反射绝大多数指定目标眩晕与单体爆发，在敌方施法抬手瞬间开启。' },
-      { title: '刷钱路线与带线牵制', content: '狂战斧成型后，利用闪烁在野区与兵线间高频穿梭，永远保持双线带压，迫使敌方回防开团。' },
+      { title: '刷钱路线与带线牵制', content: '拥有清线核心装后，利用闪烁在野区与兵线间高频穿梭，永远保持双线带压，迫使敌方回防开团。' },
       { title: '超大招斩杀计算', content: '法力虚空伤害取决于目标已损失魔法值，优先选择敌方蓝量耗尽的智力型或核心英雄作为斩杀靶心。' },
-    ],
-    builds: [
-      { stage: '出门装备', items: [COMMON_ITEMS.tango, COMMON_ITEMS.slippers, COMMON_ITEMS.circlet, COMMON_ITEMS.branches] },
-      { stage: '前期核心', items: [COMMON_ITEMS.power_treads, COMMON_ITEMS.wraith_band, COMMON_ITEMS.bfury] },
-      { stage: '中期核心', items: [COMMON_ITEMS.manta, COMMON_ITEMS.black_king_bar, COMMON_ITEMS.skadi] },
-      { stage: '后期质变', items: [COMMON_ITEMS.butterfly, COMMON_ITEMS.satanic, COMMON_ITEMS.greater_crit] },
     ],
   },
   // 59. 哈斯卡
@@ -92,12 +34,6 @@ const HERO_SPECIFIC_GUIDES: Record<number, HeroGuideData> = {
       { title: '控血狂暴攻速收益', content: '「狂战士之血」在生命值越低时攻速与魔抗增幅越剧烈，配合臂章切假腿可在极限血量完成残血反杀。' },
       { title: '牺牲大招与跳刀切入', content: '「牺牲」以自身当前生命百分比冲撞目标，附带强减速与高额伤害，出到阿哈利姆神杖后提供强力嘲讽控场。' },
     ],
-    builds: [
-      { stage: '出门装备', items: [COMMON_ITEMS.tango, COMMON_ITEMS.gauntlets, COMMON_ITEMS.circlet, COMMON_ITEMS.branches] },
-      { stage: '前期核心', items: [COMMON_ITEMS.armlet, COMMON_ITEMS.power_treads, COMMON_ITEMS.dragon_lance] },
-      { stage: '中期核心', items: [COMMON_ITEMS.black_king_bar, COMMON_ITEMS.heavens_halberd, COMMON_ITEMS.ultimate_scepter] },
-      { stage: '后期质变', items: [COMMON_ITEMS.satanic, COMMON_ITEMS.heart, COMMON_ITEMS.assault] },
-    ],
   },
   // 8. 主宰
   8: {
@@ -106,85 +42,100 @@ const HERO_SPECIFIC_GUIDES: Record<number, HeroGuideData> = {
       { title: '治疗守卫保塔与续航', content: '「治疗守卫」提供全队百分比高额生命恢复，团战前放置在树林阴影处或推塔后排，避免被敌方优先点掉。' },
       { title: '无敌斩单杀与清兵机制', content: '「无敌斩」会在范围内所有敌方单位间随机弹射，施法前确保附近无杂兵干扰，以将全额斩击精准灌注在敌方英雄身上。' },
     ],
-    builds: [
-      { stage: '出门装备', items: [COMMON_ITEMS.tango, COMMON_ITEMS.slippers, COMMON_ITEMS.circlet, COMMON_ITEMS.branches] },
-      { stage: '前期核心', items: [COMMON_ITEMS.phase_boots, COMMON_ITEMS.wraith_band, COMMON_ITEMS.bfury] },
-      { stage: '中期核心', items: [COMMON_ITEMS.manta, COMMON_ITEMS.blink, COMMON_ITEMS.skadi] },
-      { stage: '后期质变', items: [COMMON_ITEMS.greater_crit, COMMON_ITEMS.butterfly, COMMON_ITEMS.refresher] },
+  },
+  // 11. 影魔
+  11: {
+    tips: [
+      { title: '影压三连测距与方向感', content: '「毁灭阴影」拥有近(200)、中(450)、远(700)三段固定距离，释放方向严格随英雄面朝方向，多利用右键移动或S键停止调整朝向。' },
+      { title: '对线补刀累积支配死灵', content: '击杀小兵与英雄提供攻击力累加，对线期前3级重点利用普攻和近压稳健收线，尽快叠满死灵层数形成对线攻击压制。' },
+      { title: '隐刀/跳刀贴脸摇大爆发', content: '「魂之挽歌」处于中心靶心时爆发极高，利用隐刀或跳刀快速移动至敌方核心英雄中心贴脸释放，配合BKB防止被打断。' },
+    ],
+  },
+  // 14. 帕吉 (屠夫)
+  14: {
+    tips: [
+      { title: '肉钩预判与视野盲区', content: '「肉钩」弹道有飞行延迟，出钩前观察敌方补刀走位惯性或在树林高台阴影处出钩，提升命中率。' },
+      { title: '腐烂黏人减速与开闭细节', content: '「腐烂」提供大范围减速和持续伤害，钩中目标后立即贴脸开腐烂并接肢解大招，确保全额控制时间。' },
+      { title: '堆积腐肉滚雪球成长', content: '每当附近有敌方英雄死亡即可永久增加力量和生命恢复，前中期多参与小规模游走打架建立血量优势。' },
+    ],
+  },
+  // 35. 狙击手 (火枪)
+  35: {
+    tips: [
+      { title: '极限攻击射程与战场站位', content: '凭借「瞄准」的超远射程优势，团战务必站在后排高台或树林边缘输出，永远避免进入敌方先手技能射程。' },
+      { title: '霰弹视野压制与减速阻滞', content: '「霰弹」提供大范围减速与高台开视野能力，可用于探草防Gank或封锁敌方撤退与上高路线。' },
+      { title: '暗杀大招斩杀与残血收割', content: '「暗杀」提供目标真视视野，在敌方残血逃入阴影或即将脱离射程时提前锁定斩杀。' },
+    ],
+  },
+  // 5. 水晶室女 (冰女)
+  5: {
+    tips: [
+      { title: '奥术光环全队蓝量支撑', content: '「奥术光环」为全队提供全球魔法恢复加成，自身效果加倍，对线期可用水晶新星积极消耗压制敌方血量。' },
+      { title: '冰封禁制控制与打野发育', content: '「冰封禁制」可缠绕敌人并禁止普攻，对野怪持续时间大幅延长，前期可利用该技能打大野快速补出基础装。' },
+      { title: '极寒领域大招切入防断', content: '「极寒领域」施法期间极易被打断，通常配合微光披风隐身、BKB或在混乱团战后排施放打出毁天灭地的爆发。' },
+    ],
+  },
+  // 74. 祈求者 (卡尔)
+  74: {
+    tips: [
+      { title: '三系元素切换与属性微操', content: '冰(Q)提供回血与控制，雷(W)提供移速与攻速，火(E)提供攻击力与爆发，对线期随补刀与换血节奏灵活切换。' },
+      { title: '民工三连与团战毁天灭地', content: '超震声波+强袭飓风+混沌陨石是经典连招；出到A杖与刷新后利用天火神杖升级（毁天灭地）配合队友大控瞬间融化团战。' },
+      { title: '幽灵漫步保命与游走切入', content: '遭遇危险时快速切出幽灵漫步脱战；移速减益也可在游走时充当近身减速工具。' },
     ],
   },
 }
 
 /**
- * 获取指定英雄的实战技巧与阶段性推荐出装
- * 优先读取高频热门英雄的手工精选战术库；若为其他英雄，则基于主属性自适应生成 100% 权威保底出装
+ * 获取指定英雄的实战宏观打法技巧
  * @param heroId 英雄官方数字 ID (如 1 为敌法师, 8 为主宰)
  * @param primaryAttr 英雄主属性类别 ('str' | 'agi' | 'int' | 'all')
- * @returns 战术指南与四阶段推荐出装实体
+ * @returns 战术指南
  */
 export function getHeroGuideData(heroId: number, primaryAttr: string): HeroGuideData {
   if (HERO_SPECIFIC_GUIDES[heroId]) {
     return HERO_SPECIFIC_GUIDES[heroId]
   }
 
-  // 127 英雄通用智能保底生成
   const isAgi = primaryAttr === 'agi'
   const isStr = primaryAttr === 'str'
   const isInt = primaryAttr === 'int'
 
+  if (isStr) {
+    return {
+      tips: [
+        { title: '力量前排承伤与反打', content: '利用高初始力量与血量上限在前排吃第一波技能伤害，配合刃甲或控制技能打断敌方输出节奏。' },
+        { title: '跳刀切入与先手控场', content: '关键控制技能应配合跳刀出其不意近身施放，先手控制敌方后排脱节辅助或主力输出核心。' },
+        { title: '中后期肉装与团战压制', content: '优先做出强袭胸甲与龙心，提高护甲与续航，带领团队推进压缩敌方安全刷钱区域。' },
+      ],
+    }
+  }
+
+  if (isAgi) {
+    return {
+      tips: [
+        { title: '敏捷核心发育节奏', content: '敏捷英雄依赖装备成长，前期保持兵线与野区双线高频刷钱，在第一件质变输出装出炉前避免无意义团战。' },
+        { title: '分身斧解状态与推塔', content: '分身斧可用于驱散沉默与减速等负面状态，同时幻象可安全带危险兵线或用于推塔拆迁。' },
+        { title: '后期输出与切入时机', content: '团战不要第一个露头，等待敌方第一轮关键控制技能交出后再切入收割残局。' },
+      ],
+    }
+  }
+
+  if (isInt) {
+    return {
+      tips: [
+        { title: '技能伤害压制与线优确立', content: '充分利用技能射程与CD优势在对线期频繁压制敌方血线，配合控制技能配合队友击杀。' },
+        { title: '视野掌控与防切自保', content: '智力英雄身板相对较脆，积极布置防守视野，善用微光披风或推推棒在遭遇突进时拉开身位。' },
+        { title: '法系爆发与控制衔接', content: '团战中技能不要一股脑丢给敌方前排坦克，尽量将控制与爆发留给敌方核心输出或保命型辅助。' },
+      ],
+    }
+  }
+
+  // 全才英雄
   return {
     tips: [
-      {
-        title: '对线期发育与压制要领',
-        content: `根据自身 ${isStr ? '力量高血量' : isAgi ? '敏捷高护甲与攻速' : isInt ? '智力技能爆发' : '全才多维属性'} 优势，精准把握正反补节奏，避免兵线进塔或过深过河道。`,
-      },
-      {
-        title: '技能连招与交互时机',
-        content: '保持技能循环与冷却协同，核心控制与爆发技能尽量在队友视野或先手到位后衔接，杜绝盲目先手导致技能空放。',
-      },
-      {
-        title: '团战站位与自保意识',
-        content: '随时关注小地图敌方核心与高危控制技能动向，团战中优先消灭敌方后排脱节辅助或关键控制单位。',
-      },
-      {
-        title: '装备与强势期节奏',
-        content: '在关键质变装（如跳刀、BKB、阿哈利姆神杖）成型瞬间立即呼叫队友集合开雾，抢占肉山或敌方外塔。',
-      },
-    ],
-    builds: [
-      {
-        stage: '出门装备',
-        items: [
-          COMMON_ITEMS.tango,
-          isStr ? COMMON_ITEMS.gauntlets : isAgi ? COMMON_ITEMS.slippers : COMMON_ITEMS.mantle,
-          COMMON_ITEMS.circlet,
-          COMMON_ITEMS.branches,
-        ],
-      },
-      {
-        stage: '前期核心',
-        items: [
-          isInt ? COMMON_ITEMS.arcane_boots : isStr ? COMMON_ITEMS.phase_boots : COMMON_ITEMS.power_treads,
-          isStr ? COMMON_ITEMS.bracer : isAgi ? COMMON_ITEMS.wraith_band : COMMON_ITEMS.null_talisman,
-          COMMON_ITEMS.magic_wand,
-        ],
-      },
-      {
-        stage: '中期核心',
-        items: [
-          COMMON_ITEMS.blink,
-          COMMON_ITEMS.black_king_bar,
-          COMMON_ITEMS.ultimate_scepter,
-        ],
-      },
-      {
-        stage: '后期质变',
-        items: [
-          isStr ? COMMON_ITEMS.heart : isAgi ? COMMON_ITEMS.butterfly : COMMON_ITEMS.shivas_guard,
-          COMMON_ITEMS.satanic,
-          COMMON_ITEMS.octarine_core,
-        ],
-      },
+      { title: '多维属性极高攻击收益', content: '全才英雄每点属性提供 0.7 攻击力，优先购买性价比高的小属性散件可在前期获得超高攻击优势。' },
+      { title: '打法灵活身兼数职', content: '根据阵容缺控补控、缺输出补输出，出装路线极其多变，既可走肉盾先手亦可走物理核心输出。' },
+      { title: '综合抗性与全面均衡', content: '后期全才英雄血量护甲蓝量均十分充裕，配合冰眼、撒旦等全面撑属性的装备可打出极高战力。' },
     ],
   }
 }

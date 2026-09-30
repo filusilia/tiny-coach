@@ -1,9 +1,9 @@
+import type { Theme } from '@unocss/preset-wind4/theme'
+import { createRemToPxProcessor } from '@unocss/preset-wind4/utils'
 import {
   defineConfig,
   presetWind4,
 } from 'unocss'
-import { createRemToPxProcessor } from '@unocss/preset-wind4/utils'
-import type { Theme } from '@unocss/preset-wind4/theme'
 
 export default defineConfig({
   content: {

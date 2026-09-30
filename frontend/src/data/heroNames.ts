@@ -273,4 +273,3 @@ export const HERO_SHORT_NAMES: Record<number, string> = {
 export function getHeroShortName(id: number): string {
   return HERO_SHORT_NAMES[id] || ''
 }
-

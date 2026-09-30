@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Minus, RefreshCw, Search, Square, X } from '@lucide/vue'
 import { computed } from 'vue'
-import { useAppStore } from '../../stores/app'
+import { useAppStore } from '@/stores'
 
 const appStore = useAppStore()
 

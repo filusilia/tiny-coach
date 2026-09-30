@@ -1,65 +1,95 @@
 /**
  * 战况与实时对局状态 Store (src/stores/battle.ts)
- * 核心优化：
- * 1. 严格使用 shallowRef 存储 10Hz GSI 高频快照，避免 Vue 建立深层响应式代理导致掉帧
+ * 核心架构：
+ * 1. 严格以 activeBattleContext 为唯一单一权威数据源 (Single Source of Truth)
  * 2. 状态由 Go 端 GSI 服务为唯一权威输入，严禁前端伪造任何虚拟英雄或空战局假数据
+ * 3. 对外暴露响应式只读代理属性与计算字段，供 OverlayView、CoachView 等统一消费
  */
 
-import type { GsiSnapshot } from '../api/types'
-import type { CoachAdvice } from '../types'
+import type { CoachAdvice } from '@/types'
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref } from 'vue'
+import { activeBattleContext } from '@/services/gsiRuleEngine.ts'
 
 export const useBattleStore = defineStore('battle', () => {
-  /** 是否与 Valve GSI 本机 4444 端口建立实时数据通信 */
-  const gsiConnected = ref<boolean>(false)
-
-  /** GSI 最新战局完整快照 (必须 shallowRef，单帧整体替换) */
-  const snapshot = shallowRef<GsiSnapshot | null>(null)
-
   /** 战术建议/高光提醒流水列表 (上限保留 50 条先进先出) */
   const advices = ref<CoachAdvice[]>([])
 
-  /** 当前操控的英雄 ID (从 snapshot 派生) */
-  const currentHeroId = computed<number | null>(() => {
-    return snapshot.value?.hero?.id ?? null
+  /** 是否与 Valve GSI 本机 4444 端口建立实时数据通信 */
+  const gsiConnected = computed<boolean>(() => activeBattleContext.connected)
+
+  /** 当前是否有真实对局进行中且选定英雄 (零伪造守卫) */
+  const isGsiActive = computed<boolean>(() => activeBattleContext.connected && activeBattleContext.heroId > 0)
+
+  /** 当前操控的英雄 ID */
+  const currentHeroId = computed<number>(() => activeBattleContext.heroId)
+
+  /** 当前操控的英雄系统名/内部类名 */
+  const currentHeroName = computed<string>(() => activeBattleContext.heroInternalName)
+
+  /** 当前操控英雄本地化中文名称 */
+  const heroName = computed<string>(() => activeBattleContext.heroName || '等待英雄入场')
+
+  /** 英雄等级 */
+  const heroLevel = computed<number>(() => activeBattleContext.heroLevel || (activeBattleContext.heroId > 0 ? 1 : 0))
+
+  /** 英雄生命值百分比 (0 ~ 100) */
+  const heroHpPercent = computed<number>(() => activeBattleContext.healthPercent || 0)
+
+  /** 英雄魔法值百分比 (0 ~ 100) */
+  const heroManaPercent = computed<number>(() => activeBattleContext.manaPercent || 0)
+
+  /** 玩家当前总金钱数量 */
+  const currentGold = computed<number>(() => activeBattleContext.gold || 0)
+
+  /** KDA 格式化文本 */
+  const kdaString = computed<string>(() => {
+    return `${activeBattleContext.kills ?? 0} / ${activeBattleContext.deaths ?? 0} / ${activeBattleContext.assists ?? 0}`
   })
 
-  /** 当前操控的英雄系统名 */
-  const currentHeroName = computed<string>(() => {
-    return snapshot.value?.hero?.name ?? ''
-  })
+  /** 每分钟金钱收益 (GPM) */
+  const gpm = computed<number>(() => activeBattleContext.gpm || 0)
 
-  /** 战局时钟秒数 */
-  const gameTime = computed<number>(() => {
-    return snapshot.value?.map?.gameTime ?? 0
-  })
+  /** 每分钟经验收益 (XPM) */
+  const xpm = computed<number>(() => activeBattleContext.xpm || 0)
 
-  /** 对局状态 (如 "DOTA_GAMERULES_STATE_PRE_GAME", "DOTA_GAMERULES_STATE_GAME_IN_PROGRESS") */
-  const gameState = computed<string>(() => {
-    return snapshot.value?.map?.gameState ?? ''
-  })
+  /** 战局底层绝对时钟秒数 */
+  const gameTime = computed<number>(() => activeBattleContext.gameTime || 0)
+
+  /** 比赛比赛时钟秒数 (负数表示号角前) */
+  const clockTime = computed<number>(() => activeBattleContext.clockTime || 0)
+
+  /** 对局状态 */
+  const gameState = computed<string>(() => activeBattleContext.gameState || '')
 
   /** 当前是否在有效战局中进行 */
   const isInGame = computed<boolean>(() => {
     const s = gameState.value
-    return s === 'DOTA_GAMERULES_STATE_PRE_GAME' || s === 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS'
+    return s === 'DOTA_GAMERULES_STATE_PRE_GAME' || s === 'DOTA_GAMERULES_STATE_GAME_IN_PROGRESS' || clockTime.value >= 0
   })
+
+  /** 格式化后的对局时钟 MM:SS */
+  const formattedGameTime = computed<string>(() => {
+    const sec = clockTime.value
+    const isNeg = sec < 0
+    const abs = Math.abs(sec)
+    const m = Math.floor(abs / 60)
+    const s = abs % 60
+    return `${isNeg ? '-' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  })
+
+  /** 立即买活所需金钱总额 */
+  const buybackCost = computed<number>(() => activeBattleContext.buybackCost || 0)
+
+  /** 买活冷却剩余时间 (秒) */
+  const buybackCooldown = computed<number>(() => activeBattleContext.buybackCooldown || 0)
+
+  /** 是否满足立即买活条件 */
+  const canBuyback = computed<boolean>(() => activeBattleContext.canBuyback)
 
   /** 更新连接状态 */
   function setGsiConnected(connected: boolean) {
-    gsiConnected.value = connected
-    if (!connected) {
-      snapshot.value = null
-    }
-  }
-
-  /** 更新战况快照 (整体单向赋值) */
-  function setSnapshot(newSnapshot: GsiSnapshot | null) {
-    snapshot.value = newSnapshot
-    if (newSnapshot) {
-      gsiConnected.value = true
-    }
+    activeBattleContext.connected = connected
   }
 
   /** 追加战术建议 */
@@ -73,16 +103,29 @@ export const useBattleStore = defineStore('battle', () => {
   }
 
   return {
-    gsiConnected,
-    snapshot,
+    context: activeBattleContext,
     advices,
+    gsiConnected,
+    isGsiActive,
     currentHeroId,
     currentHeroName,
+    heroName,
+    heroLevel,
+    heroHpPercent,
+    heroManaPercent,
+    currentGold,
+    kdaString,
+    gpm,
+    xpm,
     gameTime,
+    clockTime,
     gameState,
     isInGame,
+    formattedGameTime,
+    buybackCost,
+    buybackCooldown,
+    canBuyback,
     setGsiConnected,
-    setSnapshot,
     addAdvice,
     clearAdvices,
   }

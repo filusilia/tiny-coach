@@ -2,7 +2,7 @@
 import { Settings } from '@lucide/vue'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAppStore } from '../../stores/app'
+import { useAppStore } from '@/stores'
 
 const router = useRouter()
 const route = useRoute()

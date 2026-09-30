@@ -23,11 +23,12 @@ import {
   Sun,
   Volume2,
 } from '@lucide/vue'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import SmartImage from '@/components/common/SmartImage.vue'
+import { aiCoachService } from '@/services/aiCoachService.ts'
+import { activeBattleContext } from '@/services/gsiRuleEngine.ts'
+import { speechService } from '@/services/speechService.ts'
 import { useAppStore, useBattleStore } from '@/stores'
-import { aiCoachService } from '../services/aiCoachService'
-import { activeBattleContext } from '../services/gsiRuleEngine'
-import { speechService } from '../services/speechService'
 import {
   getAbilityCdnUrl,
   getAbilityIconUrl,
@@ -35,14 +36,35 @@ import {
   getHeroIconUrl,
   getItemCdnUrl,
   getItemIconUrl,
-  handleImageFallback,
-} from '../utils/assetUrl'
+} from '@/utils/assetUrl.ts'
+import MatchupRecommendationPanel from './coach/MatchupRecommendationPanel.vue'
+import BpVisionCaptureCard from './coach/BpVisionCaptureCard.vue'
+
+defineOptions({
+  name: 'CoachView',
+})
 
 const appStore = useAppStore()
 const battleStore = useBattleStore()
 
 /** 实战全局上下文响应式对象引用 */
 const battle = activeBattleContext
+
+/** 当前背包装备内部标识名称列表 (供针对性出装面板高亮已拥有状态) */
+const currentInventoryItemNames = computed<string[]>(() => {
+  const list: string[] = []
+  if (battle.items) {
+    for (const it of battle.items) {
+      if (it && it.name) list.push(it.name)
+    }
+  }
+  if (battle.backpack) {
+    for (const it of battle.backpack) {
+      if (it && it.name) list.push(it.name)
+    }
+  }
+  return list
+})
 
 /** 自定义提问输入文本 */
 const customQuestion = ref('')
@@ -101,6 +123,10 @@ function getItemIcon(itemName: string): string {
  * @param q 问题文本
  */
 async function triggerPresetQuestion(q: string) {
+  if (!battleStore.isGsiActive) {
+    appStore.showToast('GSI 战局尚未接入，请在连接游戏并进入对局后再发起 AI 战术研判', 'warning')
+    return
+  }
   customQuestion.value = q
   await handleCustomAsk()
 }
@@ -109,6 +135,10 @@ async function triggerPresetQuestion(q: string) {
  * 提交自定义战况问题向 AI 教练提问
  */
 async function handleCustomAsk() {
+  if (!battleStore.isGsiActive) {
+    appStore.showToast('GSI 战局尚未接入，请在连接游戏并进入对局后再发起 AI 战术研判', 'warning')
+    return
+  }
   const q = customQuestion.value.trim()
   if (!q || asking.value) return
 
@@ -140,7 +170,7 @@ async function handleCustomAsk() {
         mode: 2,
         rate: appStore.settings.voice_speed,
         volume: appStore.settings.voice_volume,
-        voiceName: appStore.settings.custom_tts_voice || appStore.settings.edge_voice_name || appStore.settings.voice_name,
+        voiceName: appStore.settings.voice_name,
       })
     }
   } catch (err: any) {
@@ -185,7 +215,7 @@ function replayVoice(item: CoachAdvice) {
       mode: 2,
       rate: appStore.settings.voice_speed,
       volume: appStore.settings.voice_volume,
-      voiceName: appStore.settings.custom_tts_voice || appStore.settings.edge_voice_name || appStore.settings.voice_name,
+      voiceName: appStore.settings.voice_name,
     },
   )
 }
@@ -199,8 +229,36 @@ function replayText(text: string) {
     mode: 2,
     rate: appStore.settings.voice_speed,
     volume: appStore.settings.voice_volume,
-    voiceName: appStore.settings.custom_tts_voice || appStore.settings.edge_voice_name || appStore.settings.voice_name,
+    voiceName: appStore.settings.voice_name,
   })
+}
+
+const buybackCardClass = computed(() => {
+  return battle.canBuyback
+    ? 'bg-emerald-950/50 border-emerald-700/60'
+    : 'bg-slate-950/80 border-slate-800'
+})
+
+const buybackTextClass = computed(() => {
+  return battle.canBuyback ? 'text-emerald-400' : 'text-slate-400'
+})
+
+function getAdviceBorderClass(severity: string) {
+  if (severity === 'Critical') return 'border-rose-500/60 shadow-rose-950/20'
+  if (severity === 'Warning') return 'border-amber-500/60 shadow-amber-950/20'
+  return 'border-cyan-500/40 shadow-cyan-950/20'
+}
+
+function getAdviceBarClass(severity: string) {
+  if (severity === 'Critical') return 'bg-rose-500'
+  if (severity === 'Warning') return 'bg-amber-500'
+  return 'bg-cyan-500'
+}
+
+function getAdviceBadgeClass(severity: string) {
+  if (severity === 'Critical') return 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+  if (severity === 'Warning') return 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+  return 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
 }
 </script>
 
@@ -234,21 +292,21 @@ function replayText(text: string) {
         <!-- 当前生效 AI 引擎只读指示 -->
         <span
           v-if="appStore.settings.ai_mode === 'rule_only'"
-          class="text-slate-300 font-medium font-mono px-2 py-0.5 border border-slate-700 rounded-md bg-slate-800 flex items-center space-x-1 text-xs"
+          class="text-xs text-slate-300 font-medium font-mono px-2 py-0.5 border border-slate-700 rounded-md bg-slate-800 flex items-center space-x-1"
         >
           <ShieldAlert class="text-slate-400 h-3 w-3" />
           <span>规则引擎纯降级</span>
         </span>
         <span
           v-else-if="appStore.settings.ai_mode === 'local_npu' || appStore.settings.ai_mode === 'npu'"
-          class="text-emerald-300 font-medium font-mono px-2 py-0.5 border border-emerald-700/40 rounded-md bg-emerald-950/60 flex items-center space-x-1 text-xs"
+          class="text-xs text-emerald-300 font-medium font-mono px-2 py-0.5 border border-emerald-700/40 rounded-md bg-emerald-950/60 flex items-center space-x-1"
         >
           <Cpu class="text-emerald-400 h-3 w-3" />
           <span>端侧高能效: {{ appStore.settings.npu_model }}</span>
         </span>
         <span
           v-else
-          class="text-amber-300 font-medium font-mono px-2 py-0.5 border border-amber-700/40 rounded-md bg-amber-950/60 flex items-center space-x-1 text-xs"
+          class="text-xs text-amber-300 font-medium font-mono px-2 py-0.5 border border-amber-700/40 rounded-md bg-amber-950/60 flex items-center space-x-1"
         >
           <Sparkles class="text-amber-400 h-3 w-3" />
           <span>云端大模型: {{ appStore.settings.cloud_model }}</span>
@@ -272,19 +330,22 @@ function replayText(text: string) {
 
     <!-- 2. 实战战况核心面板主体 -->
     <div class="p-5 flex-1 overflow-y-auto space-y-4">
+      <!-- 2.0 赛前 BP 视觉截屏与英雄槽位识别卡片 (突破 GSI 赛前选人盲区) -->
+      <BpVisionCaptureCard />
+
       <!-- 2.1 战场核心实时 HUD 面板 (仅在真实比赛连接且有有效英雄数据时呈现，严禁任何假数据) -->
       <section v-if="battle.connected && battle.heroId > 0 && battle.heroInternalName" class="p-4 border border-slate-700/80 rounded-2xl bg-slate-900/90 shadow-xl space-y-3.5">
         <div class="flex flex-col gap-4 items-stretch justify-between xl:flex-row xl:items-center">
           <!-- 英雄头像、等级与血蓝战备槽 -->
           <div class="flex min-w-70 items-center space-x-4">
             <div class="shrink-0 relative">
-              <img
+              <SmartImage
                 :src="getHeroAvatarUrl(battle.heroInternalName)"
+                :fallback-src="getHeroCdnUrl(battle.heroInternalName)"
                 :alt="battle.heroName"
                 class="border-2 border-amber-500/60 rounded-xl bg-black h-14 w-20 shadow-lg object-cover"
-                @error="(e) => handleImageFallback(e, getHeroCdnUrl(battle.heroInternalName))"
-              >
-              <span class="text-slate-950 font-black font-mono px-1.5 py-0.2 border border-amber-300 rounded bg-amber-500 absolute text-xs -bottom-1 -right-1">
+              />
+              <span class="text-xs text-slate-950 font-black font-mono px-1.5 py-0.2 border border-amber-300 rounded bg-amber-500 absolute -bottom-1 -right-1">
                 Lv.{{ battle.heroLevel }}
               </span>
             </div>
@@ -293,7 +354,7 @@ function replayText(text: string) {
               <div class="flex items-center justify-between">
                 <span class="text-sm text-amber-400 tracking-wide font-extrabold">{{ battle.heroName }}</span>
                 <span
-                  class="font-bold px-2 py-0.5 rounded uppercase text-xs"
+                  class="text-xs font-bold px-2 py-0.5 rounded uppercase"
                   :class="[
                     battle.alive ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-rose-950 text-rose-300 border border-rose-700',
                   ]"
@@ -309,7 +370,7 @@ function replayText(text: string) {
                     class="h-full transition-all duration-300 from-emerald-600 to-emerald-400 bg-gradient-to-r"
                     :style="{ width: `${Math.min(100, Math.max(0, battle.healthPercent))}%` }"
                   />
-                  <div class="text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow text-2xs">
+                  <div class="text-2xs text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow">
                     <span>HP</span>
                     <span>{{ battle.health }} / {{ battle.maxHealth }} ({{ battle.healthPercent }}%)</span>
                   </div>
@@ -323,7 +384,7 @@ function replayText(text: string) {
                     class="h-full transition-all duration-300 from-blue-600 to-cyan-400 bg-gradient-to-r"
                     :style="{ width: `${Math.min(100, Math.max(0, battle.manaPercent))}%` }"
                   />
-                  <div class="text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow text-2xs">
+                  <div class="text-2xs text-white font-bold px-2 flex items-center inset-0 justify-between absolute drop-shadow">
                     <span>MP</span>
                     <span>{{ battle.mana }} / {{ battle.maxMana }} ({{ battle.manaPercent }}%)</span>
                   </div>
@@ -335,7 +396,7 @@ function replayText(text: string) {
           <!-- 战绩经济与买活状态卡片 -->
           <div class="text-xs font-mono shrink-0 gap-2 grid grid-cols-2 sm:grid-cols-4">
             <div class="p-2.5 border border-slate-800 rounded-xl bg-slate-950/80 space-y-0.5">
-              <div class="text-slate-400 text-xs">
+              <div class="text-xs text-slate-400">
                 战绩 K / D / A
               </div>
               <div class="text-sm text-slate-100 font-extrabold">
@@ -343,51 +404,47 @@ function replayText(text: string) {
                 <span class="text-rose-400">{{ battle.deaths }}</span> /
                 <span class="text-cyan-400">{{ battle.assists }}</span>
               </div>
-              <div class="text-slate-500 text-xs">
+              <div class="text-xs text-slate-500">
                 补刀: {{ battle.lastHits }} / {{ battle.denies }}
               </div>
             </div>
 
             <div class="p-2.5 border border-slate-800 rounded-xl bg-slate-950/80 space-y-0.5">
-              <div class="text-slate-400 text-xs">
+              <div class="text-xs text-slate-400">
                 储备金币 (Gold)
               </div>
               <div class="text-sm text-amber-400 font-extrabold">
                 {{ battle.gold }}
               </div>
-              <div class="text-slate-500 text-xs">
+              <div class="text-xs text-slate-500">
                 可靠: {{ battle.goldReliable }}
               </div>
             </div>
 
             <div class="p-2.5 border border-slate-800 rounded-xl bg-slate-950/80 space-y-0.5">
-              <div class="text-slate-400 text-xs">
+              <div class="text-xs text-slate-400">
                 经济 / 经验 (分)
               </div>
               <div class="text-sm text-cyan-400 font-extrabold">
                 {{ battle.gpm }} <span class="text-xs text-slate-500">/</span> {{ battle.xpm }}
               </div>
-              <div class="text-slate-500 text-xs">
+              <div class="text-xs text-slate-500">
                 实时效率
               </div>
             </div>
 
             <div
               class="p-2.5 border rounded-xl space-y-0.5"
-              :class="[
-                battle.canBuyback
-                  ? 'bg-emerald-950/50 border-emerald-700/60'
-                  : 'bg-slate-950/80 border-slate-800',
-              ]"
+              :class="buybackCardClass"
             >
-              <div class="flex items-center justify-between text-xs" :class="battle.canBuyback ? 'text-emerald-300' : 'text-slate-400'">
+              <div class="text-xs flex items-center justify-between" :class="buybackTextClass">
                 <span>买活状态</span>
                 <span class="font-bold">{{ battle.canBuyback ? '充足' : '受限' }}</span>
               </div>
-              <div class="text-sm font-extrabold" :class="battle.canBuyback ? 'text-emerald-400' : 'text-slate-400'">
+              <div class="text-sm font-extrabold" :class="buybackTextClass">
                 {{ battle.buybackCost }} 金
               </div>
-              <div class="text-slate-500 text-xs">
+              <div class="text-xs text-slate-500">
                 CD: {{ battle.buybackCooldown }}s
               </div>
             </div>
@@ -439,7 +496,7 @@ function replayText(text: string) {
         <div class="pt-2.5 border-t border-slate-800/80 flex flex-col gap-3 items-start justify-between md:flex-row md:items-center">
           <!-- 技能格 -->
           <div class="flex items-center space-x-2">
-            <span class="text-slate-400 font-bold shrink-0 text-xs">技能:</span>
+            <span class="text-xs text-slate-400 font-bold shrink-0">技能:</span>
             <div v-if="battle.abilities.length === 0" class="text-xs text-slate-500 font-mono">
               等待实战技能数据...
             </div>
@@ -450,19 +507,19 @@ function replayText(text: string) {
                 class="group border border-slate-700 rounded-lg bg-black h-9 w-9 relative overflow-hidden"
                 :title="`${ab.name} (Lv.${ab.level})`"
               >
-                <img
+                <SmartImage
                   :src="getAbilityIcon(ab.name)"
+                  :fallback-src="getAbilityCdnUrl(ab.name)"
                   :alt="ab.name"
                   class="h-full w-full object-cover"
-                  @error="(e) => handleImageFallback(e, getAbilityCdnUrl(ab.name))"
-                >
+                />
                 <div
                   v-if="ab.cooldown > 0"
                   class="text-xs text-amber-400 font-bold font-mono bg-black/80 flex items-center inset-0 justify-center absolute"
                 >
                   {{ ab.cooldown }}
                 </div>
-                <div class="text-emerald-400 font-bold font-mono px-1 bg-black/90 bottom-0 right-0 absolute text-2xs">
+                <div class="text-2xs text-emerald-400 font-bold font-mono px-1 bg-black/90 bottom-0 right-0 absolute">
                   {{ ab.level }}
                 </div>
               </div>
@@ -478,17 +535,17 @@ function replayText(text: string) {
                 class="border border-slate-700 rounded-sm bg-slate-950 flex h-[30px] w-[40px] items-center justify-center relative overflow-hidden"
                 :title="battle.items[i - 1]?.name || `装备格 ${i}`"
               >
-                <img
+                <SmartImage
                   v-if="battle.items[i - 1]?.name"
                   :src="getItemIcon(battle.items[i - 1].name)"
+                  :fallback-src="getItemCdnUrl(battle.items[i - 1].name)"
                   :alt="battle.items[i - 1].name"
                   class="h-full w-full object-cover"
-                  @error="(e) => handleImageFallback(e, getItemCdnUrl(battle.items[i - 1].name))"
-                >
-                <span v-else class="text-slate-700 font-mono text-2xs">{{ i }}</span>
+                />
+                <span v-else class="text-2xs text-slate-700 font-mono">{{ i }}</span>
                 <div
                   v-if="(battle.items[i - 1]?.cooldown ?? 0) > 0"
-                  class="text-amber-400 font-bold font-mono bg-black/80 flex items-center inset-0 justify-center absolute text-xs"
+                  class="text-xs text-amber-400 font-bold font-mono bg-black/80 flex items-center inset-0 justify-center absolute"
                 >
                   {{ battle.items[i - 1].cooldown }}
                 </div>
@@ -517,30 +574,30 @@ function replayText(text: string) {
                 ]"
                 title="阿哈利姆魔晶"
               >
-                <img
+                <SmartImage
                   :src="getItemIcon('aghanims_shard')"
+                  :fallback-src="getItemCdnUrl('aghanims_shard')"
                   alt="魔晶"
                   class="h-full w-full object-contain"
-                  @error="(e) => handleImageFallback(e, getItemCdnUrl('aghanims_shard'))"
-                >
+                />
               </div>
             </div>
 
             <!-- 中立物品格 -->
             <div class="pl-1 flex items-center space-x-1">
-              <span class="text-cyan-400 font-bold text-xs">中立:</span>
+              <span class="text-xs text-cyan-400 font-bold">中立:</span>
               <div
                 class="border border-cyan-700/60 rounded bg-slate-950 flex h-[24px] w-[32px] items-center justify-center relative overflow-hidden"
                 :title="battle.neutralItem?.name || '空中立装备'"
               >
-                <img
+                <SmartImage
                   v-if="battle.neutralItem?.name"
                   :src="getItemIcon(battle.neutralItem.name)"
+                  :fallback-src="getItemCdnUrl(battle.neutralItem?.name || '')"
                   :alt="battle.neutralItem.name"
                   class="h-full w-full object-cover"
-                  @error="(e) => handleImageFallback(e, getItemCdnUrl(battle.neutralItem?.name || ''))"
-                >
-                <span v-else class="text-slate-700 font-mono text-2xs">N</span>
+                />
+                <span v-else class="text-2xs text-slate-700 font-mono">N</span>
               </div>
             </div>
           </div>
@@ -572,179 +629,187 @@ function replayText(text: string) {
         </div>
       </section>
 
-      <!-- 2.2 AI 实时战术参谋交互区 (纯实战研判) -->
-      <section class="p-4 border border-slate-700/60 rounded-2xl bg-slate-900/80 shadow-md space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <Sparkles class="text-amber-400 h-4 w-4" />
-            <h2 class="text-xs text-amber-400 tracking-wide font-bold">
-              AI 实时战术参谋 · 即时战局问答
-            </h2>
-            <span class="text-slate-400 font-medium text-xs">
-              (输入当前战况直接提问，基于 Solution Hierarchy 思维链快速返回实战行动)
-            </span>
-          </div>
+      <!-- 2.2 实时对局大数据针对性出装推荐面板 (仅在真实比赛连接且有有效英雄数据时呈现，严格遵守铁律 8 零伪造与铁律 11 官网规格) -->
+      <MatchupRecommendationPanel
+        v-if="battle.connected && battle.heroId > 0 && battle.heroInternalName"
+        :hero-id="battle.heroId"
+        :hero-name="battle.heroName"
+        :enemy-hero-ids="battle.enemyHeroIds"
+        :current-items="currentInventoryItemNames"
+      />
 
-          <div v-if="asking" class="text-xs text-amber-300 font-medium flex items-center animate-pulse space-x-1.5">
-            <Cpu class="h-3.5 w-3.5 animate-spin" />
-            <span>AI 推理研判中...</span>
-          </div>
-        </div>
-
-        <!-- 预置高频战术求助胶囊 -->
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="btn in presetQuestions"
-            :key="btn.q"
-            :disabled="asking"
-            class="text-xs text-slate-200 px-2.5 py-1 border border-slate-700/80 rounded-lg bg-slate-800/90 flex cursor-pointer shadow-sm transition-colors items-center space-x-1.5 hover:text-white hover:bg-slate-700 disabled:opacity-50"
-            @click="triggerPresetQuestion(btn.q)"
-          >
-            <component :is="btn.icon" class="text-amber-400 h-3 w-3" />
-            <span>{{ btn.label }}</span>
-          </button>
-        </div>
-
-        <!-- 自定义提问输入框 -->
-        <div class="flex items-center space-x-2">
-          <div class="flex-1 relative">
-            <input
-              v-model="customQuestion"
-              type="text"
-              :disabled="asking"
-              placeholder="向 AI 教练提问当前战局决策 (例如: 对面先出了紫苑我该先做吹风还是憋 BKB？当前该打盾还是推塔？)"
-              class="text-xs text-slate-100 px-3.5 py-2 outline-none border border-slate-700 rounded-lg bg-slate-950 w-full transition-colors placeholder:text-slate-500 focus:ring-1 focus:ring-amber-400"
-              @keydown.enter="handleCustomAsk"
-            >
-          </div>
-          <button
-            :disabled="asking || !customQuestion.trim()"
-            class="text-xs text-slate-950 font-bold px-4 py-2 rounded-lg flex cursor-pointer shadow-md transition-all items-center from-amber-500 to-amber-600 bg-gradient-to-r space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed hover:from-amber-400 hover:to-amber-500"
-            @click="handleCustomAsk"
-          >
-            <Send class="h-3.5 w-3.5" />
-            <span>立即研判</span>
-          </button>
-        </div>
-
-        <!-- 最新研判成果呈现 -->
-        <div v-if="lastAiResult" class="text-xs p-3.5 border border-amber-500/30 rounded-xl bg-slate-950 space-y-2">
+      <!-- 2.3 智能战术协同中枢：AI 实时参谋问答 (左) 与 实时决策事件流 (右) 响应式栅格 -->
+      <div class="gap-4 grid grid-cols-1 items-start xl:grid-cols-2">
+        <!-- 2.3.1 AI 实时战术参谋交互区 (纯实战研判) -->
+        <section class="p-4 border border-slate-700/60 rounded-2xl bg-slate-900/80 shadow-md space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
-              <span class="text-amber-300 font-bold px-2 py-0.5 border border-amber-500/40 rounded bg-amber-500/20 text-xs">
-                AI 参谋研判成果
+              <Sparkles class="text-amber-400 h-4 w-4" />
+              <h2 class="text-xs text-amber-400 tracking-wide font-bold">
+                AI 实时战术参谋 · 即时战局问答
+              </h2>
+              <span class="text-xs text-slate-400 font-medium">
+                (基于 Solution Hierarchy 思维链快速返回实战行动)
               </span>
-              <span class="text-slate-300 font-medium">问题: “{{ lastAiResult.question }}”</span>
             </div>
-            <div class="flex items-center space-x-2">
-              <span class="text-slate-500 font-mono text-xs">{{ lastAiResult.model }}</span>
-              <button
-                title="重新语音朗读"
-                class="text-slate-400 p-1 rounded cursor-pointer transition-colors hover:text-amber-400 hover:bg-slate-800"
-                @click="replayText(lastAiResult.answer)"
-              >
-                <Volume2 class="h-3.5 w-3.5" />
-              </button>
+
+            <div v-if="asking" class="text-xs text-amber-300 font-medium flex items-center animate-pulse space-x-1.5">
+              <Cpu class="h-3.5 w-3.5 animate-spin" />
+              <span>AI 推理研判中...</span>
             </div>
           </div>
-          <p class="text-slate-100 leading-relaxed font-medium">
-            {{ lastAiResult.answer }}
-          </p>
-        </div>
-      </section>
 
-      <!-- 2.3 全局战略决策流 (宏观战局与核心变量) -->
-      <section class="space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xs text-slate-100 font-bold flex items-center space-x-2">
-            <Radio class="text-amber-400 h-4 w-4" />
-            <span>实时决策流 ({{ battleStore.advices.length }})</span>
-          </h2>
-        </div>
+          <!-- 预置高频战术求助胶囊 -->
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="btn in presetQuestions"
+              :key="btn.q"
+              :disabled="asking"
+              class="text-xs text-slate-200 px-2.5 py-1 border border-slate-700/80 rounded-lg bg-slate-800/90 flex cursor-pointer shadow-sm transition-colors items-center space-x-1.5 hover:text-white hover:bg-slate-700 disabled:opacity-50"
+              @click="triggerPresetQuestion(btn.q)"
+            >
+              <component :is="btn.icon" class="text-amber-400 h-3 w-3" />
+              <span>{{ btn.label }}</span>
+            </button>
+          </div>
 
-        <div v-if="battleStore.advices.length === 0" class="text-xs text-slate-400 p-10 text-center border border-slate-700/80 rounded-2xl border-dashed bg-slate-900/30">
-          <Flame class="text-slate-600 mx-auto mb-2.5 opacity-60 h-8 w-8" />
-          <p class="text-slate-300 font-medium">
-            对战就绪。比赛进行时系统将依据神符刷新、痛苦魔方、肉山控盾与买活储备毫秒级裁定告警！
-          </p>
-          <p class="text-slate-500 mt-1 text-xs">
-            您可在上方输入框中主动向 AI 战术参谋发起实时战局询问。
-          </p>
-        </div>
+          <!-- 自定义提问输入框 -->
+          <div class="flex items-center space-x-2">
+            <div class="flex-1 relative">
+              <input
+                v-model="customQuestion"
+                type="text"
+                :disabled="asking"
+                :placeholder="battleStore.isGsiActive ? '向 AI 教练提问当前战局决策 (例如: 对面先出了紫苑我该先做吹风还是憋 BKB？)' : 'GSI 战局未接入，进入比赛后在此提问实时决策 (如: 对面出紫苑我该先做吹风还是憋 BKB？)'"
+                class="text-xs text-slate-100 px-3.5 py-2 outline-none border border-slate-700 rounded-lg bg-slate-950 w-full transition-colors placeholder:text-slate-500 focus:ring-1 focus:ring-amber-400"
+                @keydown.enter="handleCustomAsk"
+              >
+            </div>
+            <button
+              :disabled="asking || !customQuestion.trim() || !battleStore.isGsiActive"
+              class="text-xs text-slate-950 font-bold px-4 py-2 rounded-lg flex cursor-pointer shadow-md transition-all items-center from-amber-500 to-amber-600 bg-gradient-to-r space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed hover:from-amber-400 hover:to-amber-500"
+              :title="!battleStore.isGsiActive ? '请在 GSI 接入对局后发起研判' : '立即向 AI 教练发起战术研判'"
+              @click="handleCustomAsk"
+            >
+              <Send class="h-3.5 w-3.5" />
+              <span>立即研判</span>
+            </button>
+          </div>
 
-        <div v-else class="space-y-3">
-          <div
-            v-for="item in battleStore.advices"
-            :key="item.id"
-            class="p-4 border rounded-2xl bg-slate-900/90 shadow-md transition-all relative overflow-hidden space-y-2"
-            :class="[
-              item.severity === 'Critical' ? 'border-rose-500/60 shadow-rose-950/20'
-              : item.severity === 'Warning' ? 'border-amber-500/60 shadow-amber-950/20' : 'border-cyan-500/40 shadow-cyan-950/20',
-            ]"
-          >
-            <!-- 视觉层级指示条 -->
-            <div
-              class="w-1.5 bottom-0 left-0 top-0 absolute"
-              :class="[
-                item.severity === 'Critical' ? 'bg-rose-500'
-                : item.severity === 'Warning' ? 'bg-amber-500' : 'bg-cyan-500',
-              ]"
-            />
-
-            <div class="pl-1 flex items-center justify-between">
-              <div class="flex items-center space-x-2.5">
-                <span
-                  class="font-bold px-2 py-0.5 rounded uppercase text-xs"
-                  :class="[
-                    item.severity === 'Critical' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                    : item.severity === 'Warning' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                      : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40',
-                  ]"
-                >
-                  {{ item.severity === 'Critical' ? '战略告警' : item.severity === 'Warning' ? '战术节拍' : '战局通报' }}
-                </span>
-                <span class="text-xs text-slate-100 font-bold">{{ item.title }}</span>
-                <span
-                  v-if="getRuleDisplayTag(item.rule_id || item.rule)"
-                  class="text-amber-300/90 font-medium px-1.5 py-0.2 border border-amber-500/30 rounded bg-amber-500/10 text-xs"
-                >
-                  {{ getRuleDisplayTag(item.rule_id || item.rule) }}
-                </span>
-              </div>
-
+          <!-- 最新研判成果呈现 -->
+          <div v-if="lastAiResult" class="text-xs p-3.5 border border-amber-500/30 rounded-xl bg-slate-950 space-y-2">
+            <div class="flex items-center justify-between">
               <div class="flex items-center space-x-2">
-                <span class="text-slate-400 font-mono text-xs">{{ item.created_at }}</span>
+                <span class="text-xs text-amber-300 font-bold px-2 py-0.5 border border-amber-500/40 rounded bg-amber-500/20">
+                  AI 参谋研判成果
+                </span>
+                <span class="text-slate-300 font-medium">问题: “{{ lastAiResult.question }}”</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-xs text-slate-500 font-mono">{{ lastAiResult.model }}</span>
                 <button
-                  title="重新语音播报"
+                  title="重新语音朗读"
                   class="text-slate-400 p-1 rounded cursor-pointer transition-colors hover:text-amber-400 hover:bg-slate-800"
-                  @click="replayVoice(item)"
+                  @click="replayText(lastAiResult.answer)"
                 >
                   <Volume2 class="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
-
-            <p class="text-xs text-slate-200 leading-relaxed font-medium pl-1">
-              {{ item.text }}
+            <p class="text-slate-100 leading-relaxed font-medium">
+              {{ lastAiResult.answer }}
             </p>
+          </div>
+        </section>
 
-            <!-- 推荐行动指南 -->
-            <div v-if="item.suggested_action" class="text-xs pl-1 pt-1.5 border-t border-slate-800/80 flex items-start space-x-2">
-              <span class="text-amber-400 font-bold shrink-0 text-xs">行动指南：</span>
-              <span class="text-slate-100 font-semibold">{{ item.suggested_action }}</span>
+        <!-- 2.3.2 全局战略决策流 (宏观战局与核心变量) -->
+        <section class="p-4 border border-slate-700/60 rounded-2xl bg-slate-900/80 shadow-md space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <Radio class="text-amber-400 h-4 w-4" />
+              <h2 class="text-xs text-amber-400 tracking-wide font-bold">
+                实时战术决策流
+              </h2>
+              <span class="text-2xs text-slate-400 font-mono">
+                ({{ battleStore.advices.length }} 条决策)
+              </span>
             </div>
+          </div>
 
-            <!-- AI 深度战术推演 (Solution Hierarchy) -->
-            <div v-if="item.ai_explanation" class="text-xs p-2.5 border border-slate-800/80 rounded-lg bg-slate-950/80 flex items-start space-x-2.5">
-              <Sparkles class="text-cyan-400 mt-0.5 shrink-0 h-3.5 w-3.5" />
-              <div>
-                <span class="text-cyan-300 font-bold text-xs">AI 战术推演 (Solution Hierarchy)：</span>
-                <span class="text-slate-300 leading-relaxed">{{ item.ai_explanation }}</span>
+          <div v-if="battleStore.advices.length === 0" class="text-xs text-slate-400 p-8 text-center border border-slate-700/80 rounded-2xl border-dashed bg-slate-950/40">
+            <Flame class="text-slate-600 mx-auto mb-2 opacity-60 h-7 w-7" />
+            <p class="text-slate-300 font-medium">
+              对战就绪。比赛进行时系统将依据神符、魔方、肉山控盾与买活储备毫秒级裁定告警！
+            </p>
+            <p class="text-2xs text-slate-500 mt-1">
+              您可在左侧输入框中主动向 AI 战术参谋发起实时战局询问。
+            </p>
+          </div>
+
+          <div v-else class="pr-1 max-h-[520px] overflow-y-auto space-y-3">
+            <div
+              v-for="item in battleStore.advices"
+              :key="item.id"
+              class="p-3.5 border rounded-xl bg-slate-950/90 shadow-md transition-all relative overflow-hidden space-y-2"
+              :class="getAdviceBorderClass(item.severity)"
+            >
+              <!-- 视觉层级指示条 -->
+              <div
+                class="w-1.5 bottom-0 left-0 top-0 absolute"
+                :class="getAdviceBarClass(item.severity)"
+              />
+
+              <div class="pl-1 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <span
+                    class="text-2xs font-bold px-1.5 py-0.5 rounded uppercase"
+                    :class="getAdviceBadgeClass(item.severity)"
+                  >
+                    {{ item.severity === 'Critical' ? '战略告警' : item.severity === 'Warning' ? '战术节拍' : '战局通报' }}
+                  </span>
+                  <span class="text-xs text-slate-100 font-bold">{{ item.title }}</span>
+                  <span
+                    v-if="getRuleDisplayTag(item.rule_id || item.rule)"
+                    class="text-2xs text-amber-300/90 font-medium px-1.5 py-0.2 border border-amber-500/30 rounded bg-amber-500/10"
+                  >
+                    {{ getRuleDisplayTag(item.rule_id || item.rule) }}
+                  </span>
+                </div>
+
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-2xs text-slate-400 font-mono">{{ item.created_at }}</span>
+                  <button
+                    title="重新语音播报"
+                    class="text-slate-400 p-1 rounded cursor-pointer transition-colors hover:text-amber-400 hover:bg-slate-800"
+                    @click="replayVoice(item)"
+                  >
+                    <Volume2 class="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              <p class="text-xs text-slate-200 leading-relaxed font-medium pl-1">
+                {{ item.text }}
+              </p>
+
+              <!-- 推荐行动指南 -->
+              <div v-if="item.suggested_action" class="text-xs pl-1 pt-1.5 border-t border-slate-800/80 flex items-start space-x-2">
+                <span class="text-2xs text-amber-400 font-bold shrink-0">行动指南：</span>
+                <span class="text-2xs text-slate-100 font-semibold">{{ item.suggested_action }}</span>
+              </div>
+
+              <!-- AI 深度战术推演 (Solution Hierarchy) -->
+              <div v-if="item.ai_explanation" class="text-2xs p-2 border border-slate-800/80 rounded-lg bg-slate-900/80 flex items-start space-x-2">
+                <Sparkles class="text-cyan-400 mt-0.5 shrink-0 h-3 w-3" />
+                <div>
+                  <span class="text-cyan-300 font-bold">AI 战术推演 (Solution Hierarchy)：</span>
+                  <span class="text-slate-300 leading-relaxed">{{ item.ai_explanation }}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   </div>
 </template>

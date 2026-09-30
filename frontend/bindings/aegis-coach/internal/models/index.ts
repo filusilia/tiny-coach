@@ -4,7 +4,11 @@
 export {
     AiEndpointTestResultDTO,
     BattleContextDTO,
+    CaptureResult,
+    HeroMatchupRecommendation,
     HeroPerformance,
     MatchReviewResultDTO,
-    PlayerProfileAnalysis
+    PlayerProfileAnalysis,
+    RecommendedItem,
+    ThreatHeroSummary
 } from "./models.js";

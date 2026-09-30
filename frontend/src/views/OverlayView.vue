@@ -4,7 +4,7 @@
  * 遵循开工铁律第 8 条（零伪造原则）：
  * 1. 严禁在未建立真实对局连接时伪造任何虚拟英雄、经济差或战局时间；
  * 2. 当 GSI 未连接或英雄未就绪时，严格呈现“等待 GSI 4444 端口接入”真实空态守卫；
- * 3. 游戏建立连接后，全量呈现由后端派发的真实快照数据。
+ * 3. 游戏建立连接后，全量呈现由统一权威源 battleStore 派发的真实快照数据。
  */
 
 import {
@@ -17,11 +17,12 @@ import {
   WifiOff,
   X,
 } from '@lucide/vue'
-import { computed, onMounted, ref } from 'vue'
-import { overlayApi } from '../api'
-import { HERO_CHINESE_NAMES } from '../data/heroNames'
-import { useAppStore } from '../stores/app'
-import { useBattleStore } from '../stores/battle'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { overlayApi } from '@/api'
+import { useAppStore } from '@/stores/app.ts'
+import { useBattleStore } from '@/stores/battle.ts'
+
+defineOptions({ name: 'OverlayView' })
 
 const appStore = useAppStore()
 const battleStore = useBattleStore()
@@ -51,83 +52,54 @@ function triggerNativeDrag(e: MouseEvent) {
   }
 }
 
-
 /**
- * 关闭悬浮窗：通知后端收起原生置顶窗口
+ * 关闭悬浮窗：通知后端收起或彻底销毁原生置顶窗口
  */
 async function handleClose() {
   try {
-    await overlayApi.toggleOverlayWindow()
+    await overlayApi.closeOverlay()
   } catch {
-    // 忽略
+    await overlayApi.toggleOverlayWindow().catch(() => {})
   }
   appStore.setIsOverlayOpen(false)
-  appStore.isOverlayRunning = false
+  appStore.setOverlayRunning(false)
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('aegis_overlay_status', JSON.stringify({ running: false, t: Date.now() }))
+    }
+  } catch {}
 }
 
-// 真实对局快照数据衍生计算
-const isGsiActive = computed<boolean>(() => {
-  return battleStore.gsiConnected && Boolean(battleStore.snapshot)
-})
+// 统一数据源：直接从 battleStore 获取权威战况派生状态
+const isGsiActive = computed<boolean>(() => battleStore.isGsiActive)
+const heroName = computed<string>(() => battleStore.heroName)
+const heroLevel = computed<number>(() => battleStore.heroLevel)
+const heroHpPercent = computed<number>(() => battleStore.heroHpPercent)
+const heroManaPercent = computed<number>(() => battleStore.heroManaPercent)
+const currentGold = computed<number>(() => battleStore.currentGold)
+const kdaString = computed<string>(() => battleStore.kdaString)
+const gpm = computed<number>(() => battleStore.gpm)
+const xpm = computed<number>(() => battleStore.xpm)
+const formattedGameTime = computed<string>(() => battleStore.formattedGameTime)
+const buybackCost = computed<number>(() => battleStore.buybackCost)
+const buybackCooldown = computed<number>(() => battleStore.buybackCooldown)
+const canBuyback = computed<boolean>(() => battleStore.canBuyback)
 
-const heroName = computed<string>(() => {
-  const raw = battleStore.snapshot?.hero?.name || ''
-  const hid = battleStore.snapshot?.hero?.id
-  if (hid && HERO_CHINESE_NAMES[hid]) {
-    return HERO_CHINESE_NAMES[hid]
+function onStorageChange(e: StorageEvent) {
+  if (e.key === 'aegis_coach_settings_v2' && e.newValue) {
+    try {
+      const parsed = JSON.parse(e.newValue)
+      if (typeof parsed.overlay_opacity === 'number') {
+        appStore.settings.overlay_opacity = parsed.overlay_opacity
+      }
+    } catch {
+      // 忽略解析错误
+    }
   }
-  return raw.replace('npc_dota_hero_', '') || '等待英雄入场'
-})
+}
 
-const heroLevel = computed<number>(() => {
-  return battleStore.snapshot?.hero?.level || 1
-})
-
-const heroHpPercent = computed<number>(() => {
-  return battleStore.snapshot?.hero?.healthPercent || 0
-})
-
-const heroManaPercent = computed<number>(() => {
-  return battleStore.snapshot?.hero?.manaPercent || 0
-})
-
-const currentGold = computed<number>(() => {
-  return battleStore.snapshot?.player?.gold || 0
-})
-
-const kdaString = computed<string>(() => {
-  const p = battleStore.snapshot?.player
-  if (!p) return '0 / 0 / 0'
-  return `${p.kills ?? 0} / ${p.deaths ?? 0} / ${p.assists ?? 0}`
-})
-
-const gpm = computed<number>(() => {
-  return battleStore.snapshot?.player?.goldPerMin || 0
-})
-
-const xpm = computed<number>(() => {
-  return battleStore.snapshot?.player?.xpPerMin || 0
-})
-
-const formattedGameTime = computed<string>(() => {
-  const sec = battleStore.gameTime
-  if (sec <= 0) return '00:00'
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-})
-
-const buybackCost = computed<number>(() => {
-  return battleStore.snapshot?.hero?.buybackCost || 0
-})
-
-const buybackCooldown = computed<number>(() => {
-  return battleStore.snapshot?.hero?.buybackCooldown || 0
-})
-
-const canBuyback = computed<boolean>(() => {
-  return currentGold.value >= buybackCost.value && buybackCooldown.value === 0
-})
+let unlistenOpacity: (() => void) | null = null
+let unlistenMouseThrough: (() => void) | null = null
 
 onMounted(async () => {
   // 保持初始穿透为 false，确保用户打开后可立即拖动和点击交互
@@ -137,24 +109,21 @@ onMounted(async () => {
     // 忽略开发预览模式
   }
 
-  // 跨窗口同步：监听主窗口设置页面更改透明度
-  window.addEventListener('storage', (e: StorageEvent) => {
-    if (e.key === 'aegis_coach_settings_v2' && e.newValue) {
-      try {
-        const parsed = JSON.parse(e.newValue)
-        if (typeof parsed.overlay_opacity === 'number') {
-          appStore.settings.overlay_opacity = parsed.overlay_opacity
-        }
-      } catch {
-        // 忽略解析错误
-      }
-    }
-  })
+  // 跨窗口同步 1：Storage 兼容兜底
+  window.addEventListener('storage', onStorageChange)
 
-  // 监听快捷键或菜单触发的鼠标穿透事件
+  // 跨窗口同步 2：Wails 原生事件总线实时广播响应
   const win = window as any
   if (win.wails?.Events?.On) {
-    win.wails.Events.On('overlay_mouse_through_change', (payload: any) => {
+    const unreg1 = win.wails.Events.On('overlay_opacity_changed', (payload: any) => {
+      const val = typeof payload === 'number' ? payload : (payload?.data ?? payload)
+      if (typeof val === 'number') {
+        appStore.settings.overlay_opacity = val
+      }
+    })
+    if (typeof unreg1 === 'function') unlistenOpacity = unreg1
+
+    const unreg2 = win.wails.Events.On('overlay_mouse_through_change', (payload: any) => {
       let active = false
       if (typeof payload === 'boolean') {
         active = payload
@@ -165,6 +134,40 @@ onMounted(async () => {
       }
       isMouseThrough.value = active
     })
+    if (typeof unreg2 === 'function') unlistenMouseThrough = unreg2
+  }
+
+  // 初始挂载时立即贴合窗口尺寸
+  updateWindowSize()
+})
+
+function updateWindowSize() {
+  try {
+    if (isCollapsed.value) {
+      overlayApi.setOverlaySize(240, 52)
+    } else if (!isGsiActive.value) {
+      overlayApi.setOverlaySize(332, 220)
+    } else {
+      overlayApi.setOverlaySize(332, 330)
+    }
+  } catch {}
+}
+
+watch([isCollapsed, isGsiActive], () => {
+  updateWindowSize()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('storage', onStorageChange)
+  if (unlistenOpacity) {
+    try {
+      unlistenOpacity()
+    } catch {}
+  }
+  if (unlistenMouseThrough) {
+    try {
+      unlistenMouseThrough()
+    } catch {}
   }
 })
 </script>
@@ -184,10 +187,10 @@ onMounted(async () => {
       <!-- 全局鼠标穿透状态提示横幅 (Alt+F3 触发) -->
       <div
         v-if="isMouseThrough"
-        class="px-2.5 py-1 bg-emerald-950/90 border-b border-emerald-700/60 text-emerald-300 text-xs flex items-center justify-between font-mono animate-pulse"
+        class="text-xs text-emerald-300 font-mono px-2.5 py-1 border-b border-emerald-700/60 bg-emerald-950/90 flex items-center justify-between animate-pulse"
       >
         <span>已开启鼠标穿透 (点击直通游戏)</span>
-        <span class="font-bold text-emerald-400">按 Alt+F3 解除</span>
+        <span class="text-emerald-400 font-bold">按 Alt+F3 解除</span>
       </div>
 
       <!-- 顶部把手与标题栏 (支持 Wails 原生窗口拖拽) -->
@@ -211,7 +214,7 @@ onMounted(async () => {
           </span>
           <span
             v-if="isGsiActive"
-            class="text-emerald-400 font-mono px-1 py-0.2 border border-emerald-800/60 rounded bg-emerald-950 text-2xs"
+            class="text-2xs text-emerald-400 font-mono px-1 py-0.2 border border-emerald-800/60 rounded bg-emerald-950"
           >
             {{ formattedGameTime }}
           </span>
@@ -254,7 +257,6 @@ onMounted(async () => {
         </div>
       </div>
 
-
       <!-- 战况主体 (未折叠态) -->
       <div v-if="!isCollapsed" class="text-xs p-3 space-y-2.5">
         <div
@@ -269,7 +271,7 @@ onMounted(async () => {
               <Radio class="h-3.5 w-3.5 animate-pulse" />
               <span>等待 GSI 接入</span>
             </div>
-            <p class="text-slate-400 leading-relaxed text-xs">
+            <p class="text-xs text-slate-400 leading-relaxed">
               请启动 Dota 2 客户端并进入比赛，系统将自动开始追踪真实英雄经济与买活状态。
             </p>
           </div>
@@ -282,9 +284,9 @@ onMounted(async () => {
             <div class="flex items-center justify-between">
               <div class="text-slate-100 font-bold flex items-center space-x-1.5">
                 <span class="text-amber-400">{{ heroName }}</span>
-                <span class="text-slate-400 font-mono text-xs">Lv.{{ heroLevel }}</span>
+                <span class="text-xs text-slate-400 font-mono">Lv.{{ heroLevel }}</span>
               </div>
-              <span class="text-emerald-300 font-mono font-semibold text-xs">
+              <span class="text-xs text-emerald-300 font-mono font-semibold">
                 {{ kdaString }}
               </span>
             </div>
@@ -309,7 +311,7 @@ onMounted(async () => {
           <!-- 真实经济与打钱效率 -->
           <div class="gap-2 grid grid-cols-3">
             <div class="p-2 text-center border border-slate-800 rounded-lg bg-slate-900/80">
-              <div class="text-slate-400 text-xs">
+              <div class="text-xs text-slate-400">
                 当前储备
               </div>
               <div class="text-sm text-amber-400 tracking-tight font-bold font-mono">
@@ -317,7 +319,7 @@ onMounted(async () => {
               </div>
             </div>
             <div class="p-2 text-center border border-slate-800 rounded-lg bg-slate-900/80">
-              <div class="text-slate-400 text-xs">
+              <div class="text-xs text-slate-400">
                 GPM
               </div>
               <div class="text-sm text-slate-200 tracking-tight font-bold font-mono">
@@ -325,7 +327,7 @@ onMounted(async () => {
               </div>
             </div>
             <div class="p-2 text-center border border-slate-800 rounded-lg bg-slate-900/80">
-              <div class="text-slate-400 text-xs">
+              <div class="text-xs text-slate-400">
                 XPM
               </div>
               <div class="text-sm text-cyan-400 tracking-tight font-bold font-mono">
@@ -341,9 +343,9 @@ onMounted(async () => {
             ]"
           >
             <div class="flex items-center justify-between">
-              <span class="text-slate-300 font-medium text-xs">买活警戒评估</span>
+              <span class="text-xs text-slate-300 font-medium">买活警戒评估</span>
               <span
-                class="font-bold font-mono px-1.5 py-0.2 rounded text-xs"
+                class="text-xs font-bold font-mono px-1.5 py-0.2 rounded"
                 :class="[
                   canBuyback ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-rose-950 text-rose-300 border border-rose-800',
                 ]"
@@ -351,7 +353,7 @@ onMounted(async () => {
                 {{ canBuyback ? '买活充裕' : '无买活风险' }}
               </span>
             </div>
-            <div class="text-slate-400 font-mono flex items-center justify-between text-xs">
+            <div class="text-xs text-slate-400 font-mono flex items-center justify-between">
               <span>买活成本: {{ buybackCost }}</span>
               <span v-if="buybackCooldown > 0" class="text-rose-400">冷却中 ({{ buybackCooldown }}s)</span>
               <span v-else class="text-emerald-400">冷却就绪</span>

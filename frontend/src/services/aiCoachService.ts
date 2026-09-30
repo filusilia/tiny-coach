@@ -1,15 +1,22 @@
-import type { BattleContextDTO } from '../api/types'
-import type { AiEndpointTestResult } from '@/types'
+import type { BattleContextDTO } from '@/api/types'
+import type { AiEndpointTestResult, AiEngineMode } from '@/types'
+import { aiApi, systemApi } from '@/api'
+import { HERO_CHINESE_NAMES } from '@/data/heroNames.ts'
+import { gameDataService } from '@/services/gameDataService.ts'
 import { useAppStore } from '@/stores'
-import { aiApi, systemApi } from '../api'
-import { HERO_CHINESE_NAMES } from '../data/heroNames'
-import { playerProfileService } from './playerProfileService'
+
+/**
+ * 判断是否属于本机或本地局域网 AI 端点 (如 127.0.0.1, localhost)
+ */
+export function isLocalEndpoint(endpoint: string): boolean {
+  const ep = (endpoint || '').toLowerCase()
+  return ep.includes('127.0.0.1') || ep.includes('localhost') || ep.includes('0.0.0.0') || ep.includes('::1')
+}
 
 /**
  * 战术提问实战上下文快照实体，统一使用契约层 BattleContextDTO
  */
 export type TacticalContext = BattleContextDTO
-
 
 /**
  * 端侧 NPU / 本地 Ollama 推荐模型配置实体
@@ -108,30 +115,6 @@ export const RECOMMENDED_NPU_MODELS: NpuModelRecommendation[] = [
  */
 class AiCoachService {
   /**
-   * 格式化战况快照为标准化 Prompt 上下文
-   * @param ctx 实战战术快照对象
-   * @returns 结构化文本片段
-   */
-  private formatGameContext(ctx: TacticalContext): string {
-    const timeStr = ctx.clockTime !== undefined
-      ? `${Math.floor(ctx.clockTime / 60)}:${(ctx.clockTime % 60).toString().padStart(2, '0')}`
-      : '未知'
-
-    const profileSnippet = ctx.playerProfileSnippet || playerProfileService.getTacticalPromptSnippet(ctx.heroId)
-
-    return [
-      `【实战对局快照】`,
-      `- 比赛时钟: ${timeStr} | 英雄: ${ctx.heroName || '当前英雄'} (Lv.${ctx.heroLevel || 1})`,
-      `- 状态: ${ctx.healthPercent ?? 100}% HP | ${ctx.manaPercent ?? 100}% MP`,
-      `- 战绩与经济: ${ctx.kda || '0/0/0'} | 储备金币: ${ctx.gold || 0}`,
-      `- 现有装备: [${(ctx.items || []).join(', ') || '空背包'}]`,
-      `- 技能状态: [${(ctx.abilities || []).join(', ') || '未知'}]`,
-      ctx.userNotes ? `- 战场敌情备忘: "${ctx.userNotes}"` : '',
-      profileSnippet ? `\n${profileSnippet}` : '',
-    ].filter(Boolean).join('\n')
-  }
-
-  /**
    * 测试指定 AI 端点的网络连通性与模型可用性
    * 用于设置页面中“测试连接”功能，即时测量往返时延并捕获原始响应预览
    * @param mode 当前 AI 引擎模式 ('local_npu' | 'cloud_api' | 'rule_only')
@@ -141,7 +124,7 @@ class AiCoachService {
    * @returns 探测结果实体 (包含 success, latencyMs, responsePreview 或 errorMessage)
    */
   public async testEndpoint(
-    mode: 'local_npu' | 'cloud_api' | 'rule_only' | 'npu' | 'cloud',
+    mode: AiEngineMode,
     endpoint: string,
     apiKey: string,
     model: string,
@@ -160,7 +143,7 @@ class AiCoachService {
       }
     }
 
-    // 0. 优先通过 Go 原生进行毫秒级端点网络探测 (彻底避免浏览器 CORS 拦截与 Token 泄漏)
+    // 统一出口（铁律 6 / 13）：走 Go 原生服务探测端点，彻底避免浏览器 CORS 拦截与 Token 泄漏
     try {
       const nativeResult = await aiApi.testAiEndpoint(mode, endpoint, apiKey, model)
       if (nativeResult) {
@@ -174,73 +157,35 @@ class AiCoachService {
           testedAt,
         }
       }
-    } catch (nativeErr: unknown) {
-      console.warn('[AiCoachService] aiApi.testAiEndpoint 失败，降级至前端探测:', nativeErr)
-    }
-
-    try {
-      const isLocal = mode === 'local_npu' || mode === 'npu'
-      const cleanEndpoint = (endpoint || (isLocal ? 'http://127.0.0.1:11434/v1' : 'https://api.deepseek.com/v1')).replace(/\/+$/, '')
-      const testModel = model || (isLocal ? 'qwen3.5:1.5b' : 'deepseek-chat')
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
-      if (!isLocal && apiKey) {
-        headers.Authorization = `Bearer ${apiKey}`
-      }
-
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 6000)
-
-      const res = await fetch(`${cleanEndpoint}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model: testModel,
-          messages: [
-            { role: 'user', content: 'Ping: 请回复一句简短的“Dota 2 教练在线”以验证连通性。' },
-          ],
-          temperature: 0.1,
-          max_tokens: 30,
-        }),
-        signal: controller.signal,
-      })
-
-      clearTimeout(timer)
-      const latencyMs = Math.round(performance.now() - start)
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '')
-        return {
-          success: false,
-          latencyMs,
-          statusCode: res.status,
-          modelUsed: testModel,
-          errorMessage: `HTTP ${res.status}: ${errText.slice(0, 150) || res.statusText}`,
-          testedAt,
-        }
-      }
-
-      const data = await res.json()
-      const reply = data.choices?.[0]?.message?.content?.trim() || JSON.stringify(data).slice(0, 120)
-
-      return {
-        success: true,
-        latencyMs,
-        statusCode: res.status,
-        modelUsed: testModel,
-        responsePreview: reply,
-        testedAt,
-      }
-    } catch (err: any) {
-      const latencyMs = Math.round(performance.now() - start)
+    } catch (nativeErr: any) {
       return {
         success: false,
-        latencyMs,
-        errorMessage: err.name === 'AbortError' ? '请求超时 (6000ms)：请检查本地服务是否启动' : (err.message || '网络连接失败'),
+        latencyMs: Math.round(performance.now() - start),
+        errorMessage: nativeErr?.message || '探测 AI 服务端点异常',
         testedAt,
       }
+    }
+
+    return {
+      success: false,
+      latencyMs: 0,
+      errorMessage: '服务端未返回有效探测结果',
+      testedAt,
+    }
+  }
+
+  /**
+   * 向本地服务发起拉取模型请求 (走 Go 侧统一出口)
+   */
+  public async pullOllamaModel(
+    modelId: string,
+    endpoint: string = 'http://127.0.0.1:11434/v1',
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await aiApi.pullLocalModel(modelId, endpoint)
+      return { success: true, message: res || `模型 ${modelId} 拉取就绪` }
+    } catch (e: any) {
+      throw new Error(`本地模型拉取失败: ${e?.message || e}`)
     }
   }
 
@@ -254,13 +199,13 @@ class AiCoachService {
    * 5. 异常/超时兜底：自动触发 generateFallbackAdvice 秒级降级，保障选手屏幕绝不出现卡死或空白。
    * @param question 选手的实战战术提问 (如 "这波能打吗", "我下件出什么")
    * @param context 当前对局战术快照与玩家历史画像
-   * @param timeoutMs 超时断流阈值 (毫秒，默认 8000ms)
+   * @param _timeoutMs 超时断流阈值 (毫秒，默认 8000ms)
    * @returns 回答文本、使用模型以及是否由本地 NPU 推理
    */
   public async askCoach(
     question: string,
     context: TacticalContext,
-    timeoutMs: number = 8000,
+    _timeoutMs: number = 8000,
   ): Promise<{ answer: string, modelUsed: string, isNpu: boolean }> {
     const { settings } = useAppStore()
     const mode = settings.ai_mode
@@ -275,14 +220,13 @@ class AiCoachService {
       }
     }
 
-    const isNpu = mode === 'local_npu' || mode === 'npu'
+    const endpoint = (settings.ai_endpoint || settings.cloud_base_url || settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
+    const apiKey = (settings.ai_api_key ?? settings.cloud_api_key ?? '').trim()
+    const model = (settings.ai_model || settings.cloud_model || settings.npu_model || 'qwen2.5:1.5b').trim()
+    const isLocal = isLocalEndpoint(endpoint) || mode === 'local_npu' || mode === 'npu'
 
     // 0. 优先调用 Go 原生战术问答引擎 (开工铁律第 6 条与第 9 条)
     try {
-      const endpoint = (isNpu ? settings.npu_endpoint : settings.cloud_base_url) || ''
-      const apiKey = (isNpu ? '' : settings.cloud_api_key) || ''
-      const model = (isNpu ? settings.npu_model : settings.cloud_model) || ''
-
       const battleDto: BattleContextDTO = {
         ...context,
         clockTime: context.clockTime !== undefined ? String(context.clockTime) : undefined,
@@ -298,111 +242,20 @@ class AiCoachService {
       if (nativeReply) {
         return {
           answer: nativeReply,
-          modelUsed: isNpu ? `[NPU] ${model}` : `[Cloud] ${model}`,
-          isNpu: Boolean(isNpu),
+          modelUsed: isLocal ? `[本地/NPU] ${model}` : `[云端API] ${model}`,
+          isNpu: isLocal,
         }
       }
     } catch (nativeErr: unknown) {
-      console.warn('[AiCoachService] aiApi.askCoach 失败，降级至前端请求:', nativeErr)
+      console.warn('[AiCoachService] aiApi.askCoach 失败，平滑降级至规则引擎:', nativeErr)
     }
 
-    const systemPrompt = `你是一名 Dota 2 顶尖电竞教练。
-你的职责是基于当前选手的实战对局快照与战场敌情，给出精确、果断、立竿见影的实战决策。
-
-【核心决策优先级（Solution Hierarchy 必须严格执行）】
-1. 最高优先级：优先检查身上已就绪的技能或装备（[就绪]），零经济成本化解眼前危机。
-2. 次优先级：检查核心保命或关键控制技能的冷却状态（[CD]），若即将就绪，指导拉扯拖延等待 CD。
-3. 创造性利用现有战场资源（身位拉扯、走位掩体、队友掩护）。
-4. 最低优先级（严禁盲目劝买）：只有在身上技能与现有装备均无法应对时，才推荐合成新装备，且推荐必须契合英雄主属性、输出类型（物理/法术）与团队定位。
-
-【选手战绩与对阵风格融合】
-- 若快照包含【玩家近期战绩画像】，必须结合选手历史英雄熟练度与风格弱点（如场均阵亡偏高需侧重自保出装与防游走视野，高熟练度英雄需强化质变装节奏），生成契合其水平的针对性战术。
-
-【输出要求】
-- 必须使用纯正 Dota 2 游戏术语（严禁使用任何 LOL 术语）。
-- 严格限制在 2~3 句话以内，拒绝空话套话（不要说“注意走位”、“认真补刀”等废话）。
-- 必须明确“立即对谁用什么”或“留钱合成哪件部件”。`
-
-    const fullUserPrompt = `${this.formatGameContext(context)}\n\n【选手战术提问】\n"${question}"\n\n请按照优先级给出精准可执行的 2~3 句行动建议：`
-
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-
-    try {
-      if (isNpu) {
-        // 本地 AI / 本机 NPU 模式 (Ollama / LM Studio / DirectML endpoint)
-        const endpoint = (settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
-        const model = settings.npu_model || 'qwen3.5:1.5b'
-
-        const res = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: fullUserPrompt },
-            ],
-            temperature: 0.3,
-            max_tokens: 300,
-          }),
-          signal: controller.signal,
-        })
-
-        clearTimeout(timer)
-        if (!res.ok) throw new Error(`本地服务响应异常 (${res.status})`)
-
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content?.trim()
-        if (!content) throw new Error('模型未返回有效内容')
-
-        return { answer: content, modelUsed: `[NPU/Local] ${model}`, isNpu: true }
-      } else {
-        // 云端大模型模式
-        const endpoint = (settings.cloud_base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '')
-        const apiKey = settings.cloud_api_key || ''
-        const model = settings.cloud_model || 'deepseek-chat'
-
-        if (!apiKey) {
-          throw new Error('未配置云端 API Key，已自动为您降级至规则引擎')
-        }
-
-        const res = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: fullUserPrompt },
-            ],
-            temperature: 0.3,
-            max_tokens: 300,
-          }),
-          signal: controller.signal,
-        })
-
-        clearTimeout(timer)
-        if (!res.ok) throw new Error(`云端请求失败 (${res.status})`)
-
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content?.trim()
-        if (!content) throw new Error('云端模型未返回有效内容')
-
-        return { answer: content, modelUsed: `[Cloud] ${model}`, isNpu: false }
-      }
-    } catch (err: any) {
-      clearTimeout(timer)
-      console.warn('[AiCoachService] 自动降级至确定性规则兜底:', err)
-      const fallback = this.generateFallbackAdvice(question, context)
-      return {
-        answer: `${fallback} (AI超时已平滑降级至规则库)`,
-        modelUsed: isNpu ? '[NPU 规则降级]' : '[云端 规则降级]',
-        isNpu,
-      }
+    // 确定性离线战术降级兜底 (铁律 6 统一出口：严禁前端裸发外部 HTTP 大模型请求)
+    const fallback = this.generateFallbackAdvice(question, context)
+    return {
+      answer: `${fallback} (AI超时已平滑降级至规则库)`,
+      modelUsed: isLocal ? '[本地 规则降级]' : '[云端 规则降级]',
+      isNpu: isLocal,
     }
   }
 
@@ -456,49 +309,71 @@ class AiCoachService {
     const isRadiant = Boolean(target.isRadiant)
     const isWin = Boolean(match.radiant_win === isRadiant)
     const durationMin = Math.floor((match.duration || 0) / 60)
-    const durationSec = (match.duration || 0) % 60
 
-    const userPrompt = `【Dota 2 对局核心数据快照】
-- 比赛编号: #${match.match_id}
-- 对局时长: ${durationMin}分${durationSec}秒
-- 胜负判定: ${isWin ? '本场胜利' : '本场失利'} (天辉 ${match.radiant_score} : 夜魇 ${match.dire_score})
-- 天辉阵容: ${radiantHeroes}
-- 夜魇阵容: ${direHeroes}
-- 主分析视角玩家: ${target.personaname || '玩家'} (${isRadiant ? '天辉方' : '夜魇方'})
-- 操纵英雄: ${targetHeroName} (等级: Lv.${target.level || '未知'})
-- 个人战绩: ${target.kills} 击杀 / ${target.deaths} 阵亡 / ${target.assists} 助攻
-- 经济与经验: GPM ${target.gold_per_min} / XPM ${target.xp_per_min}
-- 英雄伤害: ${target.hero_damage} | 建筑伤害: ${target.tower_damage || 0}
-- 正/反补刀: ${target.last_hits} / ${target.denies}${userContext ? `\n- 玩家战术重点关注: ${userContext}` : ''}
+    let itemDict: Record<number, any> = {}
+    try {
+      itemDict = await gameDataService.getItemDict()
+    } catch {}
 
-请依据上述客观事实，给出高水平专业战术复盘：`
-
-    const systemPrompt = `你是一名 Dota 2 职业战队高级分析师与专业电竞教练。
-你的职责是基于客观战况数据与双方阵容克制关系，给出深度、见解独到、直击痛点的赛后复盘。
-
-请严格遵照以下【4个维度结构】输出纯文本内容，禁止空话套话，使用标准中文 Dota 2 术语：
-### 1. 【大盘与胜负定局复盘】
-分析双方阵容的强势期分布、对线期战略走势与决定胜负的宏观节奏分水岭（如控盾推塔时机、兵线压力、上高阵型）。
-### 2. 【主视角实战得失剖析】
-针对操纵英雄 ${targetHeroName} 的 KDA（${target.kills}/${target.deaths}/${target.assists}）与输出伤害（${target.hero_damage}），肯定其对线或团战贡献，指出 1~2 个导致局势恶化或阵亡过多的核心执行失误（如站位靠前、拉扯脱节、入场时机偏差）。
-### 3. 【装备针对性与克制推演】
-结合敌方阵容（${isRadiant ? direHeroes : radiantHeroes}），分析主视角出装的克制针对性，点出面对敌方核心威胁时本局缺失的关键针对装（例如：面对多控制是否必须提早做黑皇杖(BKB)、面对闪避是否需金箍棒、面对肉核是否需减甲/冰眼等）。
-### 4. 【下局致胜核心提升指南】
-总结 3 条清晰、立即可落地的对线/中后期团战执行指南（每条一句话），帮助选手在下局立刻形成战术肌肉记忆。`
-
-    if (mode === 'rule_only') {
-      return this.generateDeterministicMatchReview(match, target, isWin, targetHeroName, radiantHeroes, direHeroes, '确定性规则引擎 (离线保底)')
+    const getItemName = (id: number) => {
+      if (!id || id <= 0) return ''
+      return itemDict[id]?.nameLoc || itemDict[id]?.dname || ''
     }
 
+    const targetItems = [
+      getItemName(target.item_0),
+      getItemName(target.item_1),
+      getItemName(target.item_2),
+      getItemName(target.item_3),
+      getItemName(target.item_4),
+      getItemName(target.item_5),
+    ].filter(Boolean)
+
+    const targetNeutral = getItemName(target.item_neutral)
+    const hasAghs = target.aghanims_scepter === 1
+    const hasShard = target.aghanims_shard === 1
+
+    const teamPlayers = players.filter(p => Boolean(p.isRadiant) === isRadiant)
+    const enemyPlayers = players.filter(p => Boolean(p.isRadiant) !== isRadiant)
+    const teamKills = teamPlayers.reduce((acc, p) => acc + (p.kills || 0), 0)
+    const teamDamage = teamPlayers.reduce((acc, p) => acc + (p.hero_damage || 0), 0)
+    const kpPercent = teamKills > 0 ? (((target.kills || 0) + (target.assists || 0)) / teamKills * 100).toFixed(1) : '0.0'
+    const damagePercent = teamDamage > 0 ? ((target.hero_damage || 0) / teamDamage * 100).toFixed(1) : '0.0'
+
+    // 敌方最核心 2 位英雄及其关键装备
+    const sortedEnemies = [...enemyPlayers].sort((a, b) => (b.net_worth || b.total_gold || 0) - (a.net_worth || a.total_gold || 0))
+    const enemyCoreSummary = sortedEnemies.slice(0, 2).map((ep) => {
+      const epName = HERO_CHINESE_NAMES[ep.hero_id] || `英雄#${ep.hero_id}`
+      const epItems = [
+        getItemName(ep.item_0),
+        getItemName(ep.item_1),
+        getItemName(ep.item_2),
+        getItemName(ep.item_3),
+        getItemName(ep.item_4),
+        getItemName(ep.item_5),
+      ].filter(Boolean).join('、')
+      return `${epName} (KDA ${ep.kills}/${ep.deaths}/${ep.assists}, 装备: ${epItems || '基础装'})`
+    }).join('；')
+
     const isNpu = mode === 'local_npu' || mode === 'npu'
+    const isCloud = mode === 'cloud'
 
-    // 0. 优先调用 Go 原生赛后复盘分析引擎 (开工铁律第 6 条与第 9 条)
+    // 用户指令铁律：无可用 AI 时严禁使用规则降级，直接不可用
+    if (!isNpu && !isCloud) {
+      throw new Error('当前未启用 AI 引擎（处于规则模式或未开启 AI），AI 深度复盘不可用。请在【系统设置】中配置并启用大模型。')
+    }
+
+    const endpoint = (isNpu ? settings.npu_endpoint : settings.cloud_base_url) || ''
+    const apiKey = (isNpu ? '' : settings.cloud_api_key) || ''
+    const model = (isNpu ? settings.npu_model : settings.cloud_model) || ''
+    const slot = targetPlayerSlot !== undefined ? targetPlayerSlot : -1
+
+    if (!endpoint || (isCloud && !apiKey) || !model) {
+      throw new Error('AI 大模型配置不完整（缺少接口地址、API Key 或模型名称），AI 深度复盘不可用。请在【系统设置】中补全配置。')
+    }
+
+    // 0. 调用 Go 原生赛后复盘分析引擎 (开工铁律第 6 条与第 9 条)
     try {
-      const endpoint = (isNpu ? settings.npu_endpoint : settings.cloud_base_url) || ''
-      const apiKey = (isNpu ? '' : settings.cloud_api_key) || ''
-      const model = (isNpu ? settings.npu_model : settings.cloud_model) || ''
-      const slot = targetPlayerSlot !== undefined ? targetPlayerSlot : -1
-
       // 规整提炼核心指标，杜绝将数兆字节的战斗日志原始 JSON 塞入大模型 Prompt 导致超限崩溃
       const matchSummaryPayload = JSON.stringify({
         match_id: match.match_id,
@@ -518,7 +393,14 @@ class AiCoachService {
           tower_damage: target.tower_damage,
           last_hits: target.last_hits,
           denies: target.denies,
+          items: targetItems,
+          neutral_item: targetNeutral,
+          has_aghs: hasAghs,
+          has_shard: hasShard,
+          kp_percent: kpPercent,
+          damage_percent: damagePercent,
         },
+        enemy_cores: enemyCoreSummary,
         user_focus: userContext || '',
       })
 
@@ -534,180 +416,33 @@ class AiCoachService {
       if (nativeReview && nativeReview.overview) {
         return nativeReview
       }
-    } catch (nativeErr: unknown) {
-      console.warn('[AiCoachService] aiApi.generateMatchReview 失败，降级至前端请求:', nativeErr)
-    }
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 12000)
-
-    try {
-      let rawText = ''
-      let modelUsed = ''
-
-      if (isNpu) {
-        const endpoint = (settings.npu_endpoint || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
-        const model = settings.npu_model || 'qwen3.5:1.5b'
-        modelUsed = `[本地/NPU] ${model}`
-
-        const res = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.4,
-            max_tokens: 800,
-          }),
-          signal: controller.signal,
-        })
-        clearTimeout(timer)
-        if (!res.ok) throw new Error(`本地端点响应错误 HTTP ${res.status}`)
-        const data = await res.json()
-        rawText = data.choices?.[0]?.message?.content?.trim() || ''
-      } else {
-        const endpoint = (settings.cloud_base_url || 'https://api.deepseek.com/v1').replace(/\/+$/, '')
-        const apiKey = settings.cloud_api_key || ''
-        const model = settings.cloud_model || 'deepseek-chat'
-        modelUsed = `[云端API] ${model}`
-
-        if (!apiKey) throw new Error('未配置云端 API Key')
-
-        const res = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.4,
-            max_tokens: 800,
-          }),
-          signal: controller.signal,
-        })
-        clearTimeout(timer)
-        if (!res.ok) throw new Error(`云端服务响应错误 HTTP ${res.status}`)
-        const data = await res.json()
-        rawText = data.choices?.[0]?.message?.content?.trim() || ''
-      }
-
-      if (!rawText) throw new Error('模型未返回有效复盘内容')
-
-      return this.parseReviewSections(rawText, modelUsed)
-    } catch (err: any) {
-      clearTimeout(timer)
-      console.warn('[AiCoachService] 赛后复盘生成失败，触发确定性战术分析降级:', err)
-      return this.generateDeterministicMatchReview(
-        match,
-        target,
-        isWin,
-        targetHeroName,
-        radiantHeroes,
-        direHeroes,
-        `${isNpu ? '[本地/NPU]' : '[云端]'} 规则降级: ${err.message || '超时'}`,
-      )
+      throw new Error('AI 引擎未返回有效的复盘分析内容')
+    } catch (nativeErr: any) {
+      console.warn('[AiCoachService] aiApi.generateMatchReview 失败 (严禁规则降级，直接不可用):', nativeErr)
+      throw new Error(nativeErr?.message || 'AI 引擎推理连接失败或请求超时，深度复盘暂不可用。')
     }
   }
 
   /**
-   * 将大模型输出解析为结构化 4 块
+   * 检查当前系统环境是否具备可用的 AI 复盘大模型
    */
-  private parseReviewSections(rawText: string, modelUsed: string): MatchReviewResult {
-    let overview = ''
-    let keyTurningPoints = ''
-    let itemizationAnalysis = ''
-    let nextMatchActions: string[] = []
+  public isAiReviewConfigured(): { available: boolean, reason?: string } {
+    const { settings } = useAppStore()
+    const mode = settings.ai_mode
+    const isNpu = mode === 'local_npu' || mode === 'npu'
+    const isCloud = mode === 'cloud'
 
-    const p1 = rawText.includes('### 1.') ? rawText.indexOf('### 1.') : rawText.indexOf('1.')
-    const p2 = rawText.includes('### 2.') ? rawText.indexOf('### 2.') : rawText.indexOf('2.')
-    const p3 = rawText.includes('### 3.') ? rawText.indexOf('### 3.') : rawText.indexOf('3.')
-    const p4 = rawText.includes('### 4.') ? rawText.indexOf('### 4.') : rawText.indexOf('4.')
-
-    if (p1 !== -1 && p2 !== -1) {
-      overview = rawText.substring(p1, p2).replace(/^#*\s*1\.\s*[^】\n]+】?/, '').trim()
+    if (!isNpu && !isCloud) {
+      return { available: false, reason: '未启用 AI 引擎 (当前处于纯规则模式)' }
     }
-    if (p2 !== -1 && p3 !== -1) {
-      keyTurningPoints = rawText.substring(p2, p3).replace(/^#*\s*2\.\s*[^】\n]+】?/, '').trim()
+    const endpoint = (isNpu ? settings.npu_endpoint : settings.cloud_base_url) || ''
+    const apiKey = (isNpu ? '' : settings.cloud_api_key) || ''
+    const model = (isNpu ? settings.npu_model : settings.cloud_model) || ''
+
+    if (!endpoint || (isCloud && !apiKey) || !model) {
+      return { available: false, reason: 'AI 引擎配置未补全 (缺少地址/Key/模型)' }
     }
-    if (p3 !== -1 && p4 !== -1) {
-      itemizationAnalysis = rawText.substring(p3, p4).replace(/^#*\s*3\.\s*[^】\n]+】?/, '').trim()
-    }
-    if (p4 !== -1) {
-      const p4Text = rawText.substring(p4).replace(/^#*\s*4\.\s*[^】\n]+】?/, '').trim()
-      nextMatchActions = p4Text.split('\n').map(l => l.replace(/^[-*0-9.]+\s*/, '').trim()).filter(l => l.length > 2)
-    }
-
-    if (!overview) overview = rawText.slice(0, 300)
-    if (!keyTurningPoints) keyTurningPoints = '团战入场与关键控制技能互换存在拉扯提升空间。'
-    if (!itemizationAnalysis) itemizationAnalysis = '针对敌方核心爆发，应注重黑皇杖 (BKB) 等质变保命装的做出时机。'
-    if (nextMatchActions.length === 0) {
-      nextMatchActions = [
-        '中前期带线时务必观察小地图敌方关键先手英雄视野，避免盲目深入单走。',
-        '团战避免第一波吃到敌方集中爆发，等待后手控制技能交出后再切入战场。',
-        '均势局或劣势局优先积累买活资金，杜绝带盾前或守高前无买活暴毙。',
-      ]
-    }
-
-    return {
-      overview,
-      keyTurningPoints,
-      itemizationAnalysis,
-      nextMatchActions,
-      fullText: rawText,
-      modelUsed,
-    }
-  }
-
-  /**
-   * 确定性离线复盘报告生成器 (保证在无网络/无模型时 100% 产出专业见解)
-   */
-  private generateDeterministicMatchReview(
-    _match: any,
-    target: any,
-    isWin: boolean,
-    targetHeroName: string,
-    radiantHeroes: string,
-    direHeroes: string,
-    modelUsed: string,
-  ): MatchReviewResult {
-    const kdaRatio = target.deaths === 0 ? (target.kills + target.assists) : ((target.kills + target.assists) / target.deaths).toFixed(1)
-    const gpm = target.gold_per_min || 0
-
-    const overview = isWin
-      ? `本场比赛最终取得胜利。天辉阵容 (${radiantHeroes}) 与夜魇阵容 (${direHeroes}) 在多轮阵地战中交锋，己方在团战执行与兵线推进上建立了稳定的经济雪球，并在关键控盾与上高节奏中果断终结比赛。`
-      : `本场比赛遗憾告负。双方对抗中，己方在面对敌方多点开花与强先手机制时容错率偏低，中后期关键阵亡导致防御塔与野区视野失守，终被敌方抓住买活时间差破路翻盘。`
-
-    const keyTurningPoints = Number(kdaRatio) >= 3
-      ? `主操纵英雄【${targetHeroName}】交出了 ${target.kills}/${target.deaths}/${target.assists} (KDA ${kdaRatio}) 的亮眼数据，场均输出高达 ${target.hero_damage}。对线期与中期抓人效率突出，但在 20~30 分钟的关键推塔波次中，队伍整体站位稍显脱节，后续应加强抱团开雾第一时间的集火统一性。`
-      : `主操纵英雄【${targetHeroName}】个人数据为 ${target.kills}/${target.deaths}/${target.assists}，阵亡次数偏高。实战中多次在缺乏保护视野的情况下收线过深，被敌方游走抓单；团战入场过早承担了过多第一波不明伤害，导致核心输出未能完整倾泻。`
-
-    const itemizationAnalysis = gpm >= 550
-      ? `经济刷取效率维持在较高水准 (GPM ${gpm})。出装整体兼顾了刷钱与打架节奏，但面对敌方控制链时，应评估更早做出闪烁匕首或黑皇杖 (BKB) 的必要性，以建立更强的先手容错率。`
-      : `经济发育速度相对受限 (GPM ${gpm})。散件过度投资在一定程度上延缓了质变核心大件的成型。建议优化打钱路线，减少无效支援跑路，直奔关键保命装与第一波输出质变装。`
-
-    const nextMatchActions = [
-      '对线期强化正反补兵线控制，5 分钟前优先确保消耗品充足与控符视野。',
-      '中后期开雾推进前，务必由酱油先手探草排眼，核心切忌走在第一身位吃控。',
-      '核心大件成型第一波果断发起集结进攻，推塔后立即扫荡敌方三角区野怪扩大经济差。',
-    ]
-
-    const fullText = `### 1. 【大盘与胜负定局复盘】\n${overview}\n\n### 2. 【主视角实战得失剖析】\n${keyTurningPoints}\n\n### 3. 【装备针对性与克制推演】\n${itemizationAnalysis}\n\n### 4. 【下局致胜核心提升指南】\n${nextMatchActions.map((a, i) => `${i + 1}. ${a}`).join('\n')}`
-
-    return {
-      overview,
-      keyTurningPoints,
-      itemizationAnalysis,
-      nextMatchActions,
-      fullText,
-      modelUsed,
-    }
+    return { available: true }
   }
 }
 
@@ -717,84 +452,52 @@ export const aiCoachService = new AiCoachService()
  * 原生获取云端可用模型列表
  * 通过 Go 端发送请求，彻底解决浏览器跨域 CORS 拦截问题
  */
-export async function fetchCloudModelsList(baseUrl: string, apiKey: string): Promise<string[]> {
-  try {
-    const models = await aiApi.fetchCloudModels(baseUrl, apiKey)
-    if (Array.isArray(models) && models.length > 0) {
-      return models
-    }
-  } catch (e) {
-    console.warn('[AiCoachService] aiApi.fetchCloudModels 失败，降级至前端 fetch:', e)
-  }
-
-  // 纯浏览器降级
-  const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-    signal: AbortSignal.timeout(6000),
-  })
-  if (res.ok) {
-    const data = await res.json()
-    if (Array.isArray(data?.data)) {
-      return data.data.map((m: any) => m.id).filter(Boolean)
-    }
-  }
-  return []
-}
-
 /**
- * 原生获取本地安装/已下载模型列表 (聚合本地 GGUF 文件、Ollama 服务与 OpenAI 兼容端点)
+ * 通用获取可用大模型列表 (支持标准 OpenAI /v1/models、本地 Ollama 原生探测与端侧兼容端点)
+ * 通过 Go 端优先发送请求，彻底解决浏览器跨域 CORS 拦截问题
  */
-export async function fetchLocalModelsList(endpoint: string): Promise<string[]> {
+export async function fetchModelsList(endpoint: string, apiKey: string = ''): Promise<string[]> {
+  const cleanEndpoint = (endpoint || '').trim().replace(/\/+$/, '')
+  if (!cleanEndpoint) return []
+
   const modelsSet = new Set<string>()
 
-  // 1. 优先扫描本地磁盘中的 GGUF / ONNX 模型文件
+  // 1. 优先通过 Go 后端获取 (支持标准 OpenAI /v1/models)
   try {
-    const localFiles = await systemApi.scanLocalModelFiles()
-    if (Array.isArray(localFiles)) {
-      localFiles.forEach((f: any) => {
-        const name = typeof f === 'string' ? f : f.name
-        if (name && name.trim()) modelsSet.add(name.trim())
-      })
+    const list = await aiApi.fetchCloudModels(cleanEndpoint, apiKey)
+    if (Array.isArray(list) && list.length > 0) {
+      list.forEach(m => modelsSet.add(m))
     }
   } catch (e) {
-    console.debug('[AiCoachService] 扫描本地模型文件跳过:', e)
+    console.debug('[AiCoachService] aiApi.fetchCloudModels 未响应，继续降级探测:', e)
   }
 
-  const cleanEndpoint = (endpoint || 'http://127.0.0.1:11434').replace(/\/+$/, '').replace(/\/v1$/, '')
-
-  // 2. 探测 Ollama 原生端点 (/api/tags)
-  try {
-    const res = await fetch(`${cleanEndpoint}/api/tags`, {
-      signal: AbortSignal.timeout(2500),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data?.models)) {
-        data.models.forEach((m: any) => {
-          if (m?.name) modelsSet.add(m.name)
+  // 2. 本地磁盘已下载模型扫描
+  if (isLocalEndpoint(cleanEndpoint)) {
+    try {
+      const localFiles = await systemApi.scanLocalModelFiles()
+      if (Array.isArray(localFiles)) {
+        localFiles.forEach((f: any) => {
+          const name = typeof f === 'string' ? f : f?.name
+          if (name && name.trim()) modelsSet.add(name.trim())
         })
       }
-    }
-  } catch {
-    // 连接超时或未启动
-  }
-
-  // 3. 探测 OpenAI 兼容本地端点 (/v1/models - LM Studio, vLLM, LocalAI)
-  try {
-    const res = await fetch(`${cleanEndpoint}/v1/models`, {
-      signal: AbortSignal.timeout(2500),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data?.data)) {
-        data.data.forEach((m: any) => {
-          if (m?.id) modelsSet.add(m.id)
-        })
-      }
-    }
-  } catch {
-    // 忽略兼容端点错误
+    } catch {}
   }
 
   return Array.from(modelsSet)
+}
+
+/**
+ * 兼容旧接口：获取云端可用模型列表
+ */
+export async function fetchCloudModelsList(baseUrl: string, apiKey: string): Promise<string[]> {
+  return fetchModelsList(baseUrl, apiKey)
+}
+
+/**
+ * 兼容旧接口：获取本地安装/已下载模型列表
+ */
+export async function fetchLocalModelsList(endpoint: string): Promise<string[]> {
+  return fetchModelsList(endpoint, '')
 }

@@ -266,7 +266,7 @@ export function normalizeItemKey(name: string): string {
 
 /**
  * 校验物品是否为现行官方有效物品 (剔除所有已废弃物品)
- * @param itemKey 物品代号
+ * @param name 物品名称或代号
  */
 export function isCurrentItem(name: string): boolean {
   const key = normalizeItemKey(name)
@@ -346,6 +346,7 @@ const CATEGORY_MAP: Record<string, string> = {
   item_blitz_knuckles: '军备',
   item_blink: '军备',
   item_lifesteal: '军备',
+  item_orb_of_frost: '军备',
 
   // 奥术
   item_magic_stick: '奥术',
@@ -409,6 +410,8 @@ const CATEGORY_MAP: Record<string, string> = {
   item_force_staff: '辅助',
   item_ancient_janggo: '辅助',
   item_shawl: '辅助',
+  item_travel_boots: '辅助',
+  item_travel_boots_2: '辅助',
 
   // 法器
   item_veil_of_discord: '法器',
@@ -497,9 +500,6 @@ const CATEGORY_MAP: Record<string, string> = {
   item_ultimate_scepter: '神器',
   item_angels_demise: '神器',
   item_essence_distiller: '神器',
-  item_orb_of_frost: '神器',
-  item_refresher_shard: '神器',
-  item_travel_boots: '神器',
   item_moon_shard: '神器',
 }
 

@@ -5,11 +5,11 @@
 
 import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import AnalysisView from '../views/AnalysisView.vue'
-import CoachView from '../views/CoachView.vue'
-import HeroesView from '../views/HeroesView.vue'
-import ItemsView from '../views/ItemsView.vue'
-import SettingsView from '../views/SettingsView.vue'
+import AnalysisView from '@/views/AnalysisView.vue'
+import CoachView from '@/views/CoachView.vue'
+import HeroesView from '@/views/HeroesView.vue'
+import ItemsView from '@/views/ItemsView.vue'
+import SettingsView from '@/views/SettingsView.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -29,10 +29,24 @@ const routes: RouteRecordRaw[] = [
     meta: { tab: 'analysis', title: '战局复盘' },
   },
   {
+    path: '/analysis/match/:id',
+    name: 'MatchDetail',
+    component: AnalysisView,
+    props: true,
+    meta: { tab: 'analysis', title: '比赛详情' },
+  },
+  {
     path: '/heroes',
     name: 'Heroes',
     component: HeroesView,
     meta: { tab: 'heroes', title: '英雄图鉴' },
+  },
+  {
+    path: '/heroes/:id',
+    name: 'HeroDetail',
+    component: HeroesView,
+    props: true,
+    meta: { tab: 'heroes', title: '英雄详情' },
   },
   {
     path: '/items',

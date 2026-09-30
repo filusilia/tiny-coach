@@ -9,13 +9,15 @@
  * 6. 严禁任何硬编码假版本号、严禁创造虚构兜底更新英雄（零伪造原则）
  */
 
+import type { ItemMeta } from '@/api/types'
 import type { HeroStat } from '@/types'
-import type { OfficialHero } from '../utils/abilityTextResolver'
-import { systemApi } from '../api'
-import { useAppStore } from '../stores/app'
+import type { OfficialHero } from '@/utils/abilityTextResolver.ts'
+import { systemApi } from '@/api'
+import { getItemCategory, getNeutralTier } from '@/data/currentItemCatalog.ts'
+import { buildAttributesFromConstant } from '@/utils/itemTextResolver.ts'
 
 export interface PatchInfo {
-  /** 现行最新版本号 (如 "7.41f") */
+  /** 现行最新版本号 (真实拉取，无网络或未获取到时为空字符串) */
   version: string
   /** 该版本中发生过数值或机制调整的英雄 ID 集合 */
   updatedHeroIds: number[]
@@ -35,6 +37,7 @@ class GameDataService {
   private officialHeroesCache: Record<number, OfficialHero> | null = null
   private itemsOfficialCache: any = null
   private itemConstantsCache: any = null
+  private itemDictCache: Record<number, ItemMeta> | null = null
 
   /**
    * 获取现行最新版本与补丁更新日志 (优先本地缓存，次之调用 Go 原生服务直连官方 CDN，根除 CORS 拦截)
@@ -50,7 +53,7 @@ class GameDataService {
         const rawCached = await systemApi.loadCachedGameData('patch_info')
         if (rawCached && rawCached.trim()) {
           const parsed = JSON.parse(rawCached) as PatchInfo
-          if (parsed && parsed.version && Array.isArray(parsed.updatedHeroIds)) {
+          if (parsed && typeof parsed.version === 'string' && Array.isArray(parsed.updatedHeroIds)) {
             this.patchInfo = parsed
             return parsed
           }
@@ -65,18 +68,18 @@ class GameDataService {
       const rawNative = await systemApi.fetchLatestPatchInfo()
       if (rawNative && rawNative.trim()) {
         const parsed = JSON.parse(rawNative) as PatchInfo
-        if (parsed && parsed.version) {
+        if (parsed && typeof parsed.version === 'string') {
           this.patchInfo = parsed
           return parsed
         }
       }
     } catch (err) {
-      console.warn('[GameDataService] 原生获取最新补丁信息失败，进入平滑兜底:', err)
+      console.warn('[GameDataService] 原生获取最新补丁信息失败，进入平滑空态:', err)
     }
 
-    // 3. 终极兜底保障 (零伪造：绝不创造虚假新英雄或弹出干扰 Toast)
+    // 3. 终极空态保障 (严禁任何伪造兜底版本号，未获取到时严格置空)
     const fallbackInfo: PatchInfo = {
-      version: this.patchInfo?.version || '7.41f',
+      version: this.patchInfo?.version || '',
       updatedHeroIds: [],
       updatedItemIds: [],
       heroPatchNotes: {},
@@ -135,11 +138,9 @@ class GameDataService {
       networkError = err
     }
 
-    // 3. 网络请求失败：弹出通知报错
-    try {
-      const appStore = useAppStore()
-      appStore.showToast(`获取 OpenDota 英雄天梯数据失败: ${networkError?.message || '网络连接超时'}`, 'error')
-    } catch {}
+    if (networkError) {
+      console.warn('[GameDataService] 获取 OpenDota 英雄天梯数据失败:', networkError)
+    }
 
     // 4. 读取内置 baseline 兜底以防应用瘫痪
     try {
@@ -200,11 +201,8 @@ class GameDataService {
         systemApi.saveCachedGameData('heroes_details', JSON.stringify(data)).catch(() => {})
         return dict
       }
-    } catch (err: any) {
-      try {
-        const appStore = useAppStore()
-        appStore.showToast(`加载官方英雄技能图谱失败，请检查数据完整性`, 'error')
-      } catch {}
+    } catch (e) {
+      console.warn('[GameDataService] 加载官方英雄技能图谱失败:', e)
     }
 
     return {}
@@ -254,11 +252,8 @@ class GameDataService {
           systemApi.saveCachedGameData('items-details-official', JSON.stringify(offJson)).catch(() => {})
           systemApi.saveCachedGameData('item_constants', JSON.stringify(cJson)).catch(() => {})
         }
-      } catch (err: any) {
-        try {
-          const appStore = useAppStore()
-          appStore.showToast(`获取物品图鉴与合成树数据失败，请检查网络`, 'error')
-        } catch {}
+      } catch (e) {
+        console.warn('[GameDataService] 获取物品图鉴与合成树数据失败:', e)
       }
     }
 
@@ -269,6 +264,144 @@ class GameDataService {
       officialData: this.itemsOfficialCache,
       constantsJson: this.itemConstantsCache,
     }
+  }
+
+  /**
+   * 获取并缓存物品全局元数据字典 (ID -> ItemMeta)
+   */
+  public async getItemDict(): Promise<Record<number, ItemMeta>> {
+    if (this.itemDictCache) return this.itemDictCache
+
+    const { officialData, constantsJson } = await this.getItemsData()
+    const dict: Record<number, ItemMeta> = {}
+
+    if (constantsJson && typeof constantsJson === 'object') {
+      for (const [key, val] of Object.entries(constantsJson as Record<string, any>)) {
+        if (val && typeof val.id === 'number' && val.id > 0) {
+          const cleanKey = key.replace(/^item_/, '')
+          dict[val.id] = {
+            key: cleanKey,
+            nameLoc: val.dname || cleanKey,
+            dname: val.dname || cleanKey,
+          }
+        }
+      }
+    }
+
+    if (officialData && typeof officialData === 'object') {
+      for (const [key, val] of Object.entries(officialData as Record<string, any>)) {
+        const numId = Number(val?.id)
+        if (numId > 0) {
+          const cleanKey = key.replace(/^item_/, '')
+          const existing = dict[numId]
+          dict[numId] = {
+            key: cleanKey,
+            nameLoc: val.dname || existing?.nameLoc || cleanKey,
+            dname: val.dname || existing?.dname || cleanKey,
+          }
+        }
+      }
+    }
+
+    this.itemDictCache = dict
+    return dict
+  }
+
+  private fullItemCatalogMapCache: Map<string | number, any> | null = null
+
+  /**
+   * 获取并缓存全量物品/中立装备权威属性大字典 (支持通过 ID 或 Key 查询)
+   */
+  public async getFullItemCatalogMap(): Promise<Map<string | number, any>> {
+    if (this.fullItemCatalogMapCache) return this.fullItemCatalogMapCache
+
+    const { officialData, constantsJson } = await this.getItemsData()
+    const map = new Map<string | number, any>()
+
+    // 1. 遍历常量表 (包含中立装备、技能数值与配方)
+    if (constantsJson && typeof constantsJson === 'object') {
+      for (const [rawKey, constItem] of Object.entries(constantsJson as Record<string, any>)) {
+        if (!constItem) continue
+        const cleanKey = rawKey.replace(/^item_/, '')
+        const rawOfficial = (officialData && (officialData[cleanKey] || officialData[rawKey])) || {}
+
+        let attrib = rawOfficial.attrib || ''
+        if (!attrib && Array.isArray(constItem.attrib)) {
+          attrib = buildAttributesFromConstant(constItem.attrib)
+        }
+
+        let desc = rawOfficial.desc || (constItem.abilities && constItem.abilities[0]?.description) || ''
+        if (desc) {
+          desc = desc.replace(/%AbilityCharges%/g, '3')
+        }
+
+        const tier = Number(constItem.tier) || getNeutralTier(cleanKey)
+        const cost = Number(rawOfficial.cost) || Number(constItem.cost) || 0
+        const category = getItemCategory(cleanKey)
+
+        const itemObj = {
+          id: constItem.id || rawOfficial.id || cleanKey,
+          key: cleanKey,
+          dname: rawOfficial.dname || constItem.dname || cleanKey,
+          cost,
+          tier,
+          category,
+          desc,
+          attrib,
+          notes: rawOfficial.notes || constItem.notes || '',
+          mc: rawOfficial.mc !== undefined && rawOfficial.mc !== '' ? rawOfficial.mc : (constItem.mc || false),
+          cd: rawOfficial.cd !== undefined && rawOfficial.cd !== '' ? rawOfficial.cd : (constItem.cd || false),
+          components: constItem.components || null,
+        }
+
+        if (constItem.id) {
+          map.set(Number(constItem.id), itemObj)
+          map.set(String(constItem.id), itemObj)
+        }
+        map.set(cleanKey, itemObj)
+        map.set(rawKey, itemObj)
+      }
+    }
+
+    // 2. 遍历官方数据表补充
+    if (officialData && typeof officialData === 'object') {
+      for (const [rawKey, rawOfficial] of Object.entries(officialData as Record<string, any>)) {
+        if (!rawOfficial) continue
+        const cleanKey = rawKey.replace(/^item_/, '')
+        if (map.has(cleanKey)) continue
+
+        const constItem = (constantsJson && (constantsJson[cleanKey] || constantsJson[`item_${cleanKey}`])) || {}
+        let attrib = rawOfficial.attrib || ''
+        if (!attrib && Array.isArray(constItem.attrib)) {
+          attrib = buildAttributesFromConstant(constItem.attrib)
+        }
+
+        const itemObj = {
+          id: rawOfficial.id || cleanKey,
+          key: cleanKey,
+          dname: rawOfficial.dname || constItem.dname || cleanKey,
+          cost: Number(rawOfficial.cost) || 0,
+          tier: getNeutralTier(cleanKey),
+          category: getItemCategory(cleanKey),
+          desc: rawOfficial.desc || '',
+          attrib,
+          notes: rawOfficial.notes || '',
+          mc: rawOfficial.mc || false,
+          cd: rawOfficial.cd || false,
+          components: rawOfficial.requirements || constItem.components || null,
+        }
+
+        if (rawOfficial.id) {
+          map.set(Number(rawOfficial.id), itemObj)
+          map.set(String(rawOfficial.id), itemObj)
+        }
+        map.set(cleanKey, itemObj)
+        map.set(rawKey, itemObj)
+      }
+    }
+
+    this.fullItemCatalogMapCache = map
+    return map
   }
 }
 

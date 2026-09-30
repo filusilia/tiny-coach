@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BroadcastMode } from '../../types'
+import type { BroadcastMode } from '@/types'
 import { FileText, Volume2, VolumeX } from '@lucide/vue'
 
 const props = withDefaults(
@@ -82,7 +82,7 @@ function handleSelect(val: BroadcastMode) {
         modelValue === 2
           ? 'bg-dota-gold/20 text-dota-gold border border-dota-gold/40 shadow-xs font-semibold'
           : 'text-dota-subtle hover:text-dota-text hover:bg-dota-hover/50 border border-transparent',
-      ]" title="语音+文字播报（屏幕气泡 + Edge-TTS 朗读）"
+      ]" title="语音+文字播报（屏幕气泡 + MeloTTS 超保真朗读）"
       @click="handleSelect(2)"
     >
       <Volume2 :class="size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'" />

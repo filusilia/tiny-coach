@@ -6,11 +6,11 @@
  * 3. 衔接 systemApi 与 overlayApi，实现原生弹框与悬浮窗控制
  */
 
-import type { AppSettings, BroadcastMode, ReminderCategoryKey } from '../types'
+import type { AppSettings, BroadcastMode, ReminderCategoryKey } from '@/types'
 import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
-import { overlayApi, systemApi } from '../api'
-import { DEFAULT_REMINDER_MODES } from '../data/reminderCategories'
+import { overlayApi, systemApi } from '@/api'
+import { DEFAULT_REMINDER_MODES } from '@/data/reminderCategories.ts'
 
 const SETTINGS_STORAGE_KEY = 'aegis_coach_settings_v2'
 
@@ -69,9 +69,17 @@ export const useAppStore = defineStore('app', () => {
   let toastTimer: ReturnType<typeof setTimeout> | null = null
 
   const initialSaved = loadPersistedSettings()
-  if (!initialSaved.npu_model) {
-    initialSaved.npu_model = 'qwen3.5:1.5b'
+  let initialAiMode = initialSaved.ai_mode || 'response_api'
+  if (initialAiMode === 'local_npu' || initialAiMode === 'cloud_api' || initialAiMode === 'npu' || initialAiMode === 'cloud') {
+    initialAiMode = 'response_api'
   }
+  const defaultEndpoint = initialSaved.ai_endpoint
+    || (initialSaved.ai_mode === 'cloud_api' ? initialSaved.cloud_base_url : initialSaved.npu_endpoint)
+    || 'http://127.0.0.1:11434/v1'
+  const defaultApiKey = initialSaved.ai_api_key ?? initialSaved.cloud_api_key ?? ''
+  const defaultModel = initialSaved.ai_model
+    || (initialSaved.ai_mode === 'cloud_api' ? initialSaved.cloud_model : (initialSaved.npu_model || 'qwen2.5:1.5b'))
+    || 'qwen2.5:1.5b'
 
   /** 系统全局持久化配置 */
   const settings = reactive<AppSettings>({
@@ -81,10 +89,10 @@ export const useAppStore = defineStore('app', () => {
     voice_broadcast_mode: 2,
     voice_volume: 100,
     voice_speed: 1.0,
-    voice_name: 'zh-CN-YunxiNeural',
-    edge_voice_name: 'zh-CN-YunxiNeural',
+    voice_name: 'MeloTTS 超保真拟人',
     voice_lexicon_enabled: true,
     voice_ssml_enabled: true,
+    melo_auto_download: true,
     auto_show_overlay: false,
     auto_overlay_on_game_start: true,
     overlay_opacity: 90,
@@ -94,19 +102,23 @@ export const useAppStore = defineStore('app', () => {
     dota_player_id: '',
     dota_player_name: '',
     dota_player_avatar: '',
-    custom_tts_enabled: false,
-    custom_tts_engine: 'edge',
-    custom_tts_endpoint: 'http://127.0.0.1:9233',
-    custom_tts_api_key: '',
-    custom_tts_voice: '',
-    ai_mode: 'local_npu',
-    npu_endpoint: 'http://127.0.0.1:11434/v1',
-    npu_model: 'qwen3.5:1.5b',
-    cloud_api_key: '',
-    cloud_base_url: 'https://api.deepseek.com/v1',
-    cloud_model: 'deepseek-chat',
+    // 以下五项为历史别名字段的缺省兜底：initialSaved 中若不存在则由这里提供默认值，
+    // 若存在则由紧随其后的 ...initialSaved 展开覆盖（故不可删除）。
+    npu_endpoint: defaultEndpoint,
+    npu_model: defaultModel,
+    cloud_api_key: defaultApiKey,
+    cloud_base_url: defaultEndpoint,
+    cloud_model: defaultModel,
     user_context: '',
     ...initialSaved,
+    // 以下四项必须置于 initialSaved 展开之后：initialSaved 中是原始落盘值（可能含
+    // local_npu/npu/cloud_api 等历史别名），而 initialAiMode/defaultEndpoint/defaultApiKey/
+    // defaultModel 在上面已完成别名归一化与缺省兜底，此处用归一化结果覆盖原始值。
+    // 注意：不得在 ...initialSaved 之前重复声明这四项，否则构成对象字面量重复键（TS1117）。
+    ai_mode: initialAiMode,
+    ai_endpoint: defaultEndpoint,
+    ai_api_key: defaultApiKey,
+    ai_model: defaultModel,
     reminder_modes: {
       ...DEFAULT_REMINDER_MODES,
       ...(initialSaved.reminder_modes || {}),
@@ -123,6 +135,10 @@ export const useAppStore = defineStore('app', () => {
 
   function setIsOverlayOpen(open: boolean) {
     isOverlayOpen.value = open
+  }
+
+  function setOverlayRunning(running: boolean) {
+    isOverlayRunning.value = running
   }
 
   function updateSettings(partial: Partial<AppSettings>) {
@@ -305,6 +321,13 @@ export const useAppStore = defineStore('app', () => {
       isOverlayRunning.value = newState
       isOverlayOpen.value = newState
       showToast(newState ? '局内独立置顶悬浮窗已呼出' : '局内独立置顶悬浮窗已隐藏', 'info')
+      // 延时二次校准，确保原生/子进程创建与按钮状态 100% 同步
+      setTimeout(() => {
+        checkOverlayStatus()
+      }, 300)
+      setTimeout(() => {
+        checkOverlayStatus()
+      }, 800)
       return newState
     } catch (e: any) {
       console.warn('[AppStore] 切换原生独立悬浮窗异常:', e)
@@ -404,6 +427,7 @@ export const useAppStore = defineStore('app', () => {
     setCurrentTab,
     setSearchQuery,
     setIsOverlayOpen,
+    setOverlayRunning,
     updateSettings,
     getReminderMode,
     setReminderMode,

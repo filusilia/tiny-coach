@@ -24,6 +24,8 @@ export interface Level1StatsResult {
   moveSpeed: number
 }
 
+export type Level1Stats = Level1StatsResult
+
 /**
  * 计算英雄 1 级综合基础实战属性面板
  * 严格遵循 Dota 2 官方 7.36+ 权威换算公式与开工铁律：

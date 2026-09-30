@@ -26,3 +26,5 @@ build-out/
 .vscode/*
 !.vscode/extensions.json
 
+
+melo_weights/

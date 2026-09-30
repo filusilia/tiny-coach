@@ -1,40 +1,20 @@
 <script setup lang="ts">
 import { AlertCircle, CheckCircle2, Info, X } from '@lucide/vue'
 import { defineAsyncComponent, onMounted, ref } from 'vue'
-import Sidebar from './components/layout/Sidebar.vue'
-import TitleBar from './components/layout/TitleBar.vue'
-import { useGsiStream } from './composables/useGsiStream'
-import { useNativeNavigation } from './composables/useNativeNavigation'
-import { dataSyncService } from './services/dataSyncService'
-import { gsiRuleEngine } from './services/gsiRuleEngine'
-import { useAppStore } from './stores/app'
+import Sidebar from '@/components/layout/Sidebar.vue'
+import TitleBar from '@/components/layout/TitleBar.vue'
+import { useGsiStream } from '@/composables/useGsiStream.ts'
+import { useNativeNavigation } from '@/composables/useNativeNavigation.ts'
+import { dataSyncService } from '@/services/dataSyncService.ts'
+import { useAppStore } from '@/stores/app.ts'
+import { checkIsOverlayWindow } from '@/utils/windowMode.ts'
 
 // 按需异步懒加载悬浮窗组件
-const OverlayView = defineAsyncComponent(() => import('./views/OverlayView.vue'))
+const OverlayView = defineAsyncComponent(() => import('@/views/OverlayView.vue'))
 
 const appStore = useAppStore()
 
-/**
- * 确定性同步判定当前窗口是否为独立悬浮窗模式 (完全同步、即时裁定，杜绝异步闪烁与回退)
- */
-function checkIsOverlayWindow(): boolean {
-  if (typeof window === 'undefined') return false
-  const search = window.location.search || ''
-  const hash = window.location.hash || ''
-  const href = window.location.href || ''
-  const params = new URLSearchParams(search)
-
-  return params.get('window') === 'overlay' ||
-    params.get('mode') === 'overlay' ||
-    search.includes('window=overlay') ||
-    search.includes('mode=overlay') ||
-    hash.includes('window=overlay') ||
-    hash.includes('mode=overlay') ||
-    hash.includes('/overlay') ||
-    href.includes('mode=overlay') ||
-    window.name === 'game-overlay'
-}
-
+// 独立悬浮窗判定 (支持 URL 参数 window=overlay 或 mode=overlay 识别独立子窗口)
 const isStandaloneOverlay = ref(checkIsOverlayWindow())
 
 // 1. GSI 实时流在两个窗口中均需要消费（悬浮窗呈现战局快照，主界面呈现战况面板）
@@ -47,7 +27,6 @@ if (!isStandaloneOverlay.value) {
 
 onMounted(async () => {
   if (!isStandaloneOverlay.value) {
-    gsiRuleEngine.init()
     await appStore.initSettings()
     appStore.syncCacheDirectory()
     appStore.checkOverlayStatus()

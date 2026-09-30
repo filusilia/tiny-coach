@@ -1,10 +1,13 @@
 # 神盾教练（AegisCoach）
 
 神盾教练是一个面向 Windows PC 的现代化、极轻量 Dota 2 实时资料与战局教练工具。
-架构基于 **Wails v3 + Go + Vite + TypeScript + Vue 3** 构建，便携安装包缩减至 **~17MB 级别**，常驻内存仅 **~30MB**。
+架构基于 **Wails v3 + Go + Vite + TypeScript + Vue 3 + UnoCSS** 构建，便携安装包缩减至 **~17MB 级别**，常驻内存仅 **~30MB**。
 
 - 127 英雄与全物品数据契约规范见：[英雄与物品数据规范 (docs/HERO_AND_ITEM_DATA_SPEC.md)](docs/HERO_AND_ITEM_DATA_SPEC.md)。
 - 官方英雄技能与状态机文本规范见：[官方英雄数据规范 (docs/OFFICIAL_HERO_DATA.md)](docs/OFFICIAL_HERO_DATA.md)。
+- 核心业务计算与 UI 呈现规范见：[核心业务规则与 UI 交互规范 (docs/BUSINESS_RULES_AND_UI_SPEC.md)](docs/BUSINESS_RULES_AND_UI_SPEC.md)。
+- 子系统运行时与降级机制见：[子系统运行语义与降级机制 (docs/SUBSYSTEM_RUNTIMES.md)](docs/SUBSYSTEM_RUNTIMES.md)。
+- 架构拓扑与全景图谱见：[系统全景图谱与工程分层契约 (docs/SYSTEM_LANDSCAPE.md)](docs/SYSTEM_LANDSCAPE.md)。
 - 架构决策、性能攻坚与隐蔽避坑细节见：[工程决策看板 (.agents/notes/)](.agents/notes/README.md)。
 - 代码 Agent 必读红线原则与关键链接见：[AGENTS.md](AGENTS.md)。
 
@@ -12,18 +15,20 @@
 
 ## 核心特性
 
-- **100% 官方离线数据与 127 英雄常数兜底**：包含官方技能、天赋、魔晶、神杖升级、1 级基础属性公式以及 56x42 物品图鉴 DAG。开机自动异步检测版本增量并在新英雄上展现动态 `NEW` 标签。
-- **现代化电竞暗色 HUD 界面与实战纯化视口**：实时教练页纯实战设计（血蓝条动画、KDA、GPM/XPM、买活判定、技能CD倒计时、56x42 物品格与肉山/魔方时钟），零设置干扰；所有系统与 AI 配置统一收纳至设置中枢。
-- **物理隔离标题栏与 IME 输入保护**：窗口拖拽区域物理隔离，支持中文拼音防抖搜索，全键盘与鼠标流畅交互。
-- **10Hz GSI 高频单消费者流水线**：基于 Go 原生 HTTP 本地轻量监听（端口 4444），非外挂合规原则，无需注入游戏、不修改内存。
-- **2026 Qwen 3.5 最新端侧 NPU 推理 + 全模态 AI 接入**：
-  - 默认首选 `qwen3.5:1.5b` 端侧模型（严格 ≤ 2GB 内存开销，延迟 <120ms，在 16G 物理内存下顺畅与 Dota 2 同跑，支持 Intel NPU / Ryzen AI / 骁龙 / RTX）；
-  - 支持云端商用模型（DeepSeek-V3/R1 等）端点连通性测试与一键自动拉取模型列表，提供模型选项快速点击选用；
-  - 支持纯确定性规则引擎降级模式（0 延迟、0 网络消耗、纯离线秒级裁定）；
-  - 深度集成 Windows 原生选择文件夹、大模型文件选择及文件资源管理器直接联动。
+- **100% 官方离线数据与 127 英雄常数兜底**：官方 7.41f 现行版本技能、天赋、魔晶、神杖升级、1 级基础属性精确公式以及 56x42 物品图鉴 DAG。开机自动异步检测版本增量；严格践行零伪造原则，未连入网络时实事求是置空，具备防企业防火墙 302 劫持防御。
+- **现代化电竞暗色 HUD 界面与实战纯化视口**：实时教练页纯实战设计（血蓝条动画、KDA、GPM/XPM、买活判定、技能 CD 倒计时、56x42 物品格与肉山/魔方时钟），零设置干扰；所有系统、AI 与语音配置统一收纳至设置中枢。
+- **物理隔离原生沉浸式窗口与输入保护**：主窗口采用 Windows 原生暗色标题栏，拖拽区域物理隔离，支持中文拼音防抖搜索，全键盘与鼠标流畅交互。
+- **10Hz GSI 高频单消费者流水线**：基于 Go 原生 HTTP 本地轻量监听（端口 4444，支持持久化自定义配置），非外挂合规原则，无需注入游戏、不读取内存。
+- **本地 Ollama 与云端 OpenAI 兼容双引擎 AI 架构**：
+  - 支持本地 Ollama 端侧模型（如 `qwen3.5:1.5b`，≤ 2GB 内存开销，延迟 <120ms，支持 Intel NPU / Ryzen AI / RTX）；
+  - 支持云端商用模型（DeepSeek-V3/R1 等）端点连通性探测、健康延迟检测与一键自动拉取模型列表；
+  - 提供赛后 AI 深度复盘系统（对线期得失、团队关键节奏、出装质变节点、败因归因反思、五维雷达图与经验/净值优势走势曲线）；
+  - 支持纯确定性规则引擎降级模式（0 延迟、0 网络消耗、纯离线秒级裁定）。
+- **Go 原生纯离线 MeloTTS 语音引擎**：
+  - 基于 ONNX Runtime C-API 与专属声学模型，纯 Go 本地无依赖离线极速推理，彻底摆脱外部云端网络与重型 Python 环境；
+  - 内置电竞术语发音校正词表，支持三段式提醒开关控制（关闭 / 仅文字 / 语音+文字）。
 - **OpenDota 玩家近 20 场战绩画像接入**：通过 `api.opendota.com/api/players/{account_id}/matches?limit=20` 获取玩家常用英雄与胜率特征，严格脱敏后动态注入 AI Prompt，提供高度契合选手技术水平与风格的定制化对战指引。
-- **确定性战术规则 + 智能语音播报**：内置战略节拍与战术裁定规则，提供三段式提醒开关控制与拟真人声语音（内置微软 Edge-TTS 原生保底，支持第三方 CosyVoice / ChatTTS）。
-- **独立置顶经济与战局悬浮窗**：多窗口架构，可独立浮于游戏上方实时呈现团队净胜与关键经济差，支持号角吹响自动拉起。
+- **局内独立置顶经济与战局悬浮窗**：多窗口与独立进程双模式支持，Windows 原生独立顶级窗口（无父属主不受主窗最小化影响），`WS_EX_LAYERED` 分层透明背景保护，支持快捷切换（Alt+F2）与 `WS_EX_TRANSPARENT` 鼠标物理点击穿透（Alt+F3）。
 
 ---
 
@@ -32,24 +37,29 @@
 ```text
 ├── build/                  # Wails v3 宿主配置、Windows 高清图标与清单
 ├── internal/               # Go 后端标准领域分层与系统服务
-│   ├── app/                # App 生命周期与主窗口句柄治理
-│   ├── services/           # SystemService、AiService、GsiService、OverlayService、PlayerService
+│   ├── app/                # App 门面实体、Wails 生命周期与服务总控
+│   ├── services/           # 核心领域服务 (System, Ai, Gsi, Overlay, Player, Tts)
 │   ├── models/             # 前后端 1:1 契约强类型 DTO 实体
 │   ├── storage/            # 缓存目录路径解析与持久化存储管理
 │   ├── dota/               # GSI 监听接收器与游戏状态反序列化
-│   ├── player/             # 玩家账号格式清洗与 OpenDota 网关
-│   └── overlay/            # 桌面置顶经济悬浮窗保活协程与 WinAPI 绑定
-├── frontend/               # 前端电竞 HUD (Vue 3 + TypeScript + Vite + UnoCSS / TailwindCSS)
+│   └── overlay/            # 局内悬浮窗置顶保活协程与 Win32 API 扩展样式
+├── frontend/               # 前端电竞 HUD (Vue 3 + TypeScript + Vite + UnoCSS)
 │   ├── public/             # 静态数据与游戏图标 (127 英雄、全物品 JSON、官方高清图标)
+│   ├── bindings/           # Wails v3 自动生成强类型 IPC 绑定
 │   ├── src/
-│   │   ├── api/            # 强类型 Wails v3 IPC 客户端与系统/AI/GSI 门面
+│   │   ├── api/            # 强类型 Wails v3 IPC 客户端门面 (system, ai, overlay, player, tts)
 │   │   ├── components/     # TitleBar、Sidebar、VoiceBroadcastBar、GsiSimulator 等
 │   │   ├── composables/    # useGsiStream、useNativeNavigation 响应式钩子
-│   │   ├── data/           # 127 英雄中文常数映射表、7.41f 物品图谱、出装指南
-│   │   ├── stores/         # Pinia 全局响应式状态中枢 (app, battle, hero, item, player)
+│   │   ├── data/           # 127 英雄常数映射表、7.41f 物品图谱、出装指南
+│   │   ├── stores/         # Pinia 全局响应式状态中枢 (app, battle, player)
 │   │   ├── views/          # CoachView、HeroesView、ItemsView、AnalysisView、SettingsView、OverlayView
+│   │   │   ├── analysis/   # 赛后复盘雷达图、优势曲线、AI复盘面板等
+│   │   │   ├── heroes/     # 技能展示台、英雄出装面板、基础属性卡片等
+│   │   │   └── settings/   # AI引擎、存储目录、语音播报等分区设置
 │   │   ├── services/       # GSI 规则引擎、AI 教练服务、语音播报服务、玩家画像
 │   │   └── utils/          # 1 级基础属性计算器、技能宏解析、HTML 清洗、资产防破损
+├── lib/                    # 原生运行时动态库 (onnxruntime.dll)
+├── melo_weights/           # 本地离线 MeloTTS 模型权重与词表
 ├── tests/fixtures/         # 真实比赛 GSI 快照数据集 (Huskar, Juggernaut 等)
 ├── tools/                  # 自动化发布脚本 (package-release.ps1)
 ├── docs/                   # 完整架构规范与技术文档
@@ -64,7 +74,7 @@
 
 ### 1. 安装依赖
 
-本项目采用 Node.js + pnpm 与 Go 1.27+ 工具链：
+本项目采用 Node.js 22+ / 24+ 与 pnpm，以及 Go 1.23+ / 1.27+ 工具链：
 
 ```powershell
 pnpm install
@@ -89,12 +99,15 @@ pwsh -NoProfile -File .\tools\package-release.ps1
 
 ## 代码规范与验证矩阵
 
-本项目全仓严格执行 Windows CRLF (`\r\n`) 规范（由 `.gitattributes` 与 `.editorconfig` 统一约束）与中文优先原则。在提交代码前，必须执行全量验证：
+本项目全仓严格执行 Windows CRLF (`\r\n`) 规范与中文优先原则。在提交代码前，必须执行全量验证：
 
 ```powershell
-# 前端构建验证 (0 错误)
+# 1. 前端构建与 TypeScript 类型检查 (0 错误)
 pnpm build
 
-# Agent 决策笔记校验
+# 2. Go 后端语法与静态检查
+go vet ./...
+
+# 3. Agent 决策笔记校验
 npm run verify-notes
 ```

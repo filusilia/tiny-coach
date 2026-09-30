@@ -107,6 +107,191 @@ export class BattleContextDTO {
 }
 
 /**
+ * CaptureResult 原生截屏执行结果
+ */
+export class CaptureResult {
+    "success": boolean;
+
+    /**
+     * 带 data:image/png;base64, 前缀
+     */
+    "imageBase64": string;
+
+    /**
+     * 真实物理像素宽
+     */
+    "screenWidth": number;
+
+    /**
+     * 真实物理像素高
+     */
+    "screenHeight": number;
+
+    /**
+     * 裁剪起始 X 物理像素
+     */
+    "cropX": number;
+
+    /**
+     * 裁剪起始 Y 物理像素
+     */
+    "cropY": number;
+
+    /**
+     * 裁剪区域物理像素宽
+     */
+    "cropWidth": number;
+
+    /**
+     * 裁剪区域物理像素高
+     */
+    "cropHeight": number;
+
+    /**
+     * 毫秒级 Unix 时间戳
+     */
+    "timestamp": number;
+
+    /**
+     * 截屏与编码总耗时（毫秒）
+     */
+    "durationMs": number;
+    "errorMessage"?: string;
+
+    /** Creates a new CaptureResult instance. */
+    constructor($$source: Partial<CaptureResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("imageBase64" in $$source)) {
+            this["imageBase64"] = "";
+        }
+        if (!("screenWidth" in $$source)) {
+            this["screenWidth"] = 0;
+        }
+        if (!("screenHeight" in $$source)) {
+            this["screenHeight"] = 0;
+        }
+        if (!("cropX" in $$source)) {
+            this["cropX"] = 0;
+        }
+        if (!("cropY" in $$source)) {
+            this["cropY"] = 0;
+        }
+        if (!("cropWidth" in $$source)) {
+            this["cropWidth"] = 0;
+        }
+        if (!("cropHeight" in $$source)) {
+            this["cropHeight"] = 0;
+        }
+        if (!("timestamp" in $$source)) {
+            this["timestamp"] = 0;
+        }
+        if (!("durationMs" in $$source)) {
+            this["durationMs"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CaptureResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CaptureResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CaptureResult($$parsedSource as Partial<CaptureResult>);
+    }
+}
+
+/**
+ * HeroMatchupRecommendation 基于对局双方阵容的大数据针对性出装推荐全景
+ */
+export class HeroMatchupRecommendation {
+    "heroId": number;
+    "heroName": string;
+    "threatHeroes": ThreatHeroSummary[];
+    "startItems": RecommendedItem[];
+    "earlyItems": RecommendedItem[];
+    "midItems": RecommendedItem[];
+    "lateItems": RecommendedItem[];
+    "counterItems": RecommendedItem[];
+
+    /**
+     * "opendota" | "cache" | "offline_rule"
+     */
+    "source": string;
+    "updatedAt": string;
+
+    /** Creates a new HeroMatchupRecommendation instance. */
+    constructor($$source: Partial<HeroMatchupRecommendation> = {}) {
+        if (!("heroId" in $$source)) {
+            this["heroId"] = 0;
+        }
+        if (!("heroName" in $$source)) {
+            this["heroName"] = "";
+        }
+        if (!("threatHeroes" in $$source)) {
+            this["threatHeroes"] = [];
+        }
+        if (!("startItems" in $$source)) {
+            this["startItems"] = [];
+        }
+        if (!("earlyItems" in $$source)) {
+            this["earlyItems"] = [];
+        }
+        if (!("midItems" in $$source)) {
+            this["midItems"] = [];
+        }
+        if (!("lateItems" in $$source)) {
+            this["lateItems"] = [];
+        }
+        if (!("counterItems" in $$source)) {
+            this["counterItems"] = [];
+        }
+        if (!("source" in $$source)) {
+            this["source"] = "";
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new HeroMatchupRecommendation instance from a string or object.
+     */
+    static createFrom($$source: any = {}): HeroMatchupRecommendation {
+        const $$createField2_0 = $$createType2;
+        const $$createField3_0 = $$createType4;
+        const $$createField4_0 = $$createType4;
+        const $$createField5_0 = $$createType4;
+        const $$createField6_0 = $$createType4;
+        const $$createField7_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("threatHeroes" in $$parsedSource) {
+            $$parsedSource["threatHeroes"] = $$createField2_0($$parsedSource["threatHeroes"]);
+        }
+        if ("startItems" in $$parsedSource) {
+            $$parsedSource["startItems"] = $$createField3_0($$parsedSource["startItems"]);
+        }
+        if ("earlyItems" in $$parsedSource) {
+            $$parsedSource["earlyItems"] = $$createField4_0($$parsedSource["earlyItems"]);
+        }
+        if ("midItems" in $$parsedSource) {
+            $$parsedSource["midItems"] = $$createField5_0($$parsedSource["midItems"]);
+        }
+        if ("lateItems" in $$parsedSource) {
+            $$parsedSource["lateItems"] = $$createField6_0($$parsedSource["lateItems"]);
+        }
+        if ("counterItems" in $$parsedSource) {
+            $$parsedSource["counterItems"] = $$createField7_0($$parsedSource["counterItems"]);
+        }
+        return new HeroMatchupRecommendation($$parsedSource as Partial<HeroMatchupRecommendation>);
+    }
+}
+
+/**
  * HeroPerformance 单个英雄在统计周期内的技战术综合表现 DTO
  */
 export class HeroPerformance {
@@ -269,8 +454,8 @@ export class PlayerProfileAnalysis {
      * Creates a new PlayerProfileAnalysis instance from a string or object.
      */
     static createFrom($$source: any = {}): PlayerProfileAnalysis {
-        const $$createField8_0 = $$createType2;
-        const $$createField9_0 = $$createType2;
+        const $$createField8_0 = $$createType6;
+        const $$createField9_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("topHeroes" in $$parsedSource) {
             $$parsedSource["topHeroes"] = $$createField8_0($$parsedSource["topHeroes"]);
@@ -282,7 +467,132 @@ export class PlayerProfileAnalysis {
     }
 }
 
+/**
+ * RecommendedItem 单个推荐装备条目 DTO
+ */
+export class RecommendedItem {
+    "itemId": number;
+
+    /**
+     * 规范化英文标识符 (如 "item_black_king_bar" 或 "bfury")
+     */
+    "itemKey": string;
+
+    /**
+     * 本地化中文名或展示名
+     */
+    "itemName": string;
+
+    /**
+     * "start" | "early" | "mid" | "late" | "counter"
+     */
+    "category": string;
+
+    /**
+     * 购买频次权重
+     */
+    "popularity": number;
+
+    /**
+     * 针对性出装理由
+     */
+    "reason": string;
+    "winRate"?: number;
+
+    /** Creates a new RecommendedItem instance. */
+    constructor($$source: Partial<RecommendedItem> = {}) {
+        if (!("itemId" in $$source)) {
+            this["itemId"] = 0;
+        }
+        if (!("itemKey" in $$source)) {
+            this["itemKey"] = "";
+        }
+        if (!("itemName" in $$source)) {
+            this["itemName"] = "";
+        }
+        if (!("category" in $$source)) {
+            this["category"] = "";
+        }
+        if (!("popularity" in $$source)) {
+            this["popularity"] = 0;
+        }
+        if (!("reason" in $$source)) {
+            this["reason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RecommendedItem instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RecommendedItem {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RecommendedItem($$parsedSource as Partial<RecommendedItem>);
+    }
+}
+
+/**
+ * ThreatHeroSummary 本局对抗克制/高危威胁英雄摘要
+ */
+export class ThreatHeroSummary {
+    "heroId": number;
+    "heroName": string;
+    "gamesPlayed": number;
+
+    /**
+     * 我方历史对抗该英雄胜率 (0~100)
+     */
+    "winRate": number;
+
+    /**
+     * "extreme" (严重克制，胜率<45%) | "high" (<48%) | "normal"
+     */
+    "threatLevel": string;
+
+    /**
+     * 克制点描述 (如 "强控法术爆发", "物理闪避/被动核心", "高机动位移逃生")
+     */
+    "threatDesc": string;
+
+    /** Creates a new ThreatHeroSummary instance. */
+    constructor($$source: Partial<ThreatHeroSummary> = {}) {
+        if (!("heroId" in $$source)) {
+            this["heroId"] = 0;
+        }
+        if (!("heroName" in $$source)) {
+            this["heroName"] = "";
+        }
+        if (!("gamesPlayed" in $$source)) {
+            this["gamesPlayed"] = 0;
+        }
+        if (!("winRate" in $$source)) {
+            this["winRate"] = 0;
+        }
+        if (!("threatLevel" in $$source)) {
+            this["threatLevel"] = "";
+        }
+        if (!("threatDesc" in $$source)) {
+            this["threatDesc"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ThreatHeroSummary instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ThreatHeroSummary {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ThreatHeroSummary($$parsedSource as Partial<ThreatHeroSummary>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = HeroPerformance.createFrom;
+const $$createType1 = ThreatHeroSummary.createFrom;
 const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = RecommendedItem.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = HeroPerformance.createFrom;
+const $$createType6 = $Create.Array($$createType5);

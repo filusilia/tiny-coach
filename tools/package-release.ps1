@@ -9,6 +9,11 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $releaseDir = Join-Path $repoRoot 'release'
 
+# 核心加固：无论从何处调用该脚本，强制将工作目录与进程目录锚定在仓库根目录
+Set-Location $repoRoot
+[System.IO.Directory]::SetCurrentDirectory($repoRoot)
+[System.Environment]::CurrentDirectory = $repoRoot
+
 Write-Host '==========================================================' -ForegroundColor Cyan
 Write-Host '   神盾教练 (AegisCoach) - 客户端免安装便携版打包 (Wails v3)' -ForegroundColor Cyan
 Write-Host '==========================================================' -ForegroundColor Cyan
@@ -37,10 +42,12 @@ foreach ($d in $cleanDirs) {
 }
 
 # 清理可能残留的临时编译产物
+# 注意：.syso 必须与编译包（cmd/aegis-coach）同目录才会被 Go 链接，
+# 根目录残留为入口迁移前的历史遗留，一并清除以免误判生效来源。
 $cleanFiles = @(
+    (Join-Path $repoRoot 'cmd\aegis-coach\rsrc_windows_amd64.syso'),
     (Join-Path $repoRoot 'rsrc_windows_amd64.syso'),
-    (Join-Path $repoRoot 'aegis-coach.exe'),
-    (Join-Path $repoRoot 'demo.exe')
+    (Join-Path $repoRoot 'aegis-coach.exe')
 )
 foreach ($f in $cleanFiles) {
     if (Test-Path $f) {
@@ -60,9 +67,18 @@ if (-not $NoBuild) {
     $wails3Cmd = Get-Command wails3 -ErrorAction SilentlyContinue
     if ($wails3Cmd) {
         Write-Host '==> [1/4] 正在自动同步生成 Wails v3 类型安全前端绑定 (bindings)...' -ForegroundColor Cyan
-        # 使用 -clean 清理旧绑定，-ts 生成 TypeScript，-d 指定输出目录
-        & $wails3Cmd.Source generate bindings -clean -ts -d ./frontend/bindings
-        if ($LASTEXITCODE -ne 0) { throw "绑定生成失败" }
+        $bindingsDir = Join-Path $repoRoot 'frontend\bindings'
+        Push-Location $repoRoot
+        try {
+            # 使用 -clean 清理旧绑定，-ts 生成 TypeScript，-names 使用方法名，-d 指定绝对路径
+            & $wails3Cmd.Source generate bindings -clean -ts -names -d $bindingsDir ./cmd/aegis-coach ./internal/...
+            if ($LASTEXITCODE -ne 0) { throw "绑定生成失败" }
+            # 建立前端向后兼容别名重定向
+            Set-Content -Path (Join-Path $bindingsDir "aegis-coach\app.ts") -Value "export * from './cmd/aegis-coach/app'" -Force
+            Set-Content -Path (Join-Path $bindingsDir "aegis-coach\index.ts") -Value "export * as App from './cmd/aegis-coach/index.js';`nexport * from './cmd/aegis-coach/app.js';" -Force
+        } finally {
+            Pop-Location
+        }
     } else {
         Write-Host '    未检测到 wails3 命令，跳过绑定生成步骤' -ForegroundColor Yellow
     }
@@ -91,8 +107,10 @@ if (-not $NoBuild) {
         }
 
         # 生成 .syso 资源文件（图标 + manifest + info）
+        # 关键：必须输出到被编译包自身目录 (cmd/aegis-coach)，Go 仅链接同目录下的 .syso；
+        # 输出到仓库根会导致图标/manifest/版本信息被静默丢弃。
         $wails3Exe = if ($wails3Cmd) { $wails3Cmd.Source } else { $null }
-        $sysoFile = Join-Path $repoRoot 'rsrc_windows_amd64.syso'
+        $sysoFile = Join-Path $repoRoot 'cmd\aegis-coach\rsrc_windows_amd64.syso'
         $iconFile = Join-Path $repoRoot 'build\windows\icon.ico'
         $manifestFile = Join-Path $repoRoot 'build\windows\wails.exe.manifest'
         $infoFile = Join-Path $repoRoot 'build\windows\info.json'
@@ -117,9 +135,10 @@ if (-not $NoBuild) {
         $ldflags = "-H windowsgui -s -w -X main.Version=2.0.0 -X main.BuildTime=$buildTimeStr -X main.GitCommit=$gitCommitStr"
 
         try {
-            # 推荐使用 wails3 build（自动处理前端构建、资源嵌入、图标生成）
-            # 如果使用 wails3 build，可移除前端构建步骤和 syso 生成步骤
-            & go build -tags "desktop,production" -ldflags "$ldflags" -o $outputExe
+            # 入口已迁移至 cmd/aegis-coach，必须显式指定包路径；
+            # 省略包路径会让 go build 指向仓库根（现已无任何 .go 文件）而必然失败。
+            # 版本注入目标为 package main 的变量（cmd/aegis-coach/main.go:Version/BuildTime/GitCommit）。
+            & go build -tags "desktop,production" -ldflags "$ldflags" -o $outputExe ./cmd/aegis-coach
             if ($LASTEXITCODE -ne 0) { throw "Go 客户端编译失败" }
         } finally {
             # 清理 syso 临时文件
@@ -134,12 +153,63 @@ if (-not $NoBuild) {
 }
 
 # ------------------------------------------------------------
-# [4/4] 汇总便携套件与配置文件
+# [4/4] 汇总便携套件与配置文件 (含 lib 动态库与离线语音模型)
 # ------------------------------------------------------------
 Write-Host '==> [4/4] 正在汇总便携套件与配置文件...' -ForegroundColor Cyan
 $assetsDir = Join-Path $repoRoot 'tools\assets'
 if (Test-Path $assetsDir) {
     Get-ChildItem -Path $assetsDir -File | Copy-Item -Destination $releaseDir -Force
+}
+
+# 复制 ONNX Runtime 动态链接库 (lib/onnxruntime.dll)
+$libSrc = Join-Path $repoRoot 'lib'
+$libDest = Join-Path $releaseDir 'lib'
+if (Test-Path $libSrc) {
+    if (-not (Test-Path $libDest)) { New-Item -ItemType Directory -Path $libDest -Force | Out-Null }
+    Get-ChildItem -Path $libSrc -Filter "*.dll" | Copy-Item -Destination $libDest -Force
+    Write-Host "    已将 ONNX Runtime 动态库同步至 release/lib/" -ForegroundColor Green
+}
+
+# 复制本地已就绪的超保真拟人 MeloTTS 语音模型 (开箱即用高保真离线语音)
+$meloSrc = Join-Path $repoRoot 'melo_weights'
+$meloDest = Join-Path $releaseDir 'melo_weights'
+if (Test-Path $meloSrc) {
+    if (-not (Test-Path $meloDest)) { New-Item -ItemType Directory -Path $meloDest -Force | Out-Null }
+    Get-ChildItem -Path $meloSrc | Copy-Item -Destination $meloDest -Recurse -Force
+    Write-Host "    已将 MeloTTS 超保真拟人离线语音模型同步至 release/melo_weights/" -ForegroundColor Green
+}
+
+# ------------------------------------------------------------
+# [5/5] 安全加固：解除 Windows 区域锁定与 Authenticode 代码签名
+# ------------------------------------------------------------
+Write-Host '==> [5/5] 正在执行 Windows SmartScreen 与 Authenticode 安全加固...' -ForegroundColor Cyan
+# 清除构建产物的所有 Web 区域锁定流 (Zone.Identifier)
+Get-ChildItem -Path $releaseDir -Recurse -File | ForEach-Object {
+    Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
+}
+Write-Host "    已解除 release/ 目录下所有文件的 Windows 锁定标记" -ForegroundColor Green
+
+# 尝试为 release/神盾教练.exe 执行 Authenticode 代码签名
+try {
+    $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $cert) {
+        $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=AegisCoach Local Dev, O=AegisCoach" -CertStoreLocation Cert:\CurrentUser\My -ErrorAction SilentlyContinue
+    }
+    if ($cert) {
+        Set-AuthenticodeSignature -FilePath $outputExe -Certificate $cert -ErrorAction SilentlyContinue | Out-Null
+        Write-Host "    已对可执行文件应用 Authenticode 代码签名保护" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "    代码签名可选步骤跳过: $($_.Exception.Message)" -ForegroundColor Gray
+}
+
+# 修复 Windows Mandatory Integrity Control (MIC) 级别，防止从受限父目录继承 Low Mandatory Level 导致 Win32k Lockdown / GUI 初始化失败 (1114 ERROR_DLL_INIT_FAILED)
+try {
+    & icacls $releaseDir /setintegritylevel "(OI)(CI)Medium" | Out-Null
+    & icacls $outputExe /setintegritylevel Medium | Out-Null
+    Write-Host "    已将 release/ 输出目录与可执行文件完整性级别设置为 Medium (标准桌面应用)" -ForegroundColor Green
+} catch {
+    Write-Host "    完整性级别设置跳过: $($_.Exception.Message)" -ForegroundColor Gray
 }
 
 Write-Host "==> 发布打包圆满完成！输出位置: $outputExe" -ForegroundColor Green

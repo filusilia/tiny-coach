@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
-import { playerApi } from '../api'
-import { HERO_CHINESE_NAMES } from '../data/heroNames'
+import { playerApi } from '@/api'
+import { HERO_CHINESE_NAMES } from '@/data/heroNames.ts'
 
 /**
  * OpenDota 单场比赛摘要实体
@@ -126,95 +126,28 @@ export function convertSteamId64ToAccountId(steamId64: string): string | null {
 }
 
 /**
- * 高鲁棒性 Dota 2 玩家数字 ID 规范化提取器
- * 1. 过滤 Unicode 零宽字符、控制符与 Emoji 符号；
- * 2. 全角数字自动转换半角数字 (如 １２３４ -> 1234)；
- * 3. 兼容 Steam3 格式：[U:1:12345678] / U:1:12345678；
- * 4. 兼容 OpenDota / Dotabuff 链接及 Steam 社区个人主页 URL；
- * 5. 兼容 17 位 SteamID64 (公式换算 32 位)；
- * 6. 若输入为纯昵称且未包含有效连续数字串，智能尝试调用 OpenDota 搜索 API 检索 account_id。
- * @param input 用户输入的任意玩家文本或格式
- * @returns 规范化的 32 位数字账号 ID，完全无法解析返回 null
+ * Dota 2 玩家数字 ID 规范化提取器
+ *
+ * 统一出口约束（铁律 6 / 10）：规范化规则（全角数字、零宽字符/Emoji 清洗、Steam3、
+ * SteamID64 换算、OpenDota/Dotabuff/Steam 链接解析、昵称模糊搜索）**只在 Go 侧
+ * PlayerService.NormalizeAccountId 实现一份**。
+ *
+ * 历史上此处曾有一份约 80 行的 TS 平行实现作为"降级"，它不仅与 Go 侧规则各自演化
+ * （修复一处必然漏改另一处），还直连 OpenDota 搜索接口，与统一调度/防限流要求冲突。
+ * 故彻底移除，本函数仅做空值守卫与错误归一化。
+ *
+ * @param input 用户输入的任意玩家文本（ID、好友码、链接或昵称）
+ * @returns 规范化的 32 位数字账号 ID；无法解析或后端不可用时返回 null
  */
 export async function normalizeDotaAccountId(input: string): Promise<string | null> {
-  if (!input || typeof input !== 'string') return null
-
-  // 0. 优先调用 Go 原生服务进行超高鲁棒性清洗与提取 (开工铁律第 6 条架构分层)
+  if (!input || typeof input !== 'string' || !input.trim()) return null
   try {
-    const nativeRes = await playerApi.normalizeAccountId(input)
-    if (nativeRes && typeof nativeRes === 'string') {
-      return nativeRes
-    }
-  } catch {
-    // Go 原生调用异常时平滑降级至前端纯 TS 规则
+    const normalized = await playerApi.normalizeAccountId(input)
+    return normalized && normalized.trim() ? normalized.trim() : null
+  } catch (e) {
+    console.warn('[PlayerProfile] 规范化玩家 ID 失败:', e)
+    return null
   }
-
-  // 1. 全角数字转半角
-  let cleaned = input.replace(/[\uFF10-\uFF19]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-
-  // 2. 清除不可见与零宽字符
-  // eslint-disable-next-line no-control-regex
-  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u0000-\u001F]/g, '').trim()
-  if (!cleaned) return null
-
-  // 3. 匹配 Steam3 格式: [U:1:123456] 或 U:1:123456
-  const steam3Match = cleaned.match(/U:1:(\d+)/i)
-  if (steam3Match && steam3Match[1]) {
-    return steam3Match[1]
-  }
-
-  // 4. 匹配主流 Dota 战绩/Steam 链接
-  const urlMatch = cleaned.match(/(?:opendota\.com\/players\/|dotabuff\.com\/players\/)(\d+)/i)
-  if (urlMatch && urlMatch[1]) {
-    return urlMatch[1]
-  }
-
-  const steamUrlMatch = cleaned.match(/steamcommunity\.com\/profiles\/(\d{17})/i)
-  if (steamUrlMatch && steamUrlMatch[1]) {
-    return convertSteamId64ToAccountId(steamUrlMatch[1])
-  }
-
-  // 5. 剥离表情 Emoji 与特殊 Unicode 图标后的候选提取
-  const strippedEmoji = cleaned.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/gu, ' ')
-
-  // 检查是否包含 17 位 7656119 开头的 Steam64 ID
-  const steam64Match = strippedEmoji.match(/\b(7656119\d{10})\b/)
-  if (steam64Match && steam64Match[1]) {
-    return convertSteamId64ToAccountId(steam64Match[1])
-  }
-
-  // 6. 提取独立的 6~10 位数字串 (绝大多数 32 位 Dota 2 好友 ID 为 6~10 位)
-  const idMatch = strippedEmoji.match(/\b(\d{6,10})\b/)
-  if (idMatch && idMatch[1]) {
-    return idMatch[1]
-  }
-
-  // 7. 若全文只含连续纯数字 (4~10位)
-  const pureDigits = strippedEmoji.replace(/\D/g, '')
-  if (pureDigits.length >= 4 && pureDigits.length <= 10) {
-    return pureDigits
-  }
-
-  // 8. 降级：若用户输入的是纯玩家昵称（包含 Unicode 汉字/英文字符），尝试通过 OpenDota 搜索 API 检索
-  const searchName = strippedEmoji.trim()
-  if (searchName.length >= 2) {
-    try {
-      const res = await fetch(`https://api.opendota.com/api/search?q=${encodeURIComponent(searchName)}`, {
-        signal: AbortSignal.timeout(4000),
-      })
-      if (res.ok) {
-        const results = await res.json()
-        if (Array.isArray(results) && results.length > 0 && results[0]?.account_id) {
-          return String(results[0].account_id)
-        }
-      }
-    } catch {
-      // 忽略搜索超时
-    }
-  }
-
-  return null
 }
 
 /**
@@ -275,7 +208,12 @@ class PlayerProfileService {
 
   /**
    * 拉取指定玩家近 20 场公开比赛历史并提炼画像
-   * 包含请求超时与 OpenDota 响应异常守卫
+   *
+   * 统一出口约束（铁律 6 / 10）：战绩与画像聚合**只在 Go 侧 PlayerService 实现一份**，
+   * 本方法仅负责调用绑定并把结果映射为前端视图模型。
+   * 历史上此处曾在 Go 调用失败时用前端 fetch 重发同一请求并自行聚合画像，
+   * 既造成双发流量（触碰防限流要求），也让 Go 侧的静默契约缺陷长期无人察觉。
+   *
    * @param accountIdInput 可选目标玩家 ID，未传则读取当前绑定账号
    * @returns 提炼后的战绩画像实体，失败返回 null
    */
@@ -290,187 +228,68 @@ class PlayerProfileService {
     this.state.loading = true
     this.state.error = null
 
-    // 0. 优先调用 Go 原生后端战绩网关 (带 10 分钟 TTL 内存缓存与强防限流机制)
     try {
+      // Go 侧带 10 分钟 TTL 内存缓存与磁盘持久化，且为 OpenDota 唯一出口
       const nativeProfile = await playerApi.getPlayerProfile(targetId)
-      if (nativeProfile && nativeProfile.accountId) {
-        const anyP = nativeProfile as any
-        const rawHeroes = (anyP.topHeroes && anyP.topHeroes.length > 0)
-          ? anyP.topHeroes
-          : (anyP.recentHeroes || [])
+      if (!nativeProfile || !nativeProfile.accountId) {
+        throw new Error('未检索到该玩家近期公开战绩 (请确认游戏内是否已开启「公开比赛数据」)')
+      }
 
-        const topHeroes: HeroPerformance[] = rawHeroes.map((h: any) => {
-          const matches = h.matches ?? 0
-          const wins = h.wins ?? 0
-          const winRate = h.winRate ?? (matches > 0 ? Math.round((wins / matches) * 100) : 0)
-          return {
-            heroId: h.heroId,
-            heroName: h.heroName || HERO_CHINESE_NAMES[h.heroId] || `英雄 #${h.heroId}`,
-            matches,
-            wins,
-            winRate,
-            avgKills: Number(h.avgKills || 0),
-            avgDeaths: Number(h.avgDeaths || 0),
-            avgAssists: Number(h.avgAssists || 0),
-          }
-        })
+      const rawHeroes = nativeProfile.topHeroes.length > 0
+        ? nativeProfile.topHeroes
+        : nativeProfile.recentHeroes
 
-        const totalMatches = nativeProfile.totalMatches || 20
-        const wins = nativeProfile.wins || 0
-        const losses = nativeProfile.losses ?? Math.max(0, totalMatches - wins)
-        const winRate = nativeProfile.winRate ?? (totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0)
-        const summary = nativeProfile.tacticalSummary || '天梯实力选手'
-
-        const mappedProfile: PlayerProfileAnalysis = {
-          accountId: anyP.accountId,
-          totalMatches,
+      const topHeroes: HeroPerformance[] = rawHeroes.map((h) => {
+        const matches = h.matches ?? 0
+        const wins = h.wins ?? 0
+        const winRate = h.winRate ?? (matches > 0 ? Math.round((wins / matches) * 100) : 0)
+        return {
+          heroId: h.heroId,
+          heroName: h.heroName || HERO_CHINESE_NAMES[h.heroId] || `英雄 #${h.heroId}`,
+          matches,
           wins,
-          losses,
           winRate,
-          avgKills: Number(anyP.avgKills || 0),
-          avgDeaths: Number(anyP.avgDeaths || 0),
-          avgAssists: Number(anyP.avgAssists || 0),
-          topHeroes: topHeroes.slice(0, 5),
-          recentHeroes: topHeroes,
-          tacticalSummary: summary,
-          lastUpdated: anyP.lastUpdated || new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+          avgKills: Number(h.avgKills || 0),
+          avgDeaths: Number(h.avgDeaths || 0),
+          avgAssists: Number(h.avgAssists || 0),
         }
+      })
 
-        this.state.profile = mappedProfile
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.setItem(
-            CACHE_KEY_PROFILE,
-            JSON.stringify({ timestamp: Date.now(), data: mappedProfile }),
-          )
-        }
-        return mappedProfile
-      }
-    } catch (nativeErr: unknown) {
-      console.warn('[PlayerProfile] playerApi.getPlayerProfile 失败，降级至前端请求:', nativeErr)
-    }
+      const totalMatches = nativeProfile.totalMatches || 20
+      const wins = nativeProfile.wins || 0
+      const losses = nativeProfile.losses ?? Math.max(0, totalMatches - wins)
+      const winRate = nativeProfile.winRate ?? (totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0)
+      const summary = nativeProfile.tacticalSummary || '天梯实力选手'
 
-    try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 8000)
-
-      const url = `https://api.opendota.com/api/players/${encodeURIComponent(targetId)}/matches?limit=20&offset=0`
-      const res = await fetch(url, { signal: controller.signal })
-      clearTimeout(timer)
-
-      if (!res.ok) {
-        throw new Error(`OpenDota API 响应错误 (HTTP ${res.status})`)
+      const mappedProfile: PlayerProfileAnalysis = {
+        accountId: nativeProfile.accountId,
+        totalMatches,
+        wins,
+        losses,
+        winRate,
+        avgKills: Number(nativeProfile.avgKills || 0),
+        avgDeaths: Number(nativeProfile.avgDeaths || 0),
+        avgAssists: Number(nativeProfile.avgAssists || 0),
+        topHeroes: topHeroes.slice(0, 5),
+        recentHeroes: topHeroes,
+        tacticalSummary: summary,
+        lastUpdated: nativeProfile.lastUpdated || new Date().toLocaleTimeString('zh-CN', { hour12: false }),
       }
 
-      const rawMatches: OpenDotaMatchSummary[] = await res.json()
-      if (!Array.isArray(rawMatches) || rawMatches.length === 0) {
-        throw new Error('未检索到该玩家近 20 场公开战绩数据 (请确认游戏内是否已开启“公开比赛数据”)')
-      }
-
-      const analysis = this.analyzeMatches(targetId, rawMatches)
-      this.state.profile = analysis
-
-      // 本地缓存
+      this.state.profile = mappedProfile
       if (typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem(
           CACHE_KEY_PROFILE,
-          JSON.stringify({ timestamp: Date.now(), data: analysis }),
+          JSON.stringify({ timestamp: Date.now(), data: mappedProfile }),
         )
       }
-
-      return analysis
+      return mappedProfile
     } catch (err: any) {
-      console.warn('拉取 OpenDota 战绩失败:', err)
+      console.warn('[PlayerProfile] 拉取玩家战绩画像失败:', err)
       this.state.error = err?.message || '获取近期比赛失败'
       return null
     } finally {
       this.state.loading = false
-    }
-  }
-
-  /**
-   * 对战绩比赛样本进行统计学画像抽取与英雄熟练度聚合
-   * 计算场均 KDA、胜负场、出场频次最高的招牌英雄池，并生成自然语言概括
-   * @param accountId 玩家数字 ID
-   * @param matches OpenDota 比赛原始数据数组
-   * @returns 聚合提炼后的玩家画像实体
-   */
-  private analyzeMatches(accountId: string, matches: OpenDotaMatchSummary[]): PlayerProfileAnalysis {
-    let totalWins = 0
-    let totalKills = 0
-    let totalDeaths = 0
-    let totalAssists = 0
-
-    const heroMap = new Map<number, {
-      matches: number
-      wins: number
-      kills: number
-      deaths: number
-      assists: number
-    }>()
-
-    for (const m of matches) {
-      // player_slot: 0~4 为 Radiant, 128~132 为 Dire
-      const isRadiant = m.player_slot < 128
-      const isWin = (isRadiant && m.radiant_win) || (!isRadiant && !m.radiant_win)
-
-      if (isWin) totalWins++
-      totalKills += m.kills || 0
-      totalDeaths += m.deaths || 0
-      totalAssists += m.assists || 0
-
-      const hid = m.hero_id
-      const curr = heroMap.get(hid) || { matches: 0, wins: 0, kills: 0, deaths: 0, assists: 0 }
-      curr.matches += 1
-      if (isWin) curr.wins += 1
-      curr.kills += m.kills || 0
-      curr.deaths += m.deaths || 0
-      curr.assists += m.assists || 0
-      heroMap.set(hid, curr)
-    }
-
-    const n = matches.length
-    const winRate = Math.round((totalWins / n) * 100)
-    const avgK = Number((totalKills / n).toFixed(1))
-    const avgD = Number((totalDeaths / n).toFixed(1))
-    const avgA = Number((totalAssists / n).toFixed(1))
-
-    const heroList: HeroPerformance[] = []
-    heroMap.forEach((val, hid) => {
-      heroList.push({
-        heroId: hid,
-        heroName: HERO_CHINESE_NAMES[hid] || `英雄#${hid}`,
-        matches: val.matches,
-        wins: val.wins,
-        winRate: Math.round((val.wins / val.matches) * 100),
-        avgKills: Number((val.kills / val.matches).toFixed(1)),
-        avgDeaths: Number((val.deaths / val.matches).toFixed(1)),
-        avgAssists: Number((val.assists / val.matches).toFixed(1)),
-      })
-    })
-
-    // 常用英雄排序：按场次倒序，再按胜率倒序
-    heroList.sort((a, b) => b.matches - a.matches || b.winRate - a.winRate)
-
-    // 格式化战术画像概括（数据脱敏）
-    const topHeroDescs = heroList.slice(0, 3).map(
-      h => `${h.heroName}(${h.matches}场,胜率${h.winRate}%)`,
-    ).join('、')
-
-    const tacticalSummary = `近 20 场排位总胜率 ${winRate}% (场均 KDA: ${avgK}/${avgD}/${avgA})，核心英雄偏好: ${topHeroDescs || '多面手'}。`
-
-    return {
-      accountId,
-      totalMatches: n,
-      wins: totalWins,
-      losses: n - totalWins,
-      winRate,
-      avgKills: avgK,
-      avgDeaths: avgD,
-      avgAssists: avgA,
-      topHeroes: heroList.slice(0, 5),
-      recentHeroes: heroList,
-      tacticalSummary,
-      lastUpdated: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
     }
   }
 
@@ -515,36 +334,24 @@ export const playerProfileService = new PlayerProfileService()
 
 /**
  * 原生获取单场历史比赛全量复盘详情
- * 优先读取 Go 端本地磁盘不可变缓存，未命中则走 Go 原生抓取并落盘
+ * 统一出口约束（铁律 6 / 10）：优先读取 Go 端本地磁盘不可变缓存，未命中则走 Go 原生抓取并落盘
  */
 export async function fetchMatchDetails(matchId: string): Promise<any> {
   const cleanId = matchId.trim()
   if (!cleanId) throw new Error('比赛 ID 不能为空')
 
-  try {
-    const rawJson = await playerApi.getMatchDetails(cleanId)
-    if (rawJson) {
-      return JSON.parse(rawJson)
-    }
-  } catch (e) {
-    console.warn('[PlayerProfile] playerApi.getMatchDetails 失败，降级至前端请求:', e)
+  const rawJson = await playerApi.getMatchDetails(cleanId)
+  if (rawJson) {
+    return JSON.parse(rawJson)
   }
-
-  // 前端网络请求降级
-  const res = await fetch(`https://api.opendota.com/api/matches/${encodeURIComponent(cleanId)}`, {
-    signal: AbortSignal.timeout(8000),
-  })
-  if (!res.ok) {
-    throw new Error(`OpenDota 接口返回异常 HTTP ${res.status}`)
-  }
-  return await res.json()
+  throw new Error('未能获取比赛详情数据')
 }
 
 /**
  * 原生拉取玩家近期比赛简报
- * 优先走 Go 原生接口
+ * 统一出口约束（铁律 6 / 10）：走 Go 原生单例接口，享有后端防限流与缓存保护
  */
-export async function fetchPlayerRecentMatchesList(accountId: string): Promise<any[]> {
+export async function fetchPlayerRecentMatchesList(accountId: string, _limit: number = 100): Promise<any[]> {
   const cleanId = accountId.trim()
   if (!cleanId) return []
 
@@ -552,18 +359,11 @@ export async function fetchPlayerRecentMatchesList(accountId: string): Promise<a
     const rawJson = await playerApi.getPlayerRecentMatches(cleanId)
     if (rawJson) {
       const parsed = JSON.parse(rawJson)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
     }
   } catch (e) {
-    console.warn('[PlayerProfile] playerApi.getPlayerRecentMatches 失败，降级至前端请求:', e)
+    console.warn('[PlayerProfile] playerApi.getPlayerRecentMatches 失败:', e)
   }
 
-  const res = await fetch(`https://api.opendota.com/api/players/${encodeURIComponent(cleanId)}/recentMatches`, {
-    signal: AbortSignal.timeout(6000),
-  })
-  if (res.ok) {
-    const data = await res.json()
-    if (Array.isArray(data)) return data
-  }
   return []
 }

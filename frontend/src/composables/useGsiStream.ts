@@ -2,13 +2,15 @@
  * GSI 实时数据流消费 Composable (src/composables/useGsiStream.ts)
  * 核心设计：
  * 1. 10Hz 高频快照采用 requestAnimationFrame (rAF) 节流合并缓冲
- * 2. 消费 battleStore，驱动 shallowRef 更新，保持渲染 60fps 丝滑
+ * 2. 本模块是 "gsi_data" 事件的**唯一订阅方**：合并后统一驱动
+ *    gsiRuleEngine.processGsiSnapshot()，规则引擎自身不再注册任何监听
  * 3. 严格遵循生命周期闭环，在 onUnmounted 时彻底注销事件监听器，绝不内存泄漏
  */
 
-import type { GsiSnapshot } from '../api/types'
+import type { GsiSnapshot } from '@/services/gsiRuleEngine.ts'
 import { onMounted, onUnmounted, ref } from 'vue'
-import { useBattleStore } from '../stores/battle'
+import { gsiRuleEngine } from '@/services/gsiRuleEngine.ts'
+import { useBattleStore } from '@/stores/battle.ts'
 
 interface WailsRuntimeWindow extends Window {
   wails?: {
@@ -38,7 +40,7 @@ export function useGsiStream() {
     rafHandle = requestAnimationFrame(() => {
       rafHandle = null
       if (pendingSnapshot) {
-        battleStore.setSnapshot(pendingSnapshot)
+        gsiRuleEngine.processGsiSnapshot(pendingSnapshot)
         pendingSnapshot = null
       }
     })
@@ -81,22 +83,13 @@ export function useGsiStream() {
 
     // 1. 优先使用 Wails v3 Events.On
     if (win.wails?.Events?.On) {
-      // 监听权威通道 "gsi_data"
+      // 唯一权威通道 "gsi_data"（Go 端 internal/services/gsi 只发射该事件名）
       const unreg1 = win.wails.Events.On('gsi_data', (eventPayload: unknown) => {
         const payload = (eventPayload as { data?: unknown })?.data ?? eventPayload
         handleRawPayload(payload)
       })
       if (typeof unreg1 === 'function') {
         unlistenFns.push(unreg1)
-      }
-
-      // 兼容旧通道 "dota_gsi_update"
-      const unreg2 = win.wails.Events.On('dota_gsi_update', (eventPayload: unknown) => {
-        const payload = (eventPayload as { data?: unknown })?.data ?? eventPayload
-        handleRawPayload(payload)
-      })
-      if (typeof unreg2 === 'function') {
-        unlistenFns.push(unreg2)
       }
 
       isListening.value = true
@@ -123,7 +116,6 @@ export function useGsiStream() {
     const win = window as WailsRuntimeWindow
     if (win.wails?.Events?.Off) {
       win.wails.Events.Off('gsi_data')
-      win.wails.Events.Off('dota_gsi_update')
     }
 
     if (rafHandle !== null) {
@@ -145,7 +137,7 @@ export function useGsiStream() {
   return {
     isListening,
     lastPacketTimestamp,
-    snapshot: battleStore.snapshot,
+    context: battleStore.context,
     gsiConnected: battleStore.gsiConnected,
     startStream,
     stopStream,

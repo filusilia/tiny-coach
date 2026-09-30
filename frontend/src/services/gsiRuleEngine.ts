@@ -1,10 +1,11 @@
 import type { CoachAdvice, ReminderCategoryKey } from '@/types'
 import { reactive } from 'vue'
+import { overlayApi } from '@/api'
+import { HERO_CHINESE_NAMES } from '@/data/heroNames.ts'
+import { convertSteamId64ToAccountId, playerProfileService } from '@/services/playerProfileService.ts'
+import { speechService } from '@/services/speechService.ts'
 import { useAppStore, useBattleStore } from '@/stores'
-import { overlayApi } from '../api'
-import { HERO_CHINESE_NAMES } from '../data/heroNames'
-import { convertSteamId64ToAccountId, playerProfileService } from './playerProfileService'
-import { speechService } from './speechService'
+import { checkIsOverlayWindow } from '@/utils/windowMode.ts'
 
 /**
  * 实时技能栏 HUD 实体
@@ -115,6 +116,8 @@ export interface ActiveBattleContext {
   hasScepter: boolean
   /** 英雄是否拥有阿哈利姆魔晶效果 */
   hasShard: boolean
+  /** 本局已识别的敌方英雄数字 ID 列表 */
+  enemyHeroIds: number[]
 }
 
 /**
@@ -158,12 +161,13 @@ export const activeBattleContext = reactive<ActiveBattleContext>({
   daytime: true,
   hasScepter: false,
   hasShard: false,
+  enemyHeroIds: [],
 })
 
 /**
  * 官方 GSI 原始快照 JSON 结构定义
  */
-interface GsiSnapshot {
+export interface GsiSnapshot {
   provider?: { name: string, timestamp: number }
   map?: {
     clock_time?: number
@@ -230,36 +234,18 @@ class GsiRuleEngine {
   private prevBkbCooldown: number | null = null
   /** 标记当前对局是否已自动弹出过一次独立悬浮窗 */
   private hasAutoLaunchedOverlay = false
-  /** 引擎初始化状态防重标记 */
-  private initialized = false
 
-  /**
-   * 初始化规则引擎
-   * 注册 Wails 原生 runtime 的 'dota_gsi_update' 事件总线监听
-   */
-  public init() {
-    if (this.initialized) return
-    this.initialized = true
-
-    // 优先接入 Wails v3 原生事件总线，保持对兼容通道的兜底
-    if (typeof window !== 'undefined') {
-      const win = window as any
-      const handleEvent = (eventPayload: any) => {
-        const payload = eventPayload?.data !== undefined ? eventPayload.data : eventPayload
-        this.processGsiSnapshot(payload)
-      }
-
-      // 1. Wails v3 原生事件监听 (优先标准 'gsi_data' 与兼容 'dota_gsi_update')
-      if (win.wails?.Events?.On) {
-        win.wails.Events.On('gsi_data', handleEvent)
-        win.wails.Events.On('dota_gsi_update', handleEvent)
-      } else if (win.runtime?.EventsOn) {
-        // 2. 兼容垫片/旧版事件总线降级 (互斥执行，防止 10Hz 事件双倍重复处理)
-        win.runtime.EventsOn('gsi_data', handleEvent)
-        win.runtime.EventsOn('dota_gsi_update', handleEvent)
-      }
-    }
-  }
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 事件订阅职责声明（单一消费者铁律）
+  //
+  // 本引擎**不再自行注册任何事件监听**。10Hz GSI 快照的唯一订阅方是
+  // composables/useGsiStream.ts，由其完成 requestAnimationFrame 合并后再调用
+  // processGsiSnapshot()，从而满足铁律 9「事件驱动合并最新状态、严禁阻塞渲染主线程」。
+  //
+  // 历史上本类曾在 init() 中再次订阅 gsi_data / dota_gsi_update，与 useGsiStream
+  // 形成双订阅：每帧快照被处理两次，且 rAF 合并被完全架空。二者又都不注销返回值，
+  // 违反铁律 12。故此处彻底移除订阅与 init()，避免同类回归。
+  // ─────────────────────────────────────────────────────────────────────────────
 
   /**
    * 规则内部冷却判定器
@@ -315,17 +301,17 @@ class GsiRuleEngine {
     activeBattleContext.clockTime = clockTime
     activeBattleContext.gameTime = map?.game_time ?? 0
     activeBattleContext.gameState = gameState || '进行中'
-    activeBattleContext.heroId = hero.id ?? 1
-    activeBattleContext.heroInternalName = hero.name || 'npc_dota_hero_antimage'
-    activeBattleContext.heroName = (hero.id && HERO_CHINESE_NAMES[hero.id]) || hero.name || '当前英雄'
-    activeBattleContext.heroLevel = hero.level ?? 1
+    activeBattleContext.heroId = hero?.id ?? 0
+    activeBattleContext.heroInternalName = hero?.name || ''
+    activeBattleContext.heroName = (hero?.id && HERO_CHINESE_NAMES[hero.id]) || hero?.name || ''
+    activeBattleContext.heroLevel = hero?.level ?? 0
     activeBattleContext.alive = isAlive
-    activeBattleContext.health = hero.health ?? 600
-    activeBattleContext.maxHealth = hero.max_health ?? 600
-    activeBattleContext.healthPercent = hero.health_percent ?? 100
-    activeBattleContext.mana = hero.mana ?? 300
-    activeBattleContext.maxMana = hero.max_mana ?? 300
-    activeBattleContext.manaPercent = hero.mana_percent ?? 100
+    activeBattleContext.health = hero?.health ?? 0
+    activeBattleContext.maxHealth = hero?.max_health ?? 0
+    activeBattleContext.healthPercent = hero?.health_percent ?? 0
+    activeBattleContext.mana = hero?.mana ?? 0
+    activeBattleContext.maxMana = hero?.max_mana ?? 0
+    activeBattleContext.manaPercent = hero?.mana_percent ?? 0
     activeBattleContext.gold = player?.gold ?? 0
     activeBattleContext.goldReliable = player?.gold_reliable ?? 0
     activeBattleContext.gpm = player?.gpm ?? 0
@@ -397,6 +383,11 @@ class GsiRuleEngine {
       )
     }
 
+    // 独立桌面悬浮窗纯战况 HUD 渲染，无需在此执行全局战术规则判定与 TTS 播报
+    if (checkIsOverlayWindow()) {
+      return
+    }
+
     /**
      * 内部警报触发器：执行播报模式分流并落入战术流
      * 根据用户设置中的各类别播报模式 (0: 关闭, 1: 仅文字, 2: 语音+文字) 分发建议
@@ -443,7 +434,7 @@ class GsiRuleEngine {
           mode: 2,
           rate: appStore.settings.voice_speed,
           volume: appStore.settings.voice_volume,
-          voiceName: appStore.settings.edge_voice_name || appStore.settings.voice_name,
+          voiceName: appStore.settings.voice_name,
         })
       }
     }
@@ -456,7 +447,7 @@ class GsiRuleEngine {
       overlayApi.isOverlayRunning().then((running: boolean) => {
         if (!running) {
           overlayApi.toggleOverlayWindow().then(() => {
-            appStore.isOverlayRunning = true
+            appStore.setOverlayRunning(true)
             triggerAlert(
               'macro_tempo',
               'AUTO_OVERLAY_LAUNCH',

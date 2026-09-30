@@ -341,12 +341,13 @@ export type ReminderModesMap = Partial<Record<ReminderCategoryKey, BroadcastMode
 
 /**
  * AI 推理引擎运行模式枚举
+ * - response_api: 标准通用 Response API 模式 (无论本地 Ollama/LMStudio/网关 还是公有云 DeepSeek/OpenAI 均使用标准 /v1/chat/completions)
+ * - ollama: 本地 Ollama 引擎 (/chat/completions)
+ * - remote: 远程 Response API 引擎 (/responses)
  * - rule_only: 纯确定性规则引擎，完全关闭 LLM 推理
- * - local_npu: 本地 NPU / 本地 Ollama 离线模型
- * - cloud_api: 远程云端大模型 API (如 OpenAI 规范端点)
- * - npu / cloud: 兼容模式别名
+ * - local_npu / cloud_api / npu / cloud / response_api: 兼容历史模式别名
  */
-export type AiEngineMode = 'rule_only' | 'local_npu' | 'cloud_api' | 'npu' | 'cloud'
+export type AiEngineMode = 'ollama' | 'remote' | 'rule_only' | 'response_api' | 'local_npu' | 'cloud_api' | 'npu' | 'cloud'
 
 /**
  * AI 端点可用性探测与健康检查结果实体
@@ -362,6 +363,8 @@ export interface AiEndpointTestResult {
   modelUsed?: string
   /** 探测请求返回的简短文本预览 */
   responsePreview?: string
+  /** 原始返回内容 (用于详细回显) */
+  rawResponse?: string
   /** 探测失败时的详细排查错误信息 */
   errorMessage?: string
   /** 执行探测测试的时间戳 */
@@ -387,14 +390,16 @@ export interface AppSettings {
   voice_volume: number
   /** 语音播报语速倍率 (0.5 ~ 2.0) */
   voice_speed: number
-  /** Web Speech 默认语音音色标识符 */
+  /** 默认语音音色标识符（纯 MeloTTS 模式下为本地模型音色） */
   voice_name: string
-  /** 微软 Edge TTS 在线高保真音色名称 (如 zh-CN-XiaoxiaoNeural) */
-  edge_voice_name: string
+  /** 微软 Edge TTS 在线高保真音色名称 (兼容历史配置) */
+  edge_voice_name?: string
   /** 是否启用 Dota 专业电竞专有名词读音词典矫正 (如 "BKB", "A杖") */
   voice_lexicon_enabled: boolean
   /** 是否启用 SSML 标记语言以增强语音韵律与重音 */
   voice_ssml_enabled: boolean
+  /** 是否在后台自动检测并下载 MeloTTS 缺失权重 */
+  melo_auto_download?: boolean
   /** 对局启动时是否自动弹出置顶经济与战术悬浮窗 */
   auto_show_overlay: boolean
   /** 兼容字段: 游戏启动时自动呼出悬浮窗 */
@@ -413,29 +418,35 @@ export interface AppSettings {
   dota_player_name?: string
   /** 绑定玩家的头像 URL 链接 */
   dota_player_avatar?: string
-  /** 是否启用第三方或自定义 HTTP TTS 语音合成引擎 */
-  custom_tts_enabled: boolean
-  /** 自定义 TTS 引擎架构类型 ('edge' | 'cosyvoice' | 'chattts' | 'openai_tts' | 'custom_http') */
-  custom_tts_engine: 'edge' | 'cosyvoice' | 'chattts' | 'openai_tts' | 'custom_http'
-  /** 自定义 TTS 服务的 HTTP POST 请求端点 URL */
-  custom_tts_endpoint: string
+  /** 是否启用第三方或自定义 HTTP TTS 语音合成引擎 (兼容旧配置) */
+  custom_tts_enabled?: boolean
+  /** 自定义 TTS 引擎架构类型 (兼容旧配置) */
+  custom_tts_engine?: 'edge' | 'go_speech' | 'cosyvoice' | 'chattts' | 'openai_tts' | 'custom_http'
+  /** 自定义 TTS 服务的 HTTP POST 请求端点 URL (兼容旧配置) */
+  custom_tts_endpoint?: string
   /** 自定义 TTS 服务的 API 认证密钥 (可选) */
   custom_tts_api_key?: string
   /** 自定义 TTS 服务的预设音色/发音人标识 (可选) */
   custom_tts_voice?: string
-  /** AI 实时战术推理运行模式 ('rule_only' | 'local_npu' | 'cloud_api') */
+  /** AI 实时战术推理运行模式 ('response_api' | 'rule_only' | 兼容旧值) */
   ai_mode: AiEngineMode
-  /** 本地 Ollama 或端侧 NPU 的 HTTP 服务端点 (默认 http://127.0.0.1:11434) */
-  npu_endpoint: string
-  /** 本地 Ollama 挂载的目标大模型名称 (如 qwen2.5:7b) */
-  npu_model: string
+  /** 通用 Response API 服务端点 (兼容本地 Ollama/网关或公有云，默认 http://127.0.0.1:11434/v1) */
+  ai_endpoint?: string
+  /** 通用 Response API 认证密钥 (公有云需填写，本地通常可留空) */
+  ai_api_key?: string
+  /** 通用 Response API 目标大模型名称 (如 qwen2.5:1.5b 或 deepseek-chat) */
+  ai_model?: string
+  /** 本地 Ollama 或端侧 NPU 的 HTTP 服务端点 (兼容历史字段) */
+  npu_endpoint?: string
+  /** 本地 Ollama 挂载的目标大模型名称 (兼容历史字段) */
+  npu_model?: string
   /** 本地选中的 AI 模型文件绝对物理路径 (如 GGUF / ONNX / Bin 模型权重) */
   local_model_path?: string
-  /** 远程云端大模型 API 访问密钥 (Bearer Token) */
+  /** 远程云端大模型 API 访问密钥 (兼容历史字段) */
   cloud_api_key?: string
-  /** 远程云端大模型 API Base URL (如 https://api.deepseek.com/v1) */
+  /** 远程云端大模型 API Base URL (兼容历史字段) */
   cloud_base_url?: string
-  /** 远程云端大模型名称 (如 deepseek-chat) */
+  /** 远程云端大模型名称 (兼容历史字段) */
   cloud_model?: string
   /** 用户个性化战术背景偏好或打法风格补充描述 */
   user_context?: string

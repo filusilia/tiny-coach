@@ -6,29 +6,42 @@
  * 3. 严格防范破图与循环 error 事件
  */
 
+import { HERO_SHORT_NAMES } from '../data/heroNames'
+
 const STEAM_CDN_BASE = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react'
 const BLANK_IMAGE_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="%231e293b"/></svg>'
 
 /**
- * 清理英雄英文名（去除 npc_dota_hero_ 前缀）
+ * 清理英雄英文名（支持数字 ID、数字字符串、去除 npc_dota_hero_ 前缀）
  */
-export function cleanHeroName(rawName: string): string {
-  if (!rawName) return ''
-  return rawName.replace(/^npc_dota_hero_/, '').trim()
+export function cleanHeroName(rawName: string | number): string {
+  if (rawName === undefined || rawName === null || rawName === '') return ''
+  if (typeof rawName === 'number') {
+    return HERO_SHORT_NAMES[rawName] || ''
+  }
+  const str = String(rawName).trim()
+  if (/^\d+$/.test(str)) {
+    const id = parseInt(str, 10)
+    if (HERO_SHORT_NAMES[id]) {
+      return HERO_SHORT_NAMES[id]
+    }
+  }
+  return str.replace(/^npc_dota_hero_/, '').trim()
 }
 
 /**
  * 清理物品键名（去除 item_ 前缀）
  */
-export function cleanItemKey(rawKey: string): string {
-  if (!rawKey) return ''
-  return rawKey.replace(/^item_/, '').trim()
+export function cleanItemKey(rawKey: string | number): string {
+  if (rawKey === undefined || rawKey === null || rawKey === '') return ''
+  const str = String(rawKey).trim()
+  return str.replace(/^item_/, '').trim()
 }
 
 /**
  * 获取物品官方 CDN URL 兜底
  */
-export function getItemCdnUrl(rawKey: string): string {
+export function getItemCdnUrl(rawKey: string | number): string {
   const clean = cleanItemKey(rawKey)
   if (!clean) return BLANK_IMAGE_PLACEHOLDER
   if (clean === 'recipe' || clean.startsWith('recipe_')) {
@@ -40,7 +53,7 @@ export function getItemCdnUrl(rawKey: string): string {
 /**
  * 获取物品图标 URL (本地缓存优先，落盘兜底)
  */
-export function getItemIconUrl(rawKey: string): string {
+export function getItemIconUrl(rawKey: string | number): string {
   const clean = cleanItemKey(rawKey)
   if (!clean) return BLANK_IMAGE_PLACEHOLDER
   if (clean === 'recipe' || clean.startsWith('recipe_')) {
@@ -52,7 +65,7 @@ export function getItemIconUrl(rawKey: string): string {
 /**
  * 获取英雄头像官方 CDN URL 兜底
  */
-export function getHeroCdnUrl(rawName: string): string {
+export function getHeroCdnUrl(rawName: string | number): string {
   const clean = cleanHeroName(rawName)
   if (!clean) return BLANK_IMAGE_PLACEHOLDER
   return `${STEAM_CDN_BASE}/heroes/${clean}.png`
@@ -61,7 +74,7 @@ export function getHeroCdnUrl(rawName: string): string {
 /**
  * 获取英雄头像图标 URL (本地缓存优先，落盘兜底)
  */
-export function getHeroIconUrl(rawName: string): string {
+export function getHeroIconUrl(rawName: string | number): string {
   const clean = cleanHeroName(rawName)
   if (!clean) return BLANK_IMAGE_PLACEHOLDER
   return `/cache/heroes/${clean}.png`

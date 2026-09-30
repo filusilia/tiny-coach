@@ -4,12 +4,12 @@ import type { BroadcastMode, ReminderCategoryConfig, ReminderCategoryKey } from 
  * 战术提醒播报档位定义列表
  * - 0: 完全关闭该分类的告警（不进入战术流流水，不发声）
  * - 1: 仅文字播报（在 HUD 与战术流水中呈现卡片气泡，静音）
- * - 2: 语音+文字播报（呈现战术卡片并调用 Edge-TTS 高保真语音朗读）
+ * - 2: 语音+文字播报（呈现战术卡片并调用 MeloTTS 超保真语音朗读）
  */
 export const BROADCAST_MODES = [
   { mode: 0 as const, label: '关闭', shortLabel: '关', desc: '完全关闭提醒与语音' },
   { mode: 1 as const, label: '仅文字播报', shortLabel: '仅文字', desc: '仅在战术流展示文字气泡，不发声' },
-  { mode: 2 as const, label: '语音+文字播报', shortLabel: '语音+文字', desc: '文字气泡 + Edge-TTS 神经拟真朗读' },
+  { mode: 2 as const, label: '语音+文字播报', shortLabel: '语音+文字', desc: '文字气泡 + MeloTTS 超保真离线朗读' },
 ]
 
 /**

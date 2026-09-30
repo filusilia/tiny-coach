@@ -2,11 +2,18 @@ package app
 
 import (
 	"context"
-	"log"
+	"encoding/json"
 	"sync"
 
+	"aegis-coach/internal/config"
 	"aegis-coach/internal/models"
-	"aegis-coach/internal/services"
+	aiSvc "aegis-coach/internal/services/ai"
+	gsiSvc "aegis-coach/internal/services/gsi"
+	ovlSvc "aegis-coach/internal/services/overlay"
+	playerSvc "aegis-coach/internal/services/player"
+	sysSvc "aegis-coach/internal/services/system"
+	ttsSvc "aegis-coach/internal/services/tts"
+	visionSvc "aegis-coach/internal/services/vision"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -17,25 +24,42 @@ type App struct {
 	ctx            context.Context
 	window         *application.WebviewWindow
 	isOverlay      bool
-	systemService  *services.SystemService
-	overlayService *services.OverlayService
-	gsiService     *services.GsiService
-	playerService  *services.PlayerService
-	aiService      *services.AiService
+	systemService  *sysSvc.SystemService
+	overlayService *ovlSvc.OverlayService
+	gsiService     *gsiSvc.GsiService
+	playerService  *playerSvc.PlayerService
+	aiService      *aiSvc.AiService
+	ttsService     *ttsSvc.TtsService
+	visionService  *visionSvc.VisionService
 }
 
 // NewApp 构造 App 门面实体
 func NewApp(isOverlay bool) *App {
-	overlaySvc := services.GetOverlayService(isOverlay)
-	overlaySvc.SetOverlayMode(isOverlay) // ★ 显式设置，避免 sync.Once 首次参数陷阱
+	overlay := ovlSvc.GetOverlayService(isOverlay)
+	overlay.SetOverlayMode(isOverlay) // 显式设置，避免 sync.Once 首次参数陷阱
+
+	system := sysSvc.GetSystemService()
+
+	// 优先同步尝试从主设置中读取配置的 GSI 端口，避免启动阶段端口异步覆盖的竞态
+	port := config.DefaultGsiPort
+	if settingsStr, err := system.LoadSettings(); err == nil {
+		var settingsMap map[string]any
+		if err := json.Unmarshal([]byte(settingsStr), &settingsMap); err == nil {
+			if pFloat, ok := settingsMap["gsi_port"].(float64); ok && pFloat > 0 && pFloat < 65536 {
+				port = int(pFloat)
+			}
+		}
+	}
 
 	return &App{
 		isOverlay:      isOverlay,
-		systemService:  services.GetSystemService(),
-		overlayService: overlaySvc,
-		gsiService:     services.GetGsiService(4444),
-		playerService:  services.GetPlayerService(),
-		aiService:      services.GetAiService(),
+		systemService:  system,
+		overlayService: overlay,
+		gsiService:     gsiSvc.GetGsiService(port),
+		playerService:  playerSvc.GetPlayerService(),
+		aiService:      aiSvc.GetAiService(),
+		ttsService:     ttsSvc.GetTtsService(),
+		visionService:  visionSvc.GetVisionService(),
 	}
 }
 
@@ -46,35 +70,7 @@ func (a *App) SetWindow(w *application.WebviewWindow) {
 	a.window = w
 	a.systemService.SetWindow(w)
 	a.overlayService.SetWindow(w)
-}
-
-// ServiceStartup Wails v3 生命周期启动钩子
-func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
-	a.mu.Lock()
-	a.ctx = ctx
-	a.mu.Unlock()
-
-	// 幂等确保缓存目录存在
-	_, _ = a.systemService.EnsureCacheDirectories("")
-
-	// 仅主窗口启动 GSI 监听服务
-	if !a.isOverlay {
-		go func() {
-			if err := a.gsiService.Start(); err != nil {
-				log.Printf("[GsiService Error]: %v", err)
-			}
-		}()
-	}
-	return nil
-}
-
-// ServiceShutdown Wails v3 生命周期终止清理钩子
-func (a *App) ServiceShutdown() error {
-	if !a.isOverlay {
-		_ = a.gsiService.Stop()
-		a.overlayService.StopTerminatingOverlay()
-	}
-	return nil
+	a.visionService.SetWindow(w)
 }
 
 // ==============================================================================
@@ -169,6 +165,14 @@ func (a *App) GetPlayerRecentMatches(accountId string) (string, error) {
 	return a.playerService.GetPlayerRecentMatches(accountId)
 }
 
+func (a *App) GetPlayerCard(accountId string) (string, error) {
+	return a.playerService.GetPlayerCard(accountId)
+}
+
+func (a *App) GetHeroMatchupRecommendations(heroId int, enemyHeroIds []int) (*models.HeroMatchupRecommendation, error) {
+	return a.playerService.GetHeroMatchupRecommendations(heroId, enemyHeroIds)
+}
+
 func (a *App) TestAiEndpoint(mode, endpoint, apiKey, model string) (*models.AiEndpointTestResultDTO, error) {
 	return a.aiService.TestAiEndpoint(mode, endpoint, apiKey, model)
 }
@@ -187,6 +191,10 @@ func (a *App) GenerateMatchReview(matchId, matchDataJson string, playerSlot int,
 
 func (a *App) PullLocalModel(modelName, endpoint string) (string, error) {
 	return a.aiService.PullLocalModel(modelName, endpoint)
+}
+
+func (a *App) UpdateAiCredentials(mode, endpoint, apiKey string) {
+	a.aiService.UpdateCredentials(mode, endpoint, apiKey)
 }
 
 func (a *App) TestTtsEndpoint(endpoint, apiKey, engineType, voice string) (string, error) {
@@ -219,4 +227,52 @@ func (a *App) FetchLatestPatchInfo() (string, error) {
 
 func (a *App) CloseOverlay() {
 	a.overlayService.CloseOverlay()
+}
+
+func (a *App) SetOverlaySize(width, height int) {
+	a.overlayService.SetOverlaySize(width, height)
+}
+
+func (a *App) GetGoSpeechStatus() (bool, error) {
+	return a.ttsService.GetGoSpeechStatus()
+}
+
+func (a *App) SynthesizeSpeech(text string, speed float64) (string, error) {
+	return a.ttsService.SynthesizeSpeech(text, speed)
+}
+
+func (a *App) TestGoSpeech(text string, speed float64) (string, error) {
+	return a.ttsService.TestGoSpeech(text, speed)
+}
+
+func (a *App) GetTtsStatus() ttsSvc.EngineStatus {
+	return a.ttsService.GetTtsStatus()
+}
+
+func (a *App) CaptureTopScreen() (*models.CaptureResult, error) {
+	return a.visionService.CaptureTopScreen()
+}
+
+func (a *App) CaptureRect(x, y, w, h int) (*models.CaptureResult, error) {
+	return a.visionService.CaptureRect(x, y, w, h)
+}
+
+func (a *App) CaptureMinimap() (*models.CaptureResult, error) {
+	return a.visionService.CaptureMinimap()
+}
+
+func (a *App) StartF10CaptureHotkey() bool {
+	return a.visionService.StartF10CaptureHotkey()
+}
+
+func (a *App) StopF10CaptureHotkey() {
+	a.visionService.StopF10CaptureHotkey()
+}
+
+func (a *App) IsHotkeyActive() bool {
+	return a.visionService.IsHotkeyActive()
+}
+
+func (a *App) GetLastCapture() *models.CaptureResult {
+	return a.visionService.GetLastCapture()
 }

@@ -8,7 +8,7 @@
 
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAppStore } from '../stores/app'
+import { useAppStore } from '@/stores/app.ts'
 
 interface WailsRuntimeWindow extends Window {
   wails?: {
@@ -47,6 +47,8 @@ export function useNativeNavigation() {
     }
   }
 
+  let onUnmountedCleanup: (() => void) | null = null
+
   onMounted(() => {
     const win = window as WailsRuntimeWindow
     if (win.wails?.Events?.On) {
@@ -81,9 +83,38 @@ export function useNativeNavigation() {
         unlistenOverlay = cleanupOverlay
       }
     }
+
+    // 3. 跨窗口 localStorage 状态双重保活
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'aegis_overlay_status' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue)
+          if (typeof parsed.running === 'boolean') {
+            appStore.isOverlayRunning = parsed.running
+            appStore.isOverlayOpen = parsed.running
+          }
+        } catch {}
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+
+    // 4. 窗口获得焦点时重新校准悬浮窗真实运行状态
+    const handleFocus = () => {
+      appStore.checkOverlayStatus()
+    }
+    window.addEventListener('focus', handleFocus)
+
+    onUnmountedCleanup = () => {
+      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('focus', handleFocus)
+    }
   })
 
   onUnmounted(() => {
+    if (onUnmountedCleanup) {
+      onUnmountedCleanup()
+      onUnmountedCleanup = null
+    }
     if (unlistenNav) {
       unlistenNav()
       unlistenNav = null

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PatchInfo } from '@/services/gameDataService.ts'
 /**
  * 物品合成树与图谱视图 (src/views/ItemsView.vue)
  * 职责：
@@ -7,19 +8,29 @@
  * 3. 动态解析装备双向合成关系（向上溯源合成物、向下解构配件树及合成配方）
  * 4. 支持名称、简称与拼音别名极速全局搜索过滤
  */
-import { Clock, Coins, Droplet, GitBranch, Package } from '@lucide/vue'
-import { computed, nextTick, onMounted, ref } from 'vue'
-import { ITEM_ALIASES } from '../data/aliases'
-import { getItemCategory, getNeutralTier, isCurrentItem } from '../data/currentItemCatalog'
-import { useAppStore } from '../stores/app'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import ItemTooltipCard from '@/components/common/ItemTooltipCard.vue'
+import SmartImage from '@/components/common/SmartImage.vue'
+import { ITEM_ALIASES } from '@/data/aliases.ts'
+import { getItemCategory, getNeutralTier, isCurrentItem } from '@/data/currentItemCatalog.ts'
+import { dataSyncService } from '@/services/dataSyncService.ts'
+import { gameDataService } from '@/services/gameDataService.ts'
+import { useAppStore } from '@/stores/app.ts'
 import {
   getItemCdnUrl,
   getItemIconUrl,
-  handleImageFallback,
-} from '../utils/assetUrl'
-import { cleanHtml } from '../utils/htmlCleaner'
-import { gameDataService, type PatchInfo } from '../services/gameDataService'
-import { dataSyncService } from '../services/dataSyncService'
+} from '@/utils/assetUrl.ts'
+
+defineOptions({
+  name: 'ItemsView',
+})
+
+interface MaterialItemMeta {
+  key: string
+  dname: string
+  cost: number
+  img: string
+}
 
 interface CatalogItem {
   id: string | number
@@ -49,14 +60,13 @@ interface SubFilterOption {
 }
 
 const patchInfo = ref<PatchInfo | null>(null)
-const currentPatch = computed(() => dataSyncService.state.currentPatch || patchInfo.value?.version || '7.41f')
+const currentPatch = computed(() => dataSyncService.state.currentPatch || patchInfo.value?.version || '')
 
 function isItemUpdated(item: CatalogItem): boolean {
   const numId = Number(item.id)
   if (!numId || !patchInfo.value) return false
   return patchInfo.value.updatedItemIds.includes(numId)
 }
-
 
 const MAIN_TABS = [
   { id: 'all' as MainTab, label: '全部物品' },
@@ -129,6 +139,8 @@ const items = ref<CatalogItem[]>([])
 const mainTab = ref<MainTab>('all')
 const subFilter = ref<string>('all')
 const hoveredItem = ref<CatalogItem | null>(null)
+const pinnedItem = ref<CatalogItem | null>(null)
+const activeItem = computed(() => pinnedItem.value || hoveredItem.value)
 const tooltipRef = ref<HTMLElement | null>(null)
 const loading = ref(true)
 
@@ -170,13 +182,16 @@ const itemMap = computed(() => {
   return map
 })
 
-// 进阶装备反查表 (由当前配件能合成哪些更高阶物品)
+const materialsMap = ref<Map<string, MaterialItemMeta>>(new Map())
+
+// 进阶装备反查表 (由当前配件能合成哪些更高阶物品，忽略图纸本身的反查)
 const upgradesIndex = computed(() => {
   const index = new Map<string, CatalogItem[]>()
   for (const it of items.value) {
     if (it.components) {
       for (const comp of it.components) {
         const clean = comp.replace(/^item_/, '')
+        if (clean.startsWith('recipe')) continue
         if (!index.has(clean)) {
           index.set(clean, [])
         }
@@ -192,7 +207,7 @@ function getUpgradesForItem(key: string): CatalogItem[] {
   return upgradesIndex.value.get(clean) || []
 }
 
-// 解析物品主动/被动技能特征
+// 解析物品主动/被动技能特征 (保留用于状态探测与测试契约)
 function getItemSkillTypes(item: CatalogItem): { hasActive: boolean, hasPassive: boolean } {
   if (!item) return { hasActive: false, hasPassive: false }
   const desc = item.desc || ''
@@ -216,18 +231,8 @@ function getItemSkillTypes(item: CatalogItem): { hasActive: boolean, hasPassive:
   return { hasActive, hasPassive }
 }
 
-// 解析属性加成文本并切分为紧凑条目
-function parseAttributes(attribStr: string): string[] {
-  if (!attribStr) return []
-  const clean = cleanHtml(attribStr)
-  return clean
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-}
-
-// 安全获取配件物品模型（包含有效图标与单价）
-function getComponentItem(compKey: string) {
+// 安全获取配件物品模型（包含有效图标与单价，彻底支持图纸与官方价格）
+function getComponentItem(compKey: string): MaterialItemMeta {
   const cleanKey = compKey.replace(/^item_/, '')
   if (itemMap.value.has(cleanKey)) {
     const found = itemMap.value.get(cleanKey)!
@@ -238,14 +243,11 @@ function getComponentItem(compKey: string) {
       cost: found.cost,
     }
   }
-  if (itemMap.value.has(compKey)) {
-    const found = itemMap.value.get(compKey)!
-    return {
-      key: found.key,
-      dname: found.dname,
-      img: getItemIcon(found),
-      cost: found.cost,
-    }
+  if (materialsMap.value.has(cleanKey)) {
+    return materialsMap.value.get(cleanKey)!
+  }
+  if (materialsMap.value.has(compKey)) {
+    return materialsMap.value.get(compKey)!
   }
 
   // 图纸或基础件兜底
@@ -268,6 +270,47 @@ onMounted(async () => {
     ])
     patchInfo.value = pInfo
 
+    // 构建全量物料字典 (覆盖全部基础件、升级件及图纸)
+    const matMap = new Map<string, MaterialItemMeta>()
+    for (const [key, raw] of Object.entries(officialData) as [string, any][]) {
+      const cleanKey = key.replace(/^item_/, '')
+      const cost = Number(raw.cost) || 0
+      const dname = raw.dname || key
+      const img = getItemIcon(key)
+      const meta: MaterialItemMeta = { key, dname, cost, img }
+      matMap.set(key, meta)
+      matMap.set(cleanKey, meta)
+    }
+    for (const [key, raw] of Object.entries(constantsJson) as [string, any][]) {
+      const cleanKey = key.replace(/^item_/, '')
+      if (!matMap.has(cleanKey)) {
+        const cost = Number(raw.cost) || 0
+        const dname = raw.dname || key
+        const img = getItemIcon(key)
+        const meta: MaterialItemMeta = { key, dname, cost, img }
+        matMap.set(key, meta)
+        matMap.set(cleanKey, meta)
+      }
+    }
+
+    // 7.41f / Liquid / 官网权威补充修正
+    matMap.set('recipe_heavens_halberd', {
+      key: 'recipe_heavens_halberd',
+      dname: '图纸（天堂之戟）',
+      cost: 350,
+      img: getItemIcon('recipe'),
+    })
+    matMap.set('recipe_hydras_breath', {
+      key: 'recipe_hydras_breath',
+      dname: '图纸（怪蛇之息）',
+      cost: 1000,
+      img: getItemIcon('recipe'),
+    })
+    if (matMap.has('recipe_octarine_core')) {
+      matMap.get('recipe_octarine_core')!.cost = 400
+    }
+    materialsMap.value = matMap
+
     const list: CatalogItem[] = []
 
     // 建立 ID/Key 到中文名的映射表以展示小件中文名
@@ -289,7 +332,6 @@ onMounted(async () => {
         continue
       }
 
-
       const constItem = constantsJson[key] || constantsJson[`item_${key}`] || {}
       const costNum = Number(raw.cost) || 0
       const tier = getNeutralTier(key)
@@ -299,15 +341,72 @@ onMounted(async () => {
 
       // 权威分类获取
       const category = getItemCategory(key)
-      const isUpgrade
-        = (constItem.components && constItem.components.length > 0)
-          || ['辅助', '法器', '防具', '武器', '神器'].includes(category)
+      const isUpgrade = (constItem.components && constItem.components.length > 0) || ['辅助', '法器', '防具', '武器', '神器'].includes(category)
 
-      // 解析配件中文名
-      const rawComponents = Array.isArray(constItem.components) ? constItem.components : null
-      const componentNames = rawComponents
-        ? rawComponents.map((c: string) => nameDict[c] || c.replace(/^item_/, ''))
+      // 权威获取配方与组件清单 (优先使用官方 requirements 以完整包含 recipe 图纸)
+      let rawReq: string[] | null = null
+      if (key === 'octarine_core') {
+        // 玲珑心官网快照遗漏灵魂之球，在此依据 7.41f 权威补全 (灵魂之球3000 + 赛莉蒙妮之冠1700 + 图纸400 = 5100)
+        rawReq = ['soul_booster', 'tiara_of_selemene', 'recipe_octarine_core']
+      } else if (key === 'hydras_breath') {
+        // 怪蛇之息新装备配方补齐 (行家阵列2550 + 魔龙枪2000 + 淬毒之珠350 + 图纸1000 = 5900)
+        rawReq = ['specialists_array', 'dragon_lance', 'orb_of_venom', 'recipe_hydras_breath']
+      } else if (Array.isArray(raw.requirements) && raw.requirements.length > 0) {
+        rawReq = raw.requirements
+      } else if (Array.isArray(constItem.components) && constItem.components.length > 0) {
+        rawReq = constItem.components
+      }
+
+      // 清洗组件名称 (剥离官网 core item 的 * 号及空项)
+      const components = rawReq
+        ? rawReq
+            .map(c => typeof c === 'string' ? c.replace(/\*+$/, '').trim() : '')
+            .filter(Boolean)
         : null
+
+      const componentNames = components
+        ? components.map((c) => {
+            const clean = c.replace(/^item_/, '')
+            return matMap.get(clean)?.dname || nameDict[c] || clean
+          })
+        : null
+
+      // 宏占位符清洗与权威数值修正
+      let desc = raw.desc || (constItem.abilities && constItem.abilities[0]?.description) || ''
+      if (desc) {
+        desc = desc.replace(/%AbilityCharges%/g, '3')
+      }
+
+      // 属性加成兜底：若官方 attrib 为空且常量表有结构化加成，格式化为标准属性行
+      let attrib = raw.attrib || ''
+      if (!attrib && Array.isArray(constItem.attrib)) {
+        const lines: string[] = []
+        for (const a of constItem.attrib) {
+          const valStr = String(a.value || '').trim()
+          if (valStr && valStr !== '0' && valStr !== '0.0') {
+            if (a.display) {
+              lines.push(a.display.replace('{value}', valStr))
+            } else if (a.header || a.footer) {
+              lines.push(`${a.header || ''} ${valStr} ${a.footer || ''}`.trim())
+            }
+          }
+        }
+        if (lines.length > 0) {
+          attrib = lines.join('\n')
+        }
+      }
+
+      let mc = raw.mc !== undefined && raw.mc !== '' ? raw.mc : (constItem.mc || false)
+      let cd = raw.cd !== undefined && raw.cd !== '' ? raw.cd : (constItem.cd || false)
+
+      // 关键实战技能数值校准 (修复官方 datafeed 遗漏或错填)
+      if (key === 'nullifier') {
+        mc = 75 // 否决坠饰主动技能消耗 75 魔法
+      } else if (key === 'hand_of_midas') {
+        cd = 100 // 迈达斯之手充能冷却 100 秒
+      } else if (key === 'holy_locket') {
+        cd = 13 // 圣洁吊坠充能时间 13 秒
+      }
 
       list.push({
         id: raw.id || key,
@@ -315,13 +414,13 @@ onMounted(async () => {
         name: key,
         dname: raw.dname || constItem.dname || key,
         cost: costNum,
-        desc: raw.desc || (constItem.abilities && constItem.abilities[0]?.description) || '',
-        attrib: raw.attrib || '',
+        desc,
+        attrib,
         notes: raw.notes || constItem.notes || '',
         lore: raw.lore || constItem.lore || '',
-        mc: raw.mc || constItem.mc || false,
-        cd: raw.cd || constItem.cd || false,
-        components: rawComponents,
+        mc,
+        cd,
+        components,
         componentNames,
         img: imgUrl,
         tier,
@@ -399,31 +498,55 @@ const totalItemsCount = computed(() => {
   return itemGroups.value.reduce((acc, g) => acc + g.items.length, 0)
 })
 
-// 计算自适应 Hover 卡片位置 (确保不超出窗口上下左右边界)
+// 基于 DOM 元素边界盒精准计算展开位置 (优先在方格右侧展开，不足则翻转至左侧)
+function calculateTooltipPosForElement(el: HTMLElement) {
+  const rect = el.getBoundingClientRect()
+  const cardWidth = 368
+  const cardHeight = 420
+  const padding = 12
+
+  // 1. 水平定位：优先在元素右侧展开
+  let targetX = rect.right + 12
+  if (targetX + cardWidth > window.innerWidth - padding) {
+    targetX = rect.left - cardWidth - 12
+  }
+  if (targetX < padding) {
+    targetX = Math.max(padding, window.innerWidth - cardWidth - padding)
+  }
+
+  // 2. 垂直定位：对齐元素顶部，超出视口底部则向上收敛
+  let targetY = rect.top
+  if (targetY + cardHeight > window.innerHeight - padding) {
+    targetY = Math.max(padding, window.innerHeight - cardHeight - padding)
+  }
+
+  tooltipPosition.value = { x: targetX, y: targetY }
+}
+
+// 基于鼠标坐标计算自适应 Hover 卡片位置 (通用兜底)
 function calculateTooltipPos(mouseX: number, mouseY: number) {
-  const cardWidth = 340 // 对应 w-84
-  const cardHeight = tooltipRef.value ? tooltipRef.value.offsetHeight : 380
-  const padding = 14
+  const cardWidth = 368
+  const cardHeight = 420
+  const padding = 12
 
   let targetX = mouseX + 16
-  let targetY = mouseY + 16
+  let targetY = mouseY + 14
 
-  // 1. 水平边界判定：如果右侧超出，翻转至鼠标左侧
   if (targetX + cardWidth > window.innerWidth - padding) {
     targetX = mouseX - cardWidth - 14
   }
-  // 保证不越过左边缘
   if (targetX < padding) {
     targetX = padding
   }
 
-  // 2. 垂直边界判定：如果底部超出，将 Placement 改为 Top (翻转至鼠标上方)
-  if (targetY + cardHeight > window.innerHeight - padding) {
-    targetY = mouseY - cardHeight - 14
-  }
-  // 保证不越过顶部边缘
-  if (targetY < padding) {
-    targetY = padding
+  const viewportH = window.innerHeight
+  if (targetY + cardHeight > viewportH - padding) {
+    const flippedY = mouseY - cardHeight - 12
+    if (flippedY >= padding) {
+      targetY = flippedY
+    } else {
+      targetY = Math.max(padding, viewportH - cardHeight - padding)
+    }
   }
 
   tooltipPosition.value = { x: targetX, y: targetY }
@@ -432,18 +555,83 @@ function calculateTooltipPos(mouseX: number, mouseY: number) {
 function handleMouseMove(e: MouseEvent) {
   currentMousePos.x = e.clientX
   currentMousePos.y = e.clientY
+}
 
-  if (hoveredItem.value) {
-    calculateTooltipPos(e.clientX, e.clientY)
+function onItemHover(item: CatalogItem, event?: MouseEvent) {
+  if (pinnedItem.value) return
+  hoveredItem.value = item
+  const targetEl = (event?.currentTarget as HTMLElement) || null
+  nextTick(() => {
+    if (targetEl) {
+      calculateTooltipPosForElement(targetEl)
+    } else {
+      calculateTooltipPos(currentMousePos.x, currentMousePos.y)
+    }
+  })
+}
+
+function onItemLeave() {
+  if (pinnedItem.value) return
+  hoveredItem.value = null
+}
+
+function togglePinItem(item: CatalogItem, event?: MouseEvent) {
+  if (event) {
+    event.stopPropagation()
+  }
+  if (pinnedItem.value?.key === item.key) {
+    // 再次点击同一固定物品：解除固定
+    pinnedItem.value = null
+    hoveredItem.value = null
+  } else {
+    // 点击新物品：切换锁定并立即锚定至新物品旁展开
+    pinnedItem.value = item
+    hoveredItem.value = null
+    const targetEl = (event?.currentTarget as HTMLElement) || null
+    nextTick(() => {
+      if (targetEl) {
+        calculateTooltipPosForElement(targetEl)
+      } else {
+        const x = event?.clientX ?? currentMousePos.x
+        const y = event?.clientY ?? currentMousePos.y
+        calculateTooltipPos(x, y)
+      }
+    })
   }
 }
 
-function onItemHover(item: CatalogItem) {
-  hoveredItem.value = item
-  nextTick(() => {
-    calculateTooltipPos(currentMousePos.x, currentMousePos.y)
-  })
+function unpinItem() {
+  pinnedItem.value = null
+  hoveredItem.value = null
 }
+
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && pinnedItem.value) {
+    pinnedItem.value = null
+  }
+}
+
+function handleGlobalClick(e: MouseEvent) {
+  if (!pinnedItem.value) return
+  if (tooltipRef.value && tooltipRef.value.contains(e.target as Node)) {
+    return
+  }
+  pinnedItem.value = null
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeydown)
+  window.addEventListener('click', handleGlobalClick)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
+  window.removeEventListener('click', handleGlobalClick)
+})
+
+defineExpose({
+  getItemSkillTypes,
+})
 </script>
 
 <template>
@@ -451,7 +639,6 @@ function onItemHover(item: CatalogItem) {
     <div class="mr-3 border-dota-gold border-b-2 border-t-2 rounded-full h-8 w-8 animate-spin" />
     正在构建官方现行有效物品与合成图谱数据库 (优先本地缓存)...
   </div>
-
 
   <div
     v-else
@@ -511,7 +698,7 @@ function onItemHover(item: CatalogItem) {
             <h2 class="text-sm text-dota-text tracking-wide font-extrabold">
               {{ group.title }}
             </h2>
-            <span class="text-dota-subtle tracking-wider font-mono font-semibold uppercase text-xs">
+            <span class="text-xs text-dota-subtle tracking-wider font-mono font-semibold uppercase">
               {{ group.enTitle }}
             </span>
           </div>
@@ -524,62 +711,44 @@ function onItemHover(item: CatalogItem) {
             v-for="item in group.items"
             :key="item.key"
             class="group cursor-pointer relative"
-            @mouseenter="onItemHover(item)"
-            @mouseleave="hoveredItem = null"
+            @mouseenter="onItemHover(item, $event)"
+            @mouseleave="onItemLeave"
+            @click="togglePinItem(item, $event)"
           >
             <!-- 56x42 (w-14 h-10.5) 规格方格容器 -->
-            <div class="border border-dota-border/80 rounded bg-dota-panel h-10.5 w-14 transition-all relative overflow-hidden group-hover:border-dota-gold group-hover:shadow-[0_0_12px_rgba(229,193,88,0.35)] group-hover:scale-105">
-              <img
+            <div
+              class="border rounded bg-dota-panel h-10.5 w-14 transition-all relative overflow-hidden group-hover:scale-105"
+              :class="[
+                pinnedItem?.key === item.key
+                  ? 'border-dota-gold ring-2 ring-dota-gold/50 shadow-[0_0_14px_rgba(229,193,88,0.6)]'
+                  : 'border-dota-border/80 group-hover:border-dota-gold group-hover:shadow-[0_0_12px_rgba(229,193,88,0.35)]',
+              ]"
+            >
+              <SmartImage
                 :src="getItemIcon(item)"
+                :fallback-src="getItemFallbackCdn(item)"
                 :alt="item.dname"
                 class="h-full w-full object-cover"
                 loading="lazy"
-                @error="(e) => handleImageFallback(e, getItemFallbackCdn(item))"
-              >
-
-              <!-- 左上角主动/被动微型徽标 -->
-              <div
-                v-if="getItemSkillTypes(item).hasActive"
-                class="text-slate-950 leading-none font-black px-1 py-0.5 rounded-br bg-amber-500 pointer-events-none shadow-sm left-0 top-0 absolute text-2xs"
-                title="主动技能装备"
-              >
-                主
-              </div>
-              <div
-                v-else-if="getItemSkillTypes(item).hasPassive"
-                class="text-white leading-none font-black px-1 py-0.5 rounded-br bg-emerald-600 pointer-events-none shadow-sm left-0 top-0 absolute text-2xs"
-                title="被动技能装备"
-              >
-                被
-              </div>
-
-              <!-- 右上角售价/中立阶级微型徽章 -->
-              <div
-                v-if="item.cost > 0"
-                class="text-amber-300 font-bold font-mono px-1 border-b border-l border-white/10 rounded-bl bg-black/80 pointer-events-none right-0 top-0 absolute text-2xs"
-              >
-                {{ item.cost }}
-              </div>
-              <div
-                v-else-if="item.tier > 0"
-                class="text-emerald-300 font-bold font-mono px-1 border-b border-l border-emerald-500/30 rounded-bl bg-emerald-950/85 pointer-events-none right-0 top-0 absolute text-2xs"
-              >
-                T{{ item.tier }}
-              </div>
+              />
 
               <!-- 现行补丁更新微型徽标 (仅针对真实改动装备，左下角) -->
               <div
                 v-if="isItemUpdated(item)"
-                class="text-amber-200 leading-none font-bold px-1 py-0.5 rounded-tr bg-amber-600/90 pointer-events-none shadow-sm left-0 bottom-0 absolute text-[7px]"
-                :title="`v${currentPatch} 官方调整物品`"
+                class="text-[7px] text-amber-200 leading-none font-bold px-1 py-0.5 rounded-tr bg-amber-600/90 pointer-events-none shadow-sm bottom-0 left-0 absolute"
+                :title="currentPatch ? `v${currentPatch} 官方调整物品` : '官方调整物品'"
               >
                 新
               </div>
             </div>
 
-
             <!-- 下方中文品名 -->
-            <div class="text-dota-muted mt-1 text-center max-w-[56px] truncate transition-colors text-xs group-hover:text-dota-goldLight">
+            <div
+              class="text-xs mt-1 text-center max-w-[56px] truncate transition-colors"
+              :class="[
+                pinnedItem?.key === item.key ? 'text-dota-gold font-bold' : 'text-dota-muted group-hover:text-dota-goldLight',
+              ]"
+            >
               {{ item.dname }}
             </div>
           </div>
@@ -587,163 +756,17 @@ function onItemHover(item: CatalogItem) {
       </div>
     </div>
 
-    <!-- 悬浮高保真深色高对比度详情卡片 (ToolTip / 自适应防溢出) -->
-    <div
-      v-if="hoveredItem"
-      ref="tooltipRef"
-      :style="{
-        position: 'fixed',
-        left: `${tooltipPosition.x}px`,
-        top: `${tooltipPosition.y}px`,
-        pointerEvents: 'none',
-        zIndex: 9999,
-      }"
-      class="p-4 border border-[#405068] rounded-xl bg-[#141720]/95 w-84 select-none shadow-2xl transition-all duration-75 backdrop-blur-md space-y-3"
-    >
-      <!-- 1. 顶部：图标 + 名称 + 价格/阶级 + 分类 + 主动/被动标签 -->
-      <div class="flex items-start space-x-3">
-        <div class="border border-dota-gold/50 rounded bg-dota-panel shrink-0 h-10.5 w-14 shadow-md overflow-hidden">
-          <img
-            :src="getItemIcon(hoveredItem)"
-            :alt="hoveredItem.dname"
-            class="h-full w-full object-cover"
-            @error="(e) => handleImageFallback(e, getItemFallbackCdn(hoveredItem))"
-          >
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center space-x-2">
-            <h3 class="text-sm text-dota-goldLight font-bold truncate">
-              {{ hoveredItem.dname }}
-            </h3>
-            <!-- 主动/被动标签 -->
-            <span
-              v-if="getItemSkillTypes(hoveredItem).hasActive"
-              class="text-amber-300 font-bold px-1.5 py-0.2 border border-amber-500/50 rounded bg-amber-500/20 shrink-0 text-2xs"
-            >
-              主动技能
-            </span>
-            <span
-              v-if="getItemSkillTypes(hoveredItem).hasPassive"
-              class="text-emerald-300 font-bold px-1.5 py-0.2 border border-emerald-500/50 rounded bg-emerald-500/20 shrink-0 text-2xs"
-            >
-              被动技能
-            </span>
-          </div>
-
-          <div class="text-xs font-mono mt-0.5 flex items-center space-x-2">
-            <div v-if="hoveredItem.cost > 0" class="text-dota-gold font-bold flex items-center space-x-1">
-              <Coins class="h-3.5 w-3.5" />
-              <span>{{ hoveredItem.cost }}</span>
-            </div>
-            <span v-else class="text-dota-cyan font-bold">
-              {{ hoveredItem.tier > 0 ? `第 ${hoveredItem.tier} 阶中立` : '免费' }}
-            </span>
-            <span class="text-dota-subtle">·</span>
-            <span class="text-dota-muted">{{ hoveredItem.category }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. 紧凑网格属性加成展示 (2 列药丸排版，信息密度最大化) -->
-      <div v-if="hoveredItem.attrib" class="pt-2 border-t border-dota-border/60 space-y-1">
-        <div class="text-dota-subtle tracking-wider font-bold uppercase text-xs">
-          基础属性加成
-        </div>
-        <div class="gap-1.5 grid grid-cols-2">
-          <div
-            v-for="(attr, idx) in parseAttributes(hoveredItem.attrib)"
-            :key="idx"
-            class="text-emerald-300 leading-tight font-mono px-2 py-1 border border-dota-border/70 rounded bg-dota-surface/90 flex shadow-xs items-center text-xs"
-          >
-            {{ attr }}
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. 技能与主动/被动效果描述 -->
-      <div v-if="hoveredItem.desc" class="text-xs text-dota-text leading-relaxed p-2.5 border border-dota-border/40 rounded-lg bg-dota-surface/60 whitespace-pre-line">
-        {{ cleanHtml(hoveredItem.desc) }}
-      </div>
-
-      <!-- 4. 冷却与魔耗 -->
-      <div v-if="hoveredItem.cd || hoveredItem.mc" class="text-xs text-dota-subtle font-mono pt-1.5 border-t border-dota-border/40 flex items-center space-x-4">
-        <div v-if="hoveredItem.cd" class="text-dota-gold flex items-center space-x-1">
-          <Clock class="h-3.5 w-3.5" />
-          <span>{{ hoveredItem.cd }}s 冷却</span>
-        </div>
-        <div v-if="hoveredItem.mc" class="text-dota-cyan flex items-center space-x-1">
-          <Droplet class="h-3.5 w-3.5 fill-current" />
-          <span>{{ hoveredItem.mc }} 魔法消耗</span>
-        </div>
-      </div>
-
-      <!-- 5. 合成配方与前置配件清单 (100% 补齐图标与价格) -->
-      <div v-if="hoveredItem.components && hoveredItem.components.length > 0" class="pt-2.5 border-t border-dota-border/60 space-y-1.5">
-        <div class="text-xs text-dota-goldLight font-bold flex items-center space-x-1.5">
-          <Package class="text-dota-gold h-3.5 w-3.5" />
-          <span>合成配方前置配件 ({{ hoveredItem.components.length }} 件):</span>
-        </div>
-        <div class="flex flex-wrap gap-1.5 items-center space-x-2">
-          <div
-            v-for="(compKey, i) in hoveredItem.components"
-            :key="i"
-            class="px-2 py-1 border border-dota-border rounded bg-dota-surface/90 flex shadow-sm transition-colors items-center space-x-1.5 hover:border-dota-gold/60"
-          >
-            <!-- 56x42 规格微缩图标 (保证绝对 URL 或占位图) -->
-            <img
-              :src="getItemIcon(compKey)"
-              :alt="getComponentItem(compKey).dname"
-              class="border border-dota-border/60 rounded-xs shrink-0 h-4.5 w-6 object-cover"
-              @error="(e) => handleImageFallback(e, getItemFallbackCdn(compKey))"
-            >
-            <span class="text-xs text-dota-text font-medium">{{ getComponentItem(compKey).dname }}</span>
-            <span v-if="getComponentItem(compKey).cost > 0" class="text-dota-gold font-mono flex items-center text-xs">
-              <Coins class="mr-0.5 h-2.5 w-2.5" />
-              {{ getComponentItem(compKey).cost }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 6. 进阶合成去向 (可合成的进阶装备) -->
-      <div v-if="getUpgradesForItem(hoveredItem.key).length > 0" class="pt-2 border-t border-dota-border/60 space-y-1.5">
-        <div class="text-dota-cyan font-bold flex items-center space-x-1 text-xs">
-          <GitBranch class="text-dota-cyan h-3 w-3" />
-          <span>可用于进阶合成:</span>
-        </div>
-        <div class="flex flex-wrap gap-1 items-center space-x-1.5">
-          <div
-            v-for="upg in getUpgradesForItem(hoveredItem.key)"
-            :key="upg.key"
-            class="px-1.5 py-0.5 border border-dota-border rounded bg-dota-surface/70 flex items-center space-x-1 text-xs"
-            :title="`${upg.dname} (${upg.cost}金)`"
-          >
-            <img
-              :src="getItemIcon(upg)"
-              :alt="upg.dname"
-              class="rounded-xs shrink-0 h-3.5 w-5 object-cover"
-              @error="(e) => handleImageFallback(e, getItemFallbackCdn(upg))"
-            >
-            <span class="text-dota-text font-medium">{{ upg.dname }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 7. 现行版本补丁调整说明 (v{{ currentPatch }}) -->
-      <div
-        v-if="patchInfo?.itemPatchNotes?.[Number(hoveredItem.id)]?.length"
-        class="pt-2 border-t border-amber-500/40 text-xs text-amber-200/90 space-y-1 bg-amber-950/30 p-2 rounded-lg border border-amber-800/50"
-      >
-        <div class="text-xs text-amber-400 font-bold flex items-center justify-between">
-          <span>v{{ currentPatch }} 调整日志</span>
-        </div>
-        <ul class="list-disc list-inside space-y-0.5">
-          <li v-for="(note, nIdx) in patchInfo.itemPatchNotes[Number(hoveredItem.id)]" :key="nIdx">
-            {{ cleanHtml(note) }}
-          </li>
-        </ul>
-      </div>
-    </div>
+    <!-- 悬浮高保真深色高对比度详情卡片 (完全复用 ItemTooltipCard 统一组件并通过 Teleport 挂载到 body) -->
+    <Teleport to="body">
+      <ItemTooltipCard
+        :item="activeItem"
+        :position="tooltipPosition"
+        :pinned="Boolean(pinnedItem)"
+        :patch-info="patchInfo"
+        :get-component-meta="getComponentItem"
+        :upgrades="activeItem ? getUpgradesForItem(activeItem.key) : []"
+        @unpin="unpinItem"
+      />
+    </Teleport>
   </div>
 </template>
-

@@ -19,7 +19,7 @@ tasks:
     platforms:
       - windows
     cmds:
-      - wails3 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out rsrc_windows_amd64.syso
+      - wails3 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out cmd/aegis-coach/rsrc_windows_amd64.syso
 
   build:
     summary: 编译可执行程序
@@ -27,5 +27,5 @@ tasks:
       - task: frontend:build
       - task: generate:syso
     cmds:
-      - go build -tags "desktop,production" -ldflags="-H windowsgui -s -w" -o release/{{.APP_NAME}}
-      - cmd /c "if exist rsrc_windows_amd64.syso del /f /q rsrc_windows_amd64.syso"
+      - go build -tags "desktop,production" -ldflags="-H windowsgui -s -w" -o release/{{.APP_NAME}} ./cmd/aegis-coach
+      - cmd /c "if exist cmd\aegis-coach\rsrc_windows_amd64.syso del /f /q cmd\aegis-coach\rsrc_windows_amd64.syso"

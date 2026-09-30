@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter frontend dev",
     "build": "pnpm --filter frontend build",
+    "typecheck": "pnpm --filter frontend typecheck",
     "package": "pwsh -NoProfile -File ./tools/package-release.ps1",
     "preview": "pnpm --filter frontend preview",
     "verify-notes": "node scripts/verify-agent-notes.cjs",

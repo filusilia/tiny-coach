@@ -8,6 +8,7 @@ import { useBattleStore } from './battle'
 import { useHeroStore } from './hero'
 import { useItemStore } from './item'
 import { usePlayerStore } from './player'
+import { useVisionStore } from './vision'
 
 export const pinia = createPinia()
 
@@ -17,4 +18,5 @@ export {
   useHeroStore,
   useItemStore,
   usePlayerStore,
+  useVisionStore,
 }

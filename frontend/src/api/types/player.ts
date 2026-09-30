@@ -83,3 +83,126 @@ export interface PlayerProfileAnalysis {
   /** 缓存写入/更新时间戳 */
   lastUpdated: string
 }
+
+export interface OpenDotaPlayer {
+  player_slot: number
+  account_id: number
+  hero_id: number
+  personaname?: string
+  name?: string
+  level: number
+  kills: number
+  deaths: number
+  assists: number
+  kda?: number
+  gold_per_min: number
+  xp_per_min: number
+  hero_damage: number
+  tower_damage: number
+  hero_healing?: number
+  last_hits: number
+  denies: number
+  net_worth?: number
+  total_gold?: number
+  item_0?: number
+  item_1?: number
+  item_2?: number
+  item_3?: number
+  item_4?: number
+  item_5?: number
+  backpack_0?: number
+  backpack_1?: number
+  backpack_2?: number
+  item_neutral?: number
+  aghanims_scepter?: number
+  aghanims_shard?: number
+  buyback_count?: number
+  sen_placed?: number
+  obs_placed?: number
+  purchase_ward_sen?: number
+  purchase_ward_obs?: number
+  purchase_gem?: number
+  camps_stacked?: number
+  rune_pickups?: number
+  roshans_killed?: number
+  firstblood_claimed?: number
+  ability_upgrades_arr?: number[]
+  benchmarks?: Record<string, { raw?: number, pct?: number }>
+}
+
+export interface OpenDotaPickBan {
+  is_pick: boolean
+  hero_id: number
+  team: number // 0: Radiant, 1: Dire
+  order: number
+}
+
+export interface OpenDotaMatchDetail {
+  match_id: number
+  duration: number
+  radiant_win: boolean
+  radiant_score: number
+  dire_score: number
+  start_time: number
+  game_mode: number
+  lobby_type: number
+  players: OpenDotaPlayer[]
+  radiant_gold_adv?: number[]
+  radiant_xp_adv?: number[]
+  picks_bans?: OpenDotaPickBan[]
+  barracks_status_radiant?: number
+  barracks_status_dire?: number
+  tower_status_radiant?: number
+  tower_status_dire?: number
+  first_blood_time?: number
+  region?: number
+  leagueid?: number
+}
+
+export interface OpenDotaPlayerProfile {
+  profile: {
+    personaname: string
+    avatar: string
+    avatarfull: string
+  }
+  rank_tier?: number
+  leaderboard_rank?: number | null
+}
+
+export interface ItemMeta {
+  key: string
+  nameLoc: string
+  dname: string
+}
+
+export interface ThreatHeroSummary {
+  heroId: number
+  heroName: string
+  gamesPlayed: number
+  winRate: number
+  threatLevel: 'extreme' | 'high' | 'normal'
+  threatDesc: string
+}
+
+export interface RecommendedItem {
+  itemId: number
+  itemKey: string
+  itemName: string
+  category: 'start' | 'early' | 'mid' | 'late' | 'counter'
+  popularity: number
+  reason: string
+  winRate?: number
+}
+
+export interface HeroMatchupRecommendation {
+  heroId: number
+  heroName: string
+  threatHeroes: ThreatHeroSummary[]
+  startItems: RecommendedItem[]
+  earlyItems: RecommendedItem[]
+  midItems: RecommendedItem[]
+  lateItems: RecommendedItem[]
+  counterItems: RecommendedItem[]
+  source: 'opendota' | 'cache' | 'offline_rule'
+  updatedAt: string
+}

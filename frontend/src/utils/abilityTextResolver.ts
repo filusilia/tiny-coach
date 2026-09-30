@@ -230,7 +230,7 @@ export function formatValues(values: (number | string)[] | undefined | null): st
 }
 
 /** 占位符宏正则：支持 %key%、{s:key}、{d:key}、{f:key}、{g:key}、{{key}}、{key} */
-const PLACEHOLDER_REGEX = /%(\w+)%|\{([sdfg]?:?\w+)}|\{\{(\w+)}}/g
+const PLACEHOLDER_REGEX = /%(\w+)%|\{([sdfg]?:?\w+)\}|\{\{(\w+)\}\}/g
 
 /**
  * 提取技能或天赋文本模板中的所有待替换宏变量键名列表
