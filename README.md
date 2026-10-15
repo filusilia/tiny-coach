@@ -1,7 +1,7 @@
 # 神盾教练（AegisCoach）
 
 神盾教练是一个面向 Windows PC 的现代化、极轻量 Dota 2 实时资料与战局教练工具。
-架构基于 **Wails v3 + Go + Vite + TypeScript + Vue 3 + UnoCSS** 构建，便携安装包缩减至 **~17MB 级别**，常驻内存仅 **~30MB**。
+架构基于 **Wails v3 + Go + Vite + TypeScript + Vue 3 + UnoCSS** 构建。
 
 - 127 英雄与全物品数据契约规范见：[英雄与物品数据规范 (docs/HERO_AND_ITEM_DATA_SPEC.md)](docs/HERO_AND_ITEM_DATA_SPEC.md)。
 - 官方英雄技能与状态机文本规范见：[官方英雄数据规范 (docs/OFFICIAL_HERO_DATA.md)](docs/OFFICIAL_HERO_DATA.md)。
@@ -28,7 +28,8 @@
   - 基于 ONNX Runtime C-API 与专属声学模型，纯 Go 本地无依赖离线极速推理，彻底摆脱外部云端网络与重型 Python 环境；
   - 内置电竞术语发音校正词表，支持三段式提醒开关控制（关闭 / 仅文字 / 语音+文字）。
 - **OpenDota 玩家近 20 场战绩画像接入**：通过 `api.opendota.com/api/players/{account_id}/matches?limit=20` 获取玩家常用英雄与胜率特征，严格脱敏后动态注入 AI Prompt，提供高度契合选手技术水平与风格的定制化对战指引。
-- **局内独立置顶经济与战局悬浮窗**：多窗口与独立进程双模式支持，Windows 原生独立顶级窗口（无父属主不受主窗最小化影响），`WS_EX_LAYERED` 分层透明背景保护，支持快捷切换（Alt+F2）与 `WS_EX_TRANSPARENT` 鼠标物理点击穿透（Alt+F3）。
+- **局内独立置顶经济与战局悬浮窗**：多窗口与常驻热备支持，Windows 原生独立顶级窗口（无父属主不受主窗最小化影响），DirectComposition 高清透明渲染，支持快捷切换（Alt+F2）与 `WS_EX_TRANSPARENT` 鼠标物理点击穿透（Alt+F3）。
+- **原生 Win32 GDI 极速截屏与端侧 ONNX 赛前 BP 视觉识别**：突破 Dota 2 选人阶段 GSI 盲区，基于 Win32 GDI 18% ROI 截图与 OS 线程级 F10 热键锁定（带 600ms 防抖）；前端借助 ONNX Runtime Web 执行轻量端侧 YOLOv8n 推理，毫秒级自适应识别双方 10 英雄槽位，闭环驱动 OpenDota 大数据针对性出装建议并跨窗口实时同步至置顶悬浮窗。
 
 ---
 
@@ -36,34 +37,36 @@
 
 ```text
 ├── build/                  # Wails v3 宿主配置、Windows 高清图标与清单
+├── cmd/                    # 应用程序主二进制入口
+│   └── aegis-coach/        # main.go 入口、Wails 应用构建、统一 IPC 门面与托盘
 ├── internal/               # Go 后端标准领域分层与系统服务
 │   ├── app/                # App 门面实体、Wails 生命周期与服务总控
-│   ├── services/           # 核心领域服务 (System, Ai, Gsi, Overlay, Player, Tts)
+│   ├── services/           # 核心领域服务 (System, Ai, Gsi, Overlay, Player, Tts, Vision)
+│   ├── platform/windows/   # Win32 底层系统集成 (置顶保活、分层穿透、GDI 截图、F10 热键)
 │   ├── models/             # 前后端 1:1 契约强类型 DTO 实体
 │   ├── storage/            # 缓存目录路径解析与持久化存储管理
-│   ├── dota/               # GSI 监听接收器与游戏状态反序列化
-│   └── overlay/            # 局内悬浮窗置顶保活协程与 Win32 API 扩展样式
+│   └── dota/               # GSI 监听接收器与游戏状态反序列化
 ├── frontend/               # 前端电竞 HUD (Vue 3 + TypeScript + Vite + UnoCSS)
-│   ├── public/             # 静态数据与游戏图标 (127 英雄、全物品 JSON、官方高清图标)
+│   ├── public/             # 静态数据与游戏图标 (127 英雄、全物品 JSON、官方高清图标、ONNX 模型)
 │   ├── bindings/           # Wails v3 自动生成强类型 IPC 绑定
 │   ├── src/
-│   │   ├── api/            # 强类型 Wails v3 IPC 客户端门面 (system, ai, overlay, player, tts)
-│   │   ├── components/     # TitleBar、Sidebar、VoiceBroadcastBar、GsiSimulator 等
+│   │   ├── api/            # 强类型 Wails v3 IPC 客户端门面 (system, ai, overlay, player, tts, vision)
+│   │   ├── components/     # TitleBar、Sidebar、ThreeSegmentToggle、ItemTooltipCard 等
 │   │   ├── composables/    # useGsiStream、useNativeNavigation 响应式钩子
 │   │   ├── data/           # 127 英雄常数映射表、7.41f 物品图谱、出装指南
-│   │   ├── stores/         # Pinia 全局响应式状态中枢 (app, battle, player)
+│   │   ├── stores/         # Pinia 全局响应式状态中枢 (app, battle, player, vision)
 │   │   ├── views/          # CoachView、HeroesView、ItemsView、AnalysisView、SettingsView、OverlayView
+│   │   │   ├── coach/      # 战备 HUD、赛前 BP 视觉识别卡片、大数据推荐面板
 │   │   │   ├── analysis/   # 赛后复盘雷达图、优势曲线、AI复盘面板等
 │   │   │   ├── heroes/     # 技能展示台、英雄出装面板、基础属性卡片等
 │   │   │   └── settings/   # AI引擎、存储目录、语音播报等分区设置
-│   │   ├── services/       # GSI 规则引擎、AI 教练服务、语音播报服务、玩家画像
+│   │   ├── services/       # GSI 规则引擎、AI 教练服务、语音播报服务、赛前 BP 端侧视觉识别 (services/vision/)
 │   │   └── utils/          # 1 级基础属性计算器、技能宏解析、HTML 清洗、资产防破损
 ├── lib/                    # 原生运行时动态库 (onnxruntime.dll)
 ├── melo_weights/           # 本地离线 MeloTTS 模型权重与词表
 ├── tests/fixtures/         # 真实比赛 GSI 快照数据集 (Huskar, Juggernaut 等)
-├── tools/                  # 自动化发布脚本 (package-release.ps1)
+├── tools/                  # 自动化发布脚本 (package-release.ps1) 与便携附件
 ├── docs/                   # 完整架构规范与技术文档
-├── main.go                 # Wails 桌面入口与多服务注入总控
 ├── Taskfile.yml            # Wails v3 构建任务定义
 └── package.json            # 根工程脚本调度与依赖管理
 ```
@@ -74,7 +77,7 @@
 
 ### 1. 安装依赖
 
-本项目采用 Node.js 22+ / 24+ 与 pnpm，以及 Go 1.23+ / 1.27+ 工具链：
+本项目采用 Node.js 24+ 与 pnpm，以及 Go 1.27+ 工具链：
 
 ```powershell
 pnpm install
@@ -99,7 +102,7 @@ pwsh -NoProfile -File .\tools\package-release.ps1
 
 ## 代码规范与验证矩阵
 
-本项目全仓严格执行 Windows CRLF (`\r\n`) 规范与中文优先原则。在提交代码前，必须执行全量验证：
+本项目全仓严格执行 UTF-8 (无 BOM)、Unix LF (`\n`) 规范与中文优先原则。**每次开发更新代码若影响技术规范、架构拓扑或数据契约，必须同步更新对应技术文档**。在提交代码前，必须执行全量验证：
 
 ```powershell
 # 1. 前端构建与 TypeScript 类型检查 (0 错误)

@@ -1,6 +1,6 @@
 # 神盾教练运行时 AI 提示词与证据契约 (AI_COACH_PROMPTS.md)
 
-本文档规定神盾教练（AegisCoach）在**产品运行时**向本地 NPU（OpenVINO GenAI）或云端 OpenAI 兼容 API 发起推理时的统一证据输入契约、系统提示词与输出 JSON Schema。
+本文档规定神盾教练（AegisCoach）在**产品运行时**向本地端侧大模型（Ollama API，如 `qwen3.5:1.5b`）或云端 OpenAI 兼容 API 发起推理时的统一证据输入契约、系统提示词与输出 JSON Schema。
 
 > **硬性边界**：本文档仅服务于产品运行时模型，不得与代码 Agent 研发指令混淆。模型只能解释结构化证据，不能凭空猜测对局事实。
 
@@ -29,7 +29,7 @@
     "team": "radiant",
     "result": "win | loss | unknown",
     "duration_seconds": 2300,
-    "patch": "7.41e"
+    "patch": "7.41f"
   },
   "facts": [],
   "rule_results": [],

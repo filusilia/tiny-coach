@@ -34,3 +34,15 @@ export interface BpDetectionResult {
   screenHeight: number
   timestamp: number
 }
+
+/**
+ * 悬浮窗实时联动的轻量 BP 情报同步载荷
+ */
+export interface BpOverlaySyncPayload {
+  myFaction: 'radiant' | 'dire'
+  enemyHeroes: { heroId: number, heroName: string, shortName: string }[]
+  myHeroes: { heroId: number, heroName: string, shortName: string }[]
+  counterItems: { itemKey: string, itemName: string, reason: string }[]
+  threatHeroes: { heroId: number, heroName: string, winRate: number, threatDesc: string }[]
+  updatedAt: number
+}

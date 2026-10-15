@@ -179,6 +179,24 @@ if (Test-Path $meloSrc) {
     Write-Host "    已将 MeloTTS 超保真拟人离线语音模型同步至 release/melo_weights/" -ForegroundColor Green
 }
 
+# 复制端侧 YOLOv8 赛前选人识别模型 (models/yolov8n_hero.onnx)
+$modelsSrc = Join-Path $repoRoot 'models'
+$modelsDest = Join-Path $releaseDir 'models'
+if (Test-Path $modelsSrc) {
+    if (-not (Test-Path $modelsDest)) { New-Item -ItemType Directory -Path $modelsDest -Force | Out-Null }
+    Get-ChildItem -Path $modelsSrc | Copy-Item -Destination $modelsDest -Recurse -Force
+    Write-Host "    已将端侧 YOLOv8 视觉识别模型同步至 release/models/" -ForegroundColor Green
+}
+
+# 复制端侧 ONNX Runtime WebAssembly 推理引擎 (ort/)
+$ortSrc = Join-Path $repoRoot 'ort'
+$ortDest = Join-Path $releaseDir 'ort'
+if (Test-Path $ortSrc) {
+    if (-not (Test-Path $ortDest)) { New-Item -ItemType Directory -Path $ortDest -Force | Out-Null }
+    Get-ChildItem -Path $ortSrc | Copy-Item -Destination $ortDest -Recurse -Force
+    Write-Host "    已将端侧 ONNX Runtime WebAssembly 运行时同步至 release/ort/" -ForegroundColor Green
+}
+
 # ------------------------------------------------------------
 # [5/5] 安全加固：解除 Windows 区域锁定与 Authenticode 代码签名
 # ------------------------------------------------------------

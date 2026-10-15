@@ -110,7 +110,7 @@ func applySingleWindowMouseThrough(h uintptr, ignore bool) {
 	if ignore {
 		targetExStyle = (currExStyle | WsExLayered | WsExTransparent) &^ (WsExDlgmodalframe | WsExClientedge | WsExWindowedge)
 	} else {
-		targetExStyle = currExStyle &^ WsExTransparent
+		targetExStyle = currExStyle &^ (WsExTransparent | WsExLayered)
 	}
 
 	if currExStyle != targetExStyle {
@@ -127,6 +127,21 @@ func applySingleWindowMouseThrough(h uintptr, ignore bool) {
 	}
 }
 
+var (
+	enumChildMouseThroughCallback uintptr
+	enumChildCallbackOnce         sync.Once
+)
+
+func getEnumChildMouseThroughCallback() uintptr {
+	enumChildCallbackOnce.Do(func() {
+		enumChildMouseThroughCallback = syscall.NewCallback(func(childHwnd uintptr, lParam uintptr) uintptr {
+			applySingleWindowMouseThrough(childHwnd, lParam != 0)
+			return 1 // 返回 1 继续枚举下一子窗口
+		})
+	})
+	return enumChildMouseThroughCallback
+}
+
 // ApplyMouseThrough 针对指定 HWND 及其所有子级 WebView2 窗口显式应用或关闭物理鼠标穿透
 func ApplyMouseThrough(hwnd uintptr, ignore bool) {
 	if hwnd == 0 {
@@ -136,11 +151,13 @@ func ApplyMouseThrough(hwnd uintptr, ignore bool) {
 	applySingleWindowMouseThrough(hwnd, ignore)
 
 	// 2. 递归枚举所有子窗口 (Chrome_WidgetWin_0、Intermediate D3D Window 等) 统一穿透
-	cb := syscall.NewCallback(func(childHwnd uintptr, _ uintptr) uintptr {
-		applySingleWindowMouseThrough(childHwnd, ignore)
-		return 1 // 返回 1 继续枚举下一子窗口
-	})
-	_, _, _ = procEnumChildWindows.Call(hwnd, cb, 0)
+	// 使用持久复用的单例回调与 lParam 传参，彻底杜绝重复调用导致 Go runtime 回调槽位泄漏
+	lParam := uintptr(0)
+	if ignore {
+		lParam = 1
+	}
+	cb := getEnumChildMouseThroughCallback()
+	_, _, _ = procEnumChildWindows.Call(hwnd, cb, lParam)
 }
 
 // EnsureOverlayExtendedStyle 确保悬浮窗具备无边框透明及工具栏隐藏的扩展样式
@@ -170,7 +187,8 @@ func EnsureOverlayExtendedStyle(hwnd uintptr) {
 
 	// 3. 配置扩展样式 (GWL_EXSTYLE)
 	// 保持 ToolWindow (不在任务栏占位) 与 TopMost (全局置顶)
-	// 若当前处于鼠标穿透状态 (含 WS_EX_TRANSPARENT)，必须严密保留 WS_EX_TRANSPARENT 与 WS_EX_LAYERED
+	// 关键：非鼠标穿透状态严禁添加 WsExLayered！Wails v3 使用 DirectComposition (WS_EX_NOREDIRECTIONBITMAP)
+	// 强加 WsExLayered 会导致 DWM 认为分层 Alpha 未初始化而将窗口完全隐形抹去！
 	exStyleRet, _, _ := procGetWindowLongPtrW.Call(hwnd, GWL_EXSTYLE)
 	if exStyleRet != 0 {
 		currExStyle := uintptr(exStyleRet)
@@ -180,7 +198,7 @@ func EnsureOverlayExtendedStyle(hwnd uintptr) {
 		if isTransparent {
 			targetExStyle = (currExStyle | WsExToolwindow | WsExTopmost | WsExLayered | WsExTransparent) &^ (WsExDlgmodalframe | WsExClientedge | WsExWindowedge)
 		} else {
-			targetExStyle = (currExStyle | WsExToolwindow | WsExTopmost | WsExLayered) &^ (WsExDlgmodalframe | WsExClientedge | WsExWindowedge | WsExTransparent)
+			targetExStyle = (currExStyle | WsExToolwindow | WsExTopmost) &^ (WsExDlgmodalframe | WsExClientedge | WsExWindowedge | WsExTransparent | WsExLayered)
 		}
 
 		if currExStyle != targetExStyle {

@@ -27,6 +27,9 @@ export const useBattleStore = defineStore('battle', () => {
   /** 当前操控的英雄系统名/内部类名 */
   const currentHeroName = computed<string>(() => activeBattleContext.heroInternalName)
 
+  /** 玩家当前所属阵营 ('radiant' | 'dire' | '') */
+  const playerTeam = computed<'radiant' | 'dire' | ''>(() => activeBattleContext.playerTeam)
+
   /** 当前操控英雄本地化中文名称 */
   const heroName = computed<string>(() => activeBattleContext.heroName || '等待英雄入场')
 
@@ -110,6 +113,7 @@ export const useBattleStore = defineStore('battle', () => {
     currentHeroId,
     currentHeroName,
     heroName,
+    playerTeam,
     heroLevel,
     heroHpPercent,
     heroManaPercent,

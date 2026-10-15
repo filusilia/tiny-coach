@@ -57,8 +57,6 @@ export const overlayApi = {
    * 动态设置悬浮窗尺寸，紧凑贴合内容消除透明冗余
    */
   async setOverlaySize(width: number, height: number): Promise<void> {
-    if ((AppBindings as any).SetOverlaySize) {
-      await (AppBindings as any).SetOverlaySize(width, height)
-    }
+    await AppBindings.SetOverlaySize(width, height)
   },
 }

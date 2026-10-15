@@ -12,11 +12,11 @@ import (
 
 // VisionService 屏幕视觉识别与原生截图服务
 type VisionService struct {
-	mu            sync.RWMutex
-	app           *application.App
-	window        *application.WebviewWindow
-	hotkeyActive  bool
-	lastCapture   *models.CaptureResult
+	mu           sync.RWMutex
+	app          *application.App
+	window       *application.WebviewWindow
+	hotkeyActive bool
+	lastCapture  *models.CaptureResult
 }
 
 var (
@@ -69,7 +69,10 @@ func (s *VisionService) CaptureTopScreen() (*models.CaptureResult, error) {
 	screenW, screenH := winPlatform.GetPhysicalScreenDimensions()
 	cropH := int(float64(screenH) * 0.18)
 	if cropH <= 0 {
-		cropH = int(float64(screenH) * 0.18)
+		cropH = 194 // 1080P 标准 18% 兜底基线
+	}
+	if screenW <= 0 {
+		screenW = 1920
 	}
 
 	res, err := s.CaptureRect(0, 0, screenW, cropH)

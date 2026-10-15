@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -43,10 +44,11 @@ type MSG struct {
 
 // HotkeyManager Windows 全局热键管理器
 type HotkeyManager struct {
-	mu        sync.Mutex
-	threadID  uint32
-	running   bool
-	onTrigger func()
+	mu              sync.Mutex
+	threadID        uint32
+	running         bool
+	onTrigger       func()
+	lastTriggerTime int64
 }
 
 var (
@@ -117,7 +119,13 @@ func (m *HotkeyManager) StartF10Listener(onTrigger func()) bool {
 			}
 
 			if msg.Message == WM_HOTKEY && msg.WParam == uintptr(hotkeyID) {
+				now := time.Now().UnixMilli()
 				m.mu.Lock()
+				if now-m.lastTriggerTime < 600 {
+					m.mu.Unlock()
+					continue // 严格落实要求 5：600ms 防抖丢弃
+				}
+				m.lastTriggerTime = now
 				handler := m.onTrigger
 				m.mu.Unlock()
 

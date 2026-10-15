@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"aegis-coach/build"
@@ -279,6 +282,42 @@ func showExitConfirmDialog(win *application.WebviewWindow) bool {
 	return ret == 6
 }
 
+// externalAssetMiddleware 拦截前端对 /models/ 与 /ort/ 外部资源的请求，
+// 优先从 release/ 发行目录或当前工作目录下的对应实体文件夹直接提供，
+// 从而实现大型 AI 视觉权重与 Wasm 推理运行时的完全拆分与独立热更新，彻底释放 exe 体积。
+func externalAssetMiddleware(next http.Handler) http.Handler {
+	exePath, err := os.Executable()
+	var exeDir string
+	if err == nil {
+		exeDir = filepath.Dir(exePath)
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqPath := filepath.Clean(r.URL.Path)
+
+		// 仅拦截 /models/ 和 /ort/ 外部资源目录
+		if strings.HasPrefix(reqPath, "/models/") || strings.HasPrefix(reqPath, "/ort/") {
+			candidates := []string{
+				filepath.Join(exeDir, filepath.FromSlash(reqPath)),
+				filepath.Join(".", filepath.FromSlash(reqPath)),
+			}
+			for _, candidate := range candidates {
+				if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+					if strings.HasSuffix(candidate, ".wasm") {
+						w.Header().Set("Content-Type", "application/wasm")
+					} else if strings.HasSuffix(candidate, ".mjs") || strings.HasSuffix(candidate, ".js") {
+						w.Header().Set("Content-Type", "application/javascript")
+					}
+					http.ServeFile(w, r, candidate)
+					return
+				}
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // main 应用程序入口函数
 func main() {
 	isOverlay := false
@@ -308,7 +347,7 @@ func main() {
 		PanicHandler: func(details *application.PanicDetails) {
 			log.Printf("[CRITICAL PANIC RECOVERED] Error: %v\nStack Trace:\n%s\nFull Stack:\n%s",
 				details.Error, details.StackTrace, details.FullStackTrace)
-			showErrorDialog(fmt.Sprintf("神盾教练发生未捕获异常: %v\n\n若多次发生，请尝试使用【启动神盾教练.bat】清理残留进程后重试。", details.Error))
+			showErrorDialog(fmt.Sprintf("神盾教练发生未捕获异常: %v\n\n若多次发生，请在任务管理器中检查并结束残留的旧进程后重试。", details.Error))
 		},
 		Services: []application.Service{
 			application.NewService(appLogic),
@@ -325,7 +364,8 @@ func main() {
 			application.NewService(visionService),
 		},
 		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(frontend.Dist),
+			Handler:    application.AssetFileServerFS(frontend.Dist),
+			Middleware: externalAssetMiddleware,
 		},
 	})
 
@@ -391,10 +431,49 @@ func main() {
 		},
 	})
 	if window == nil {
-		showErrorDialog("主窗口创建失败：无法获取 WebviewWindow 句柄。\n\n常见原因排查：\n1. 系统中未安装 Microsoft Edge WebView2 运行时；\n2. 任务管理器中存在残留的旧版【神盾教练】或【msedgewebview2】进程占用；\n3. 请运行目录下的【启动神盾教练.bat】辅助启动。")
+		showErrorDialog("主窗口创建失败：无法获取 WebviewWindow 句柄。\n\n常见原因排查：\n1. 系统中未安装 Microsoft Edge WebView2 运行时；\n2. 任务管理器中存在残留的旧版【神盾教练】或【msedgewebview2】进程占用数据目录或 4444 端口。")
 		log.Fatalf("[FATAL] 主窗口创建失败：无法获取 WebviewWindow 句柄")
 	}
 	appLogic.SetWindow(window)
+
+	// 预先在主事件循环线程初始化局内独立置顶经济悬浮窗 (初始隐藏，常驻热备)
+	// 遵循 Wails v3 铁律：在 app.Run() 启动前预创建窗口，确保 WebView2 与 HWND 100% 运行在主事件循环线程
+	// 彻底杜绝后台 Goroutine 动态创建导致的 COM 初始化失败、线程调度卡死与子进程降级踩坑
+	x, y, hasPos := overlayService.LoadSavedPosition()
+	overlayOpts := application.WebviewWindowOptions{
+		Name:              "game-overlay",
+		Title:             "神盾教练 - 局内经济悬浮窗",
+		URL:               "/index.html?window=overlay&mode=overlay#/overlay",
+		Width:             340,
+		Height:            260,
+		Frameless:         true,
+		AlwaysOnTop:       true,
+		Hidden:            true, // 初始隐藏，用户点击 Alt+F2 或界面按钮时 0 毫秒秒开
+		IgnoreMouseEvents: false,
+		BackgroundType:    application.BackgroundTypeTransparent,
+		BackgroundColour:  application.RGBA{Red: 0, Green: 0, Blue: 0, Alpha: 0},
+		Windows: application.WindowsWindow{
+			HiddenOnTaskbar:                   true,
+			DisableFramelessWindowDecorations: true,
+			Theme:                             application.Dark,
+		},
+	}
+	if hasPos {
+		overlayOpts.InitialPosition = application.WindowXY
+		overlayOpts.X = x
+		overlayOpts.Y = y
+	}
+	overlayWindow := app.Window.NewWithOptions(overlayOpts)
+	if overlayWindow != nil {
+		overlayService.SetOverlayWindow(overlayWindow)
+		overlayWindow.RegisterKeyBinding("Alt+F2", func(w application.Window) {
+			appLogic.ToggleOverlayWindow()
+		})
+		overlayWindow.RegisterKeyBinding("Alt+F3", func(w application.Window) {
+			appLogic.ToggleMouseThrough()
+		})
+		go winPlatform.StartTopMostRefresher(overlayWindow)
+	}
 
 	// 为主窗口显式注册 Alt+F2 / Alt+F3 快捷键响应
 	window.RegisterKeyBinding("Alt+F2", func(w application.Window) {
@@ -560,6 +639,6 @@ func main() {
 
 	if err := app.Run(); err != nil {
 		log.Printf("[FATAL] 主程序运行失败: %v", err)
-		showErrorDialog(fmt.Sprintf("神盾教练主程序运行退出: %v\n\n常见原因排查：\n1. 任务管理器中存在残留的旧版【神盾教练】或【msedgewebview2】进程；\n2. 请尝试运行目录下的【启动神盾教练.bat】辅助启动；\n3. 显卡驱动或系统 WebView2 运行时异常。", err))
+		showErrorDialog(fmt.Sprintf("神盾教练主程序运行退出: %v\n\n常见原因排查：\n1. 任务管理器中存在残留的旧版【神盾教练】或【msedgewebview2】进程；\n2. 显卡驱动或系统 WebView2 运行时异常。", err))
 	}
 }

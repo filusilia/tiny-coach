@@ -86,4 +86,3 @@ type HeroMatchupRecommendation struct {
 	Source       string              `json:"source"` // "opendota" | "cache" | "offline_rule"
 	UpdatedAt    string              `json:"updatedAt"`
 }
-

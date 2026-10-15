@@ -2,31 +2,37 @@
 /**
  * 赛前 BP 视觉截图与端侧 ONNX 英雄槽位识别组件 (src/views/coach/BpVisionCaptureCard.vue)
  * 职责：
- * 1. 呈现 F10 全局热键系统级锁定监听状态
- * 2. 提供手动触发截屏与本地图片上传测试双通道
- * 3. 驱动端侧 ONNX Runtime Web 推理并呈现天辉与夜魇 10 个英雄槽位识别成果
- * 4. 毫秒级展示截屏耗时、Letterbox 预处理耗时与神经网络推理耗时
- * 5. 严格闭环生命周期：组件卸载时注销 Wails 事件监听，防句柄泄漏
+ * 1. 呈现 F10 全局热键系统级锁定监听状态与 600ms 防抖保护
+ * 2. 智能阵营视角判定 (天辉/夜魇动态归属，支持一键切换与 GSI 自动对齐)
+ * 3. 分轮次 BP 识别兼容与槽位手动微调 (增/删/修单个英雄)
+ * 4. 端到端自动触发 OpenDota 大数据对抗克制与针对性出装建议展台
+ * 5. 置顶悬浮窗实时联动与生命周期严密闭环
  */
 
 import {
+  ArrowLeftRight,
   Camera,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Cpu,
   Eye,
-  FileImage,
   Info,
   Keyboard,
+  Plus,
   RefreshCw,
+  Search,
+  ShieldAlert,
   Sparkles,
-  Upload,
+  Swords,
+  Trash2,
+  X,
 } from '@lucide/vue'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import SmartImage from '@/components/common/SmartImage.vue'
+import { HERO_CHINESE_NAMES, HERO_SHORT_NAMES } from '@/data/heroNames'
 import { useVisionStore } from '@/stores'
-import { getHeroCdnUrl, getHeroIconUrl } from '@/utils/assetUrl'
+import { getHeroCdnUrl, getHeroIconUrl, getItemIconUrl } from '@/utils/assetUrl'
 
 defineOptions({
   name: 'BpVisionCaptureCard',
@@ -34,9 +40,29 @@ defineOptions({
 
 const visionStore = useVisionStore()
 const isExpanded = ref(true)
-const fileInputRef = ref<HTMLInputElement | null>(null)
+
+// 槽位手动微调弹窗状态
+const showHeroPicker = ref(false)
+const pickerSide = ref<'radiant' | 'dire'>('radiant')
+const pickerSlotIdx = ref(0)
+const pickerSearchQuery = ref('')
 
 let unlistenCapture: (() => void) | null = null
+
+// 全量英雄列表 (供手动纠错微调使用)
+const allHeroOptions = computed(() => {
+  const query = pickerSearchQuery.value.trim().toLowerCase()
+  const list: { id: number, name: string, shortName: string }[] = []
+
+  for (const [idStr, name] of Object.entries(HERO_CHINESE_NAMES)) {
+    const id = Number(idStr)
+    const shortName = HERO_SHORT_NAMES[id] || ''
+    if (!query || name.toLowerCase().includes(query) || shortName.toLowerCase().includes(query)) {
+      list.push({ id, name, shortName })
+    }
+  }
+  return list.slice(0, 30) // 展示匹配前 30 个
+})
 
 onMounted(async () => {
   await visionStore.checkHotkeyStatus()
@@ -64,39 +90,31 @@ async function onManualCapture() {
   await visionStore.triggerCapture()
 }
 
-function onTriggerFileInput() {
-  if (fileInputRef.value) {
-    fileInputRef.value.value = ''
-    fileInputRef.value.click()
-  }
-}
-
-async function onFileSelected(event: Event) {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (file) {
-    await visionStore.testWithLocalImageFile(file)
-  }
-}
-
-async function onLoadSampleImage() {
-  try {
-    const response = await fetch('/test_bp.png')
-    const blob = await response.blob()
-    const file = new File([blob], 'test_bp.png', { type: 'image/png' })
-    await visionStore.testWithLocalImageFile(file)
-  } catch (e: any) {
-    console.error('加载内置样例失败:', e)
-  }
-}
-
 function getHeroAvatar(shortName: string): string {
   return getHeroIconUrl(shortName)
+}
+
+function getItemIcon(itemKey: string): string {
+  return getItemIconUrl(itemKey)
+}
+
+// 打开槽位微调选择器
+function openSlotPicker(side: 'radiant' | 'dire', slotIdx: number) {
+  pickerSide.value = side
+  pickerSlotIdx.value = slotIdx
+  pickerSearchQuery.value = ''
+  showHeroPicker.value = true
+}
+
+// 选择英雄
+async function selectHeroForSlot(heroId: number | null) {
+  showHeroPicker.value = false
+  await visionStore.updateSlotHero(pickerSide.value, pickerSlotIdx.value, heroId)
 }
 </script>
 
 <template>
-  <div class="bp-vision-card border border-slate-700/60 bg-slate-900/85 backdrop-blur-md rounded-xl p-4 shadow-xl transition-all space-y-3">
+  <div class="bp-vision-card border border-slate-700/60 bg-slate-900/85 backdrop-blur-md rounded-xl p-4 shadow-xl transition-all space-y-3 relative">
     <!-- 1. 头部栏：标题、快捷键徽章与操作控制组 -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
@@ -106,7 +124,7 @@ function getHeroAvatar(shortName: string): string {
         <div>
           <div class="flex items-center gap-2 flex-wrap">
             <h3 class="text-sm font-bold text-slate-100 tracking-wide">
-              BP 视觉感知与英雄识别
+              BP 视觉感知与智能克制参谋
             </h3>
             <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-950/60 text-cyan-300 border border-cyan-700/40">
               <Keyboard class="w-3 h-3" />
@@ -115,51 +133,46 @@ function getHeroAvatar(shortName: string): string {
             <span
               v-if="visionStore.isHotkeyActive"
               class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-950/60 text-emerald-300 border border-emerald-700/40"
-              title="全局 F10 热键已在后台 OS 线程锁定监听，可在游戏内盲按触发"
+              title="全局 F10 热键已在后台 OS 线程锁定监听，可在游戏内盲按触发 (带 600ms 连按防抖)"
             >
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               全局热键就绪
             </span>
           </div>
           <p class="text-xs text-slate-400 mt-0.5">
-            突破 GSI 赛前选人盲区 · 顶部 18% ROI 极速穿透 · 端侧 ONNX 毫秒级识别
+            突破 GSI 赛前选人盲区 · 顶部 18% ROI 极速穿透 · 智能阵营自动研判
           </p>
         </div>
       </div>
 
       <!-- 控制按钮组 -->
       <div class="flex items-center gap-1.5 flex-wrap self-end sm:self-auto">
-        <!-- 隐藏的文件选择器 -->
-        <input
-          ref="fileInputRef"
-          type="file"
-          accept="image/*"
-          class="hidden"
-          @change="onFileSelected"
-        />
-
-        <!-- 上传测试图 -->
+        <!-- 阵营切换按钮 (落实要求 1) -->
         <button
           type="button"
-          class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors border border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-200"
-          title="上传本地全屏或顶部截屏图片测试端侧 ONNX 推理"
-          :disabled="visionStore.isCapturing || visionStore.isDetecting"
-          @click="onTriggerFileInput"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors border shadow-sm"
+          :class="[
+            visionStore.myFaction === 'radiant'
+              ? 'border-emerald-700/70 bg-emerald-950/80 text-emerald-300 hover:bg-emerald-900/80'
+              : 'border-rose-700/70 bg-rose-950/80 text-rose-300 hover:bg-rose-900/80',
+          ]"
+          title="点击切换我方归属视角 (天辉 ⇄ 夜魇)，自动反转敌我阵容并刷新克制出装"
+          @click="visionStore.toggleMyFaction"
         >
-          <Upload class="w-3.5 h-3.5 text-cyan-400" />
-          <span>上传测试图</span>
+          <ArrowLeftRight class="w-3 h-3" />
+          <span>我方: {{ visionStore.myFaction === 'radiant' ? '天辉军团' : '夜魇军团' }}</span>
         </button>
 
-        <!-- 加载内置样例测试图 -->
+        <!-- 一键清空重置 (当存在历史/测试数据时可一键清空回归纯净空态) -->
         <button
+          v-if="visionStore.lastDetection || visionStore.lastCapture"
           type="button"
-          class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors border border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-200"
-          title="一键加载内置 BP 实战测试图进行推理闭环"
-          :disabled="visionStore.isCapturing || visionStore.isDetecting"
-          @click="onLoadSampleImage"
+          class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors border border-rose-900/70 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 shadow-sm"
+          title="清空当前 BP 视觉识别槽位与推荐，恢复纯净空态"
+          @click="visionStore.clearDetection"
         >
-          <FileImage class="w-3.5 h-3.5 text-amber-400" />
-          <span>实战样例</span>
+          <Trash2 class="w-3.5 h-3.5 text-rose-400" />
+          <span>清空重置</span>
         </button>
 
         <!-- 手动抓取按钮 -->
@@ -198,9 +211,9 @@ function getHeroAvatar(shortName: string): string {
       <span>{{ visionStore.errorMessage || visionStore.detectionError }}</span>
     </div>
 
-    <!-- 展开区域：指标流、10 英雄槽位识别展示与图像预览 -->
+    <!-- 展开区域：指标流、10 英雄槽位微调展台与克制推荐 -->
     <div v-show="isExpanded" class="pt-2 border-t border-slate-800/80 space-y-3">
-      <!-- 2. 毫秒级性能指标条 (物理分辨率、截屏耗时、ONNX推理耗时) -->
+      <!-- 2. 毫秒级性能指标条 -->
       <div
         v-if="visionStore.lastCapture?.success || visionStore.lastDetection"
         class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 bg-slate-950/50 rounded-lg px-3 py-1.5 border border-slate-800/60 font-mono"
@@ -239,32 +252,56 @@ function getHeroAvatar(shortName: string): string {
         </div>
       </div>
 
-      <!-- 3. 天辉与夜魇 10 英雄槽位识别成果展台 -->
+      <!-- 3. 天辉与夜魇 10 英雄槽位识别成果展台 (支持分轮次识别与手动微调) -->
       <div v-if="visionStore.lastDetection" class="space-y-2">
         <div class="flex items-center justify-between text-xs font-semibold px-1">
-          <span class="text-emerald-400 flex items-center gap-1">
-            <Sparkles class="w-3.5 h-3.5" />
-            天辉阵营槽位 (Radiant 1-5)
-          </span>
-          <span class="text-rose-400 flex items-center gap-1">
-            <Sparkles class="w-3.5 h-3.5" />
-            夜魇阵营槽位 (Dire 1-5)
-          </span>
+          <div class="flex items-center gap-2">
+            <span
+              class="flex items-center gap-1"
+              :class="visionStore.myFaction === 'radiant' ? 'text-emerald-400 font-bold' : 'text-slate-400'"
+            >
+              <Sparkles class="w-3.5 h-3.5" />
+              天辉阵营 (Radiant 1-5)
+            </span>
+            <span
+              class="text-[10px] px-1.5 py-0.2 rounded font-mono"
+              :class="visionStore.myFaction === 'radiant' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/60' : 'bg-slate-900 text-slate-400 border border-slate-700/40'"
+            >
+              {{ visionStore.myFaction === 'radiant' ? '★ 我方阵容' : '敌方阵容' }}
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span
+              class="text-[10px] px-1.5 py-0.2 rounded font-mono"
+              :class="visionStore.myFaction === 'dire' ? 'bg-rose-950 text-rose-300 border border-rose-700/60' : 'bg-slate-900 text-slate-400 border border-slate-700/40'"
+            >
+              {{ visionStore.myFaction === 'dire' ? '★ 我方阵容' : '敌方阵容' }}
+            </span>
+            <span
+              class="flex items-center gap-1"
+              :class="visionStore.myFaction === 'dire' ? 'text-rose-400 font-bold' : 'text-slate-400'"
+            >
+              <Sparkles class="w-3.5 h-3.5" />
+              夜魇阵营 (Dire 1-5)
+            </span>
+          </div>
         </div>
 
-        <!-- 10 槽位网格 (5 天辉 + 5 夜魇) -->
+        <!-- 10 槽位网格 (5 天辉 + 5 夜魇，可点击增删改微调) -->
         <div class="grid grid-cols-2 gap-3">
           <!-- 天辉 5 槽位 -->
           <div class="grid grid-cols-5 gap-1.5 bg-emerald-950/20 p-2 rounded-xl border border-emerald-900/40">
             <div
               v-for="(slot, idx) in visionStore.lastDetection.radiant"
               :key="'rad-' + idx"
-              class="slot-card flex flex-col items-center justify-center p-1 rounded-lg border text-center transition-all min-h-[72px]"
+              class="slot-card flex flex-col items-center justify-center p-1 rounded-lg border text-center transition-all min-h-[72px] relative group cursor-pointer"
               :class="[
                 slot
                   ? 'bg-emerald-950/60 border-emerald-600/50 shadow-sm'
-                  : 'bg-slate-950/40 border-slate-800/60 border-dashed opacity-60',
+                  : 'bg-slate-950/40 border-slate-800/60 border-dashed hover:border-emerald-600/60',
               ]"
+              @click="openSlotPicker('radiant', idx)"
             >
               <div v-if="slot" class="w-full flex flex-col items-center gap-1">
                 <div class="relative w-10 h-7 rounded overflow-hidden border border-emerald-500/40 bg-black">
@@ -281,10 +318,19 @@ function getHeroAvatar(shortName: string): string {
                 <span class="text-[9px] font-mono text-emerald-300 bg-emerald-900/60 px-1 rounded">
                   {{ Math.round(slot.confidence * 100) }}%
                 </span>
+                <!-- 悬停微调操作按钮 -->
+                <button
+                  type="button"
+                  class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                  title="清空此槽位"
+                  @click.stop="visionStore.updateSlotHero('radiant', idx, null)"
+                >
+                  <X class="w-2.5 h-2.5" />
+                </button>
               </div>
-              <div v-else class="text-[10px] text-slate-500 flex flex-col items-center">
-                <span class="font-mono text-slate-600">#{{ idx + 1 }}</span>
-                <span>待选</span>
+              <div v-else class="text-[10px] text-slate-500 flex flex-col items-center gap-0.5 group-hover:text-emerald-400">
+                <Plus class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+                <span>#{{ idx + 1 }} 添加</span>
               </div>
             </div>
           </div>
@@ -294,12 +340,13 @@ function getHeroAvatar(shortName: string): string {
             <div
               v-for="(slot, idx) in visionStore.lastDetection.dire"
               :key="'dire-' + idx"
-              class="slot-card flex flex-col items-center justify-center p-1 rounded-lg border text-center transition-all min-h-[72px]"
+              class="slot-card flex flex-col items-center justify-center p-1 rounded-lg border text-center transition-all min-h-[72px] relative group cursor-pointer"
               :class="[
                 slot
                   ? 'bg-rose-950/60 border-rose-600/50 shadow-sm'
-                  : 'bg-slate-950/40 border-slate-800/60 border-dashed opacity-60',
+                  : 'bg-slate-950/40 border-slate-800/60 border-dashed hover:border-rose-600/60',
               ]"
+              @click="openSlotPicker('dire', idx)"
             >
               <div v-if="slot" class="w-full flex flex-col items-center gap-1">
                 <div class="relative w-10 h-7 rounded overflow-hidden border border-rose-500/40 bg-black">
@@ -316,17 +363,87 @@ function getHeroAvatar(shortName: string): string {
                 <span class="text-[9px] font-mono text-rose-300 bg-rose-900/60 px-1 rounded">
                   {{ Math.round(slot.confidence * 100) }}%
                 </span>
+                <button
+                  type="button"
+                  class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                  title="清空此槽位"
+                  @click.stop="visionStore.updateSlotHero('dire', idx, null)"
+                >
+                  <X class="w-2.5 h-2.5" />
+                </button>
               </div>
-              <div v-else class="text-[10px] text-slate-500 flex flex-col items-center">
-                <span class="font-mono text-slate-600">#{{ idx + 1 }}</span>
-                <span>待选</span>
+              <div v-else class="text-[10px] text-slate-500 flex flex-col items-center gap-0.5 group-hover:text-rose-400">
+                <Plus class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+                <span>#{{ idx + 1 }} 添加</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 4. 图像预览容器 (带视口悬浮标签) -->
+      <!-- 4. 端到端大数据对抗克制与针对性出装建议展台 (核心闭环) -->
+      <div
+        v-if="visionStore.matchupRecommendation"
+        class="p-3 border border-amber-500/40 rounded-xl bg-slate-950/90 shadow-md space-y-2.5"
+      >
+        <div class="flex items-center justify-between text-xs pb-1.5 border-b border-slate-800">
+          <div class="flex items-center gap-1.5 text-amber-400 font-bold">
+            <Swords class="w-4 h-4" />
+            <span>敌方阵容大数据克制与出装推导闭环</span>
+            <span class="text-[11px] font-normal text-slate-400">
+              (已识别敌方 {{ visionStore.enemyHeroIds.length }} 名英雄)
+            </span>
+          </div>
+          <span v-if="visionStore.isRecommending" class="text-cyan-400 text-xs flex items-center gap-1 animate-pulse font-mono">
+            <RefreshCw class="w-3 h-3 animate-spin" />
+            克制推导中...
+          </span>
+          <span v-else class="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+            <CheckCircle2 class="w-3 h-3" />
+            已实时同步置顶悬浮窗
+          </span>
+        </div>
+
+        <!-- 针对性装备推荐横向卡片 -->
+        <div v-if="visionStore.matchupRecommendation.counterItems?.length > 0" class="space-y-1.5">
+          <div class="text-[11px] text-slate-300 font-semibold flex items-center gap-1">
+            <ShieldAlert class="w-3.5 h-3.5 text-rose-400" />
+            <span>针对性质变装备建议：</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+            <div
+              v-for="item in visionStore.matchupRecommendation.counterItems"
+              :key="item.itemKey"
+              class="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800"
+            >
+              <div class="w-10 h-7 shrink-0 rounded overflow-hidden border border-amber-500/50 bg-black">
+                <img :src="getItemIcon(item.itemKey)" :alt="item.itemName" class="w-full h-full object-cover" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-xs font-bold text-amber-300 truncate">{{ item.itemName }}</div>
+                <div class="text-[10px] text-slate-400 truncate" :title="item.reason">{{ item.reason }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 敌方核心高危威胁分析 -->
+        <div v-if="visionStore.matchupRecommendation.threatHeroes?.length > 0" class="space-y-1 pt-1 border-t border-slate-800/80">
+          <div class="text-[11px] text-slate-400">敌方核心机制威胁源：</div>
+          <div class="flex flex-wrap gap-2">
+            <div
+              v-for="th in visionStore.matchupRecommendation.threatHeroes"
+              :key="th.heroId"
+              class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-rose-950/40 border border-rose-900/60 text-[11px]"
+            >
+              <span class="text-rose-300 font-bold">{{ th.heroName }}</span>
+              <span class="text-slate-400">({{ th.threatDesc }})</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. 图像预览容器 (带视口悬浮标签) -->
       <div
         v-if="visionStore.lastCapture?.success && visionStore.lastCapture.imageBase64"
         class="relative rounded-lg overflow-hidden border border-slate-700/80 bg-black/60 group"
@@ -351,6 +468,67 @@ function getHeroAvatar(shortName: string): string {
         <p class="text-[11px] text-slate-600 mt-1">
           💡 提示：建议 DOTA 2 视频选项使用【无边框窗口模式】，以确保跨层像素精准提取。
         </p>
+      </div>
+    </div>
+
+    <!-- 6. 槽位英雄手动纠错微调浮层 Modal -->
+    <div
+      v-if="showHeroPicker"
+      class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      @click.self="showHeroPicker = false"
+    >
+      <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-md p-4 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div class="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+            <span>手动微调槽位:</span>
+            <span :class="pickerSide === 'radiant' ? 'text-emerald-400' : 'text-rose-400'">
+              {{ pickerSide === 'radiant' ? '天辉' : '夜魇' }} #{{ pickerSlotIdx + 1 }}
+            </span>
+          </div>
+          <button
+            class="text-slate-400 hover:text-slate-200"
+            @click="showHeroPicker = false"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <!-- 搜索输入框 -->
+        <div class="relative">
+          <Search class="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+          <input
+            v-model="pickerSearchQuery"
+            type="text"
+            placeholder="搜索英雄中文名或拼音/英文..."
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+          />
+        </div>
+
+        <!-- 清空该槽位按钮 -->
+        <button
+          type="button"
+          class="w-full py-1.5 text-xs text-rose-400 border border-rose-900/50 rounded-lg hover:bg-rose-950/40 flex items-center justify-center gap-1 transition-colors"
+          @click="selectHeroForSlot(null)"
+        >
+          <Trash2 class="w-3.5 h-3.5" />
+          <span>清空该槽位 (设为空态)</span>
+        </button>
+
+        <!-- 英雄快速选择网格 -->
+        <div class="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto pr-1">
+          <button
+            v-for="h in allHeroOptions"
+            :key="h.id"
+            type="button"
+            class="flex flex-col items-center p-1.5 rounded-lg border border-slate-800 hover:border-cyan-500/60 bg-slate-950 hover:bg-slate-800/80 transition-all text-center"
+            @click="selectHeroForSlot(h.id)"
+          >
+            <div class="w-10 h-7 rounded overflow-hidden bg-black mb-1">
+              <img :src="getHeroAvatar(h.shortName)" :alt="h.name" class="w-full h-full object-cover" />
+            </div>
+            <span class="text-[11px] text-slate-200 truncate w-full">{{ h.name }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

@@ -24,6 +24,8 @@
    实时教练与悬浮窗严禁在无对局连接时伪造虚拟英雄；版本探测严禁硬编码默认补丁，未获取到严格置空，并拦截内网防火墙 302 劫持。
 4. **防死锁与并发安全红线**：
    `sync.RWMutex` 严禁在同一协程内嵌套持锁重入；系统调用、文件 IO 与原生窗口创建严禁在锁内长时间占用。
+5. **文档与代码绝对同步铁律**：
+   每次开发更新代码若涉及架构拓扑、发布产物、组件职责、数据契约或运行语义改变，必须在同次修改中同步更新对应文档（`docs/`、`README.md`、`tools/assets/` 及决策笔记），严禁出现代码与文档脱节。
 
 ---
 
@@ -82,7 +84,11 @@ git diff --check
 pwsh -NoProfile -File .\tools\package-release.ps1
 ```
 
-### 发布产物结构：
-- `release/神盾教练.exe`（单文件独立免安装便携程序，包含 ONNX Runtime 与 MeloTTS 模型，双击直接运行）
-- `release/使用说明.txt`（便携运行与 GSI 配置向导）
-- `release/gamestate_integration_aegis.cfg`（Dota 2 GSI 配置文件）
+### 发布产物完整结构（全部拆分极简绿色便携包）：
+- `release/神盾教练.exe`（桌面端轻量主程序，内嵌 Vue 3 电竞 HUD 与 127 英雄官方图鉴，体积仅 ~23MB，双击直接运行）
+- `release/models/`（存放端侧赛前选人 YOLOv8 英雄目标检测模型 `yolov8n_hero.onnx`，支持独立热更新）
+- `release/ort/`（存放端侧 ONNX Runtime WebAssembly 推理引擎核心文件 `ort-wasm-simd-threaded.wasm` 与加载器）
+- `release/lib/`（存放 ONNX Runtime 官方动态链接库 `onnxruntime.dll`，支撑 Go 后端本地 C-API 离线语音合成推理）
+- `release/melo_weights/`（存放本地 MeloTTS 离线语音声学模型 `model.onnx`、发音词表 `lexicon.txt` 与分词标记 `tokens.txt`）
+- `release/使用说明.txt`（便携运行、Windows SmartScreen 放行与 GSI 配置向导）
+- `release/gamestate_integration_aegis.cfg`（Dota 2 GSI 官方配置文件）

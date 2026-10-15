@@ -96,10 +96,10 @@
   - 赛后概览：天辉/夜魇比分、胜负裁定、比赛时长与比赛编号快速检索；
   - 五维雷达图 (`RadarChart.vue`)：参战率、KDA 表现、打钱效率 (GPM)、生存能力、推塔输出；
   - 经济与经验优势走势曲线 (`AdvantageGraph.vue`)：动态还原全场对局优劣势波动节拍；
-  - AI 深度复盘报告 (`AiReviewPanel.vue`)：自动剖析对线期得失、团队关键节奏、核心装备质变节点与败因归因反思。
+  - AI 深度复盘报告 (内嵌于 `MatchDetailPanel.vue`)：自动剖析对线期得失、团队关键节奏、核心装备质变节点与败因归因反思。
 
 ### 4. OpenDota 玩家战绩画像与脱敏合规铁律
-- 接入 `api.opendota.com/api/players/{account_id}/matches?limit=20` 提炼玩家近 20 场胜率、场均 KDA 与常用英雄画像；
+- 接入 `api.opendota.com/api/players/{account_id}/matches?limit=25`（保留 5 场缓冲）提炼玩家近 20 场胜率、场均 KDA 与常用英雄画像；
 - **合规脱敏保护**：严禁向大模型 Prompt 或日志中直接输出 Steam ID 或玩家明文标识，仅传递提炼后的风格与战术统计事实。
 
 ---

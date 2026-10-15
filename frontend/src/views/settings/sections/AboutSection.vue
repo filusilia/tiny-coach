@@ -19,7 +19,7 @@ defineOptions({ name: 'AboutSection' })
           <div class="text-sm text-slate-100 font-extrabold flex items-center space-x-2">
             <span>神盾教练 (AegisCoach)</span>
             <span class="text-sm text-amber-400 font-bold font-mono px-1.5 py-0.2 border border-amber-500/40 rounded bg-amber-500/20">
-              v1.0.0
+              v2.0.0
             </span>
           </div>
         </div>

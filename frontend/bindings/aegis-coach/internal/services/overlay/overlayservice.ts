@@ -15,7 +15,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as application$0 from "../../../../github.com/wailsapp/wails/v3/pkg/application/models.js";
 
 /**
- * CloseOverlay 彻底关闭并销毁悬浮窗（窗口实例与子进程）
+ * CloseOverlay 隐藏悬浮窗（窗口实例与子进程保持常驻热备）
  */
 export function CloseOverlay(): $CancellablePromise<void> {
     return $Call.ByName("aegis-coach/internal/services/overlay.OverlayService.CloseOverlay");
@@ -66,6 +66,13 @@ export function SetOverlayMode(isOverlay: boolean): $CancellablePromise<void> {
  */
 export function SetOverlaySize(width: number, height: number): $CancellablePromise<void> {
     return $Call.ByName("aegis-coach/internal/services/overlay.OverlayService.SetOverlaySize", width, height);
+}
+
+/**
+ * SetOverlayWindow 显式关联独立悬浮窗原生窗口句柄
+ */
+export function SetOverlayWindow(w: application$0.WebviewWindow | null): $CancellablePromise<void> {
+    return $Call.ByName("aegis-coach/internal/services/overlay.OverlayService.SetOverlayWindow", w);
 }
 
 /**

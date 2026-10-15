@@ -28,7 +28,7 @@ import SmartImage from '@/components/common/SmartImage.vue'
 import { aiCoachService } from '@/services/aiCoachService.ts'
 import { activeBattleContext } from '@/services/gsiRuleEngine.ts'
 import { speechService } from '@/services/speechService.ts'
-import { useAppStore, useBattleStore } from '@/stores'
+import { useAppStore, useBattleStore, useVisionStore } from '@/stores'
 import {
   getAbilityCdnUrl,
   getAbilityIconUrl,
@@ -46,6 +46,7 @@ defineOptions({
 
 const appStore = useAppStore()
 const battleStore = useBattleStore()
+const visionStore = useVisionStore()
 
 /** 实战全局上下文响应式对象引用 */
 const battle = activeBattleContext
@@ -629,12 +630,12 @@ function getAdviceBadgeClass(severity: string) {
         </div>
       </section>
 
-      <!-- 2.2 实时对局大数据针对性出装推荐面板 (仅在真实比赛连接且有有效英雄数据时呈现，严格遵守铁律 8 零伪造与铁律 11 官网规格) -->
+      <!-- 2.2 实时对局大数据针对性出装推荐面板 (优先消费 GSI 敌方英雄，BP 视觉识别敌方阵容自动无缝兜底补齐) -->
       <MatchupRecommendationPanel
         v-if="battle.connected && battle.heroId > 0 && battle.heroInternalName"
         :hero-id="battle.heroId"
         :hero-name="battle.heroName"
-        :enemy-hero-ids="battle.enemyHeroIds"
+        :enemy-hero-ids="battle.enemyHeroIds.length > 0 ? battle.enemyHeroIds : visionStore.enemyHeroIds"
         :current-items="currentInventoryItemNames"
       />
 

@@ -1,26 +1,26 @@
-* text=auto eol=crlf
+* text=auto eol=lf
 
-*.go text eol=crlf
-*.vue text eol=crlf
-*.ts text eol=crlf
-*.tsx text eol=crlf
-*.js text eol=crlf
-*.cjs text eol=crlf
-*.mjs text eol=crlf
-*.css text eol=crlf
-*.html text eol=crlf
-*.json text eol=crlf
-*.md text eol=crlf
-*.ps1 text eol=crlf
-*.yaml text eol=crlf
-*.yml text eol=crlf
-*.manifest text eol=crlf
-*.svg text eol=crlf
-*.txt text eol=crlf
-*.cfg text eol=crlf
-.editorconfig text eol=crlf
-.gitattributes text eol=crlf
-.gitignore text eol=crlf
+*.go text eol=lf
+*.vue text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.ps1 text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.manifest text eol=lf
+*.svg text eol=lf
+*.txt text eol=lf
+*.cfg text eol=lf
+.editorconfig text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
 
 *.png binary
 *.jpg binary

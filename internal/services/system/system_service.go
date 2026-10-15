@@ -435,7 +435,7 @@ func (s *SystemService) CacheAllIcons() (map[string]int, error) {
 		"techies", "ember_spirit", "earth_spirit", "abyssal_underlord", "terrorblade", "phoenix",
 		"oracle", "winter_wyvern", "arc_warden", "monkey_king", "pangolier", "dark_willow",
 		"grimstroke", "mars", "void_spirit", "snapfire", "hoodwink", "dawnbreaker", "marci",
-		"primal_beast", "muerta", "ringmaster", "kez",
+		"primal_beast", "muerta", "ringmaster", "kez", "largo",
 	}
 
 	var mu sync.Mutex

@@ -7,7 +7,6 @@
 
 import type { CaptureResult } from '../../bindings/aegis-coach/internal/models/models'
 import * as AppBindings from '../../bindings/aegis-coach/app'
-import * as VisionBindings from '../../bindings/aegis-coach/internal/services/vision/visionservice'
 
 export const visionApi = {
   /**
@@ -42,7 +41,7 @@ export const visionApi = {
    * 停止全局 F10 截屏热键监听
    */
   async stopF10Hotkey(): Promise<void> {
-    return VisionBindings.StopF10CaptureHotkey()
+    return AppBindings.StopF10CaptureHotkey()
   },
 
   /**

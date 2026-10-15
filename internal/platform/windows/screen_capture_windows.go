@@ -19,20 +19,20 @@ import (
 var (
 	modgdi32 = syscall.NewLazyDLL("gdi32.dll")
 
-	procGetDeviceCaps           = modgdi32.NewProc("GetDeviceCaps")
-	procCreateCompatibleDC      = modgdi32.NewProc("CreateCompatibleDC")
-	procCreateCompatibleBitmap  = modgdi32.NewProc("CreateCompatibleBitmap")
-	procSelectObject            = modgdi32.NewProc("SelectObject")
-	procBitBlt                  = modgdi32.NewProc("BitBlt")
-	procGetDIBits               = modgdi32.NewProc("GetDIBits")
-	procDeleteDC                = modgdi32.NewProc("DeleteDC")
-	procDeleteObject            = modgdi32.NewProc("DeleteObject")
+	procGetDeviceCaps          = modgdi32.NewProc("GetDeviceCaps")
+	procCreateCompatibleDC     = modgdi32.NewProc("CreateCompatibleDC")
+	procCreateCompatibleBitmap = modgdi32.NewProc("CreateCompatibleBitmap")
+	procSelectObject           = modgdi32.NewProc("SelectObject")
+	procBitBlt                 = modgdi32.NewProc("BitBlt")
+	procGetDIBits              = modgdi32.NewProc("GetDIBits")
+	procDeleteDC               = modgdi32.NewProc("DeleteDC")
+	procDeleteObject           = modgdi32.NewProc("DeleteObject")
 
-	procGetDC                   = moduser32.NewProc("GetDC")
-	procReleaseDC               = moduser32.NewProc("ReleaseDC")
-	procGetSystemMetrics        = moduser32.NewProc("GetSystemMetrics")
-	procGetDesktopWindow       = moduser32.NewProc("GetDesktopWindow")
-	procGetWindowDC            = moduser32.NewProc("GetWindowDC")
+	procGetDC            = moduser32.NewProc("GetDC")
+	procReleaseDC        = moduser32.NewProc("ReleaseDC")
+	procGetSystemMetrics = moduser32.NewProc("GetSystemMetrics")
+	procGetDesktopWindow = moduser32.NewProc("GetDesktopWindow")
+	procGetWindowDC      = moduser32.NewProc("GetWindowDC")
 )
 
 const (
@@ -118,33 +118,29 @@ func CaptureRect(x, y, w, h int) (*models.CaptureResult, error) {
 		return nil, fmt.Errorf("无效截屏尺寸: 宽=%d, 高=%d", w, h)
 	}
 
-	// 1. 获取屏幕设备上下文并消除 64 位符号扩展
-	hdcRaw, _, err := procGetDC.Call(0)
-	hdc := uintptr(uint32(hdcRaw))
+	// 1. 获取屏幕设备上下文
+	hdc, _, err := procGetDC.Call(0)
 	if hdc == 0 {
 		return nil, fmt.Errorf("GetDC(0) 失败: %v", err)
 	}
 	defer procReleaseDC.Call(0, hdc)
 
 	// 2. 创建兼容内存设备上下文
-	compDCRaw, _, err := procCreateCompatibleDC.Call(hdc)
-	compDC := uintptr(uint32(compDCRaw))
+	compDC, _, err := procCreateCompatibleDC.Call(hdc)
 	if compDC == 0 {
 		return nil, fmt.Errorf("CreateCompatibleDC 失败: %v", err)
 	}
 	defer procDeleteDC.Call(compDC)
 
 	// 3. 创建兼容位图
-	hBmpRaw, _, err := procCreateCompatibleBitmap.Call(hdc, uintptr(w), uintptr(h))
-	hBitmap := uintptr(uint32(hBmpRaw))
+	hBitmap, _, err := procCreateCompatibleBitmap.Call(hdc, uintptr(w), uintptr(h))
 	if hBitmap == 0 {
 		return nil, fmt.Errorf("CreateCompatibleBitmap 失败: %v", err)
 	}
 	defer procDeleteObject.Call(hBitmap)
 
 	// 4. 将位图选入内存 DC，保存旧位图句柄以备恢复
-	oldBmpRaw, _, _ := procSelectObject.Call(compDC, hBitmap)
-	oldBmp := uintptr(uint32(oldBmpRaw))
+	oldBmp, _, _ := procSelectObject.Call(compDC, hBitmap)
 	defer procSelectObject.Call(compDC, oldBmp)
 
 	// 5. 将屏幕指定区域像素复制到内存位图中

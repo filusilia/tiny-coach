@@ -63,6 +63,16 @@ func (s *OverlayService) SetWindow(w *application.WebviewWindow) {
 	}
 }
 
+// SetOverlayWindow 显式关联独立悬浮窗原生窗口句柄
+func (s *OverlayService) SetOverlayWindow(w *application.WebviewWindow) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.overlayWindow = w
+	if w != nil {
+		s.attachWindowHooksLocked(w)
+	}
+}
+
 func (s *OverlayService) getOverlayWindow() *application.WebviewWindow {
 	if s.overlayWindow != nil {
 		return s.overlayWindow
@@ -343,7 +353,7 @@ func (s *OverlayService) ToggleOverlayWindow() bool {
 			opts.Y = y
 		}
 
-		func() {
+		application.InvokeSync(func() {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("[OverlayService] 创建悬浮窗异常: %v, 将降级使用子进程启动", r)
@@ -351,7 +361,7 @@ func (s *OverlayService) ToggleOverlayWindow() bool {
 				}
 			}()
 			overlayWin = appInst.Window.NewWithOptions(opts)
-		}()
+		})
 
 		if overlayWin != nil {
 			s.mu.Lock()
@@ -429,16 +439,11 @@ func (s *OverlayService) StopTerminatingOverlay() {
 	}
 }
 
-// CloseOverlay 彻底关闭并销毁悬浮窗（窗口实例与子进程）
+// CloseOverlay 隐藏悬浮窗（窗口实例与子进程保持常驻热备）
 func (s *OverlayService) CloseOverlay() {
 	s.mu.Lock()
-	if s.pendingDestroyWindows == nil {
-		s.pendingDestroyWindows = make(map[string]bool)
-	}
-	s.pendingDestroyWindows["game-overlay"] = true
 	isOverlay := s.isOverlay
 	win := s.overlayWindow
-	s.overlayWindow = nil
 	s.mu.Unlock()
 
 	// 0. 若当前实例本身就是独立悬浮窗进程，直接退出程序
@@ -459,12 +464,11 @@ func (s *OverlayService) CloseOverlay() {
 		return
 	}
 
-	// 1. 若进程内存在原生 WebviewWindow 实例，先保存位置并彻底销毁关闭
+	// 1. 若进程内存在原生 WebviewWindow 实例，先保存位置并隐藏（保持常驻热备，绝不销毁实例句柄）
 	if win != nil {
 		x, y := win.Position()
 		s.savePosition(x, y)
 		win.Hide()
-		win.Close()
 	}
 
 	if appInst := application.Get(); appInst != nil && appInst.Window != nil {
@@ -473,20 +477,11 @@ func (s *OverlayService) CloseOverlay() {
 				x, y := wWin.Position()
 				s.savePosition(x, y)
 				wWin.Hide()
-				wWin.Close()
 			}
 		}
 	}
 
 	// 2. 终止可能启动的悬浮窗独立子进程
-	s.mu.Lock()
-	cmd := s.overlayCmd
-	s.overlayCmd = nil
-	s.mu.Unlock()
-
-	if cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Kill()
-	}
-
+	s.StopTerminatingOverlay()
 	events.Emit("overlay_state_change", false)
 }

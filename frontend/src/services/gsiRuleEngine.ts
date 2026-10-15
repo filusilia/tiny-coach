@@ -118,6 +118,8 @@ export interface ActiveBattleContext {
   hasShard: boolean
   /** 本局已识别的敌方英雄数字 ID 列表 */
   enemyHeroIds: number[]
+  /** 玩家当前所属阵营 ('radiant' | 'dire' | '') */
+  playerTeam: 'radiant' | 'dire' | ''
 }
 
 /**
@@ -132,6 +134,7 @@ export const activeBattleContext = reactive<ActiveBattleContext>({
   heroId: 0,
   heroName: '',
   heroInternalName: '',
+  playerTeam: '',
   heroLevel: 0,
   alive: true,
   health: 0,
@@ -324,6 +327,14 @@ class GsiRuleEngine {
     activeBattleContext.buybackCost = hero.buyback_cost ?? 0
     activeBattleContext.buybackCooldown = hero.buyback_cooldown ?? 0
     activeBattleContext.canBuyback = (player?.gold ?? 0) >= (hero.buyback_cost ?? 0) && (hero.buyback_cooldown ?? 0) === 0
+
+    const teamRaw = (player?.team_name || '').toLowerCase()
+    if (teamRaw.includes('radiant')) {
+      activeBattleContext.playerTeam = 'radiant'
+    } else if (teamRaw.includes('dire')) {
+      activeBattleContext.playerTeam = 'dire'
+    }
+
     activeBattleContext.roshanTimer = map?.roshan_state_end_seconds ?? 0
     activeBattleContext.tormentorTimer = Math.max(0, 1200 - clockTime)
     activeBattleContext.daytime = ((clockTime % 600) < 300)

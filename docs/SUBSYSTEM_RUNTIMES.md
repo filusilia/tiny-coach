@@ -100,7 +100,7 @@ flowchart LR
     Lexicon --> CAPI["ONNX Runtime C-API (onnxruntime.dll)"]
     CAPI --> Acoustic["MeloTTS 声学模型推理 (model.onnx)"]
     Acoustic --> AudioData["生成标准 PCM / WAV 音频流"]
-    AudioData --> Frontend["前端 Web Audio API 播放 (支持并发队列与防破音防重入)"]
+    AudioData --> Frontend["前端 HTMLAudioElement 播放 (支持防声音堆叠与即刻打断)"]
 ```
 
 ### 关键运行保障：
@@ -112,27 +112,26 @@ flowchart LR
 
 ## 5. 独立悬浮窗生命周期与 Win32 原生置顶保活机制
 
-局内经济悬浮窗具备独立顶级窗口与透明置顶能力：
+局内经济悬浮窗具备独立顶级窗口、常驻热备与透明置顶能力：
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Hidden: 初始化未激活
-    Hidden --> Creating: 用户触发 Alt+F2 或号角吹响
-    Creating --> Active: 附加无父属主(DetachWindowOwner) + WS_EX_LAYERED + WS_EX_TOPMOST
+    [*] --> Hidden: 主线程启动前预热预建 (Hidden: true)
+    Hidden --> Active: 用户触发 Alt+F2 或界面点击打开 (Show/Focus, 0ms瞬开)
     Active --> TopMostRefresher: 启动 500ms 后台保活协程
-    TopMostRefresher --> Active: 定时确保窗口扩展样式与 Z 序置顶
-    Active --> MouseThrough: Alt+F3 切换鼠标穿透 (叠加 WS_EX_TRANSPARENT)
-    MouseThrough --> Active: 再次 Alt+F3 恢复响应 (仅剔除 WS_EX_TRANSPARENT，严格保留 WS_EX_LAYERED)
-    Active --> Hidden: 最小化 / Hide (保存窗口坐标)
-    Active --> Closing: 主程序退出或 CloseOverlay
+    TopMostRefresher --> Active: 剥离原生边框标题栏 (WS_POPUP) 并确保 HWND_TOPMOST
+    Active --> MouseThrough: Alt+F3 切换鼠标穿透 (叠加 WS_EX_LAYERED 与 WS_EX_TRANSPARENT)
+    MouseThrough --> Active: 再次 Alt+F3 恢复响应 (彻底剥离 WS_EX_TRANSPARENT 与 WS_EX_LAYERED)
+    Active --> Hidden: 点击关闭 / Hide (保存窗口坐标，保持实例常驻热备)
+    Active --> Closing: 主程序退出
     Closing --> [*]: 优雅退出保活循环并释放原生句柄
 ```
 
 ### 关键语义与防死锁设计：
 - **无父属主 (Independent Top-Level)**：通过 `DetachWindowOwner` 清空 `GWLP_HWNDPARENT`，主窗口最小化或聚焦切换时，悬浮窗绝不会跟随隐藏或改变 Z 序；
-- **WS_EX_LAYERED 永久保留**：无论穿透开启还是关闭，始终保留 `WS_EX_LAYERED`，杜绝透明背景变为黑底；
-- **防重入锁设计**：`attachWindowHooksLocked` 与 `attachWindowHooks` 严格隔离持锁与非持锁上下文，彻底杜绝重入死锁；
-- **安全原子销毁**：`CloseOverlay` 采用先加锁快照置空指针、后执行系统销毁的两阶段语义，避免与窗口事件回调产生竞态死锁。
+- **DirectComposition 与分层样式解耦**：Wails v3 透明窗口基于 DirectComposition 渲染。正常展示时**严禁**注入 `WS_EX_LAYERED`，否则 DWM 会因缺少分层属性将窗口判定为 0 Alpha 隐形；仅在用户启用 Alt+F3 鼠标穿透时动态叠加 `WS_EX_LAYERED | WS_EX_TRANSPARENT`；
+- **主线程常驻预热热备**：悬浮窗在 `main()` 启动阶段随主窗口在主线程预先创建完毕，初始隐藏；关闭时执行 `win.Hide()` 而非 `win.Close()`，彻底消除跨协程创建的 COM/STA 崩溃与二次打开失效；
+- **防重入锁设计**：`attachWindowHooksLocked` 与 `attachWindowHooks` 严格隔离持锁与非持锁上下文，彻底杜绝重入死锁。
 
 ---
 
@@ -142,4 +141,35 @@ Dota 2 需在指定目录加载 GSI 配置文件：
 - 路径格式：`[Steam安装路径]/steamapps/common/dota 2 beta/game/dota/cfg/gamestate_integration/gamestate_integration_aegis.cfg`
 - 服务端口：`http://127.0.0.1:4444/`（或自定义配置端口）
 - 缓冲区与心跳：`buffer` 设为 `0.1`，`heartbeat` 设为 `30.0`
-- 数据订阅节点：`provider`、`map`、`player`、`hero`、`abilities`、`items`、`buildings`。
+- 数据订阅节点：`provider`、`map`、`player`、`hero`、`abilities`、`items`、`draft`、`wearables`、`buildings`。
+
+---
+
+## 7. 原生 Win32 GDI 屏幕抓取与赛前 BP 视觉识别管线
+
+针对 Dota 2 在正式出兵前选人阶段不向 GSI 广播敌方英雄的机制限制，系统建立纯合规外挂级旁路视觉管线：
+
+```mermaid
+sequenceDiagram
+    participant User as 选手按 F10 盲按
+    participant Hotkey as Win32 OS线程消息泵 (hotkey_windows.go)
+    participant GDI as Go 原生 GDI 裁剪 (screen_capture_windows.go)
+    participant Wails as Wails Event 管道
+    participant ONNX as 前端 onnxruntime-web (heroDetector.ts)
+    participant Rec as OpenDota 大数据针对出装推荐
+
+    User->>Hotkey: 全局按键 F10 (带 600ms 防抖)
+    Hotkey->>GDI: 触发屏幕顶部 18% ROI 局部抓取
+    GDI->>GDI: BitBlt 内存位图复制 + 极速 PNG Base64 编码 (耗时 < 10ms)
+    GDI->>Wails: app.Event.Emit("vision:capture-completed", payload)
+    Wails->>ONNX: 虚拟全屏 Letterbox (640x640) 归一化输入
+    ONNX->>ONNX: 端侧 yolov8n_hero.onnx 目标检测推理
+    ONNX->>ONNX: 槽位空间几何匹配 (天辉/夜魇双方各 5 槽位)
+    ONNX->>Rec: 自动驱动对位英雄大数据克制与针对性出装建议
+    Rec->>Wails: 跨窗口实时广播至局内置顶悬浮窗 (OverlayView.vue)
+```
+
+### 关键运行保障：
+- **无侵入非外挂原则**：严禁注入游戏、严禁 Hook 渲染、严禁读取游戏内存；仅通过标准 Win32 屏幕抓取 API 进行只读分析；
+- **ROI 局部截取优化**：仅截取屏幕顶部 18% 双方英雄槽位区域，使像素数据量骤降 82% 以上，单次内存分配降至 ~5MB，完全不影响 Dota 2 客户端帧率；
+- **OS 专属线程热键监听**：通过 `runtime.LockOSThread()` 独占系统线程运行 `GetMessage` 消息泵，确保对局全屏游戏中全局 F10 截屏 100% 毫秒级捕获。

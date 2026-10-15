@@ -13,19 +13,26 @@ import {
   Minimize2,
   Radio,
   Shield,
+  Sparkles,
+  Swords,
   Unlock,
   WifiOff,
   X,
 } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { overlayApi } from '@/api'
+import type { BpOverlaySyncPayload } from '@/services/vision/types'
 import { useAppStore } from '@/stores/app.ts'
 import { useBattleStore } from '@/stores/battle.ts'
+import { getHeroIconUrl } from '@/utils/assetUrl'
 
 defineOptions({ name: 'OverlayView' })
 
 const appStore = useAppStore()
 const battleStore = useBattleStore()
+
+/** 实时 BP 智能推荐情报 */
+const bpOverlayData = ref<BpOverlaySyncPayload | null>(null)
 
 /** 悬浮窗折叠状态 */
 const isCollapsed = ref(false)
@@ -92,22 +99,30 @@ function onStorageChange(e: StorageEvent) {
       if (typeof parsed.overlay_opacity === 'number') {
         appStore.settings.overlay_opacity = parsed.overlay_opacity
       }
-    } catch {
-      // 忽略解析错误
+    } catch {}
+  } else if (e.key === 'aegis_bp_overlay') {
+    if (!e.newValue) {
+      bpOverlayData.value = null
+      updateWindowSize()
+    } else {
+      try {
+        const parsed = JSON.parse(e.newValue)
+        bpOverlayData.value = parsed && Array.isArray(parsed.enemyHeroes) && parsed.enemyHeroes.length > 0 ? parsed : null
+        updateWindowSize()
+      } catch {}
     }
   }
 }
 
 let unlistenOpacity: (() => void) | null = null
 let unlistenMouseThrough: (() => void) | null = null
+let unlistenBpUpdate: (() => void) | null = null
 
 onMounted(async () => {
   // 保持初始穿透为 false，确保用户打开后可立即拖动和点击交互
   try {
     await overlayApi.setIgnoreMouseEvents(false)
-  } catch {
-    // 忽略开发预览模式
-  }
+  } catch {}
 
   // 跨窗口同步 1：Storage 兼容兜底
   window.addEventListener('storage', onStorageChange)
@@ -135,6 +150,13 @@ onMounted(async () => {
       isMouseThrough.value = active
     })
     if (typeof unreg2 === 'function') unlistenMouseThrough = unreg2
+
+    const unreg3 = win.wails.Events.On('overlay:bp-update', (payload: any) => {
+      const data = payload?.data ?? payload
+      bpOverlayData.value = data && Array.isArray(data.enemyHeroes) && data.enemyHeroes.length > 0 ? data : null
+      updateWindowSize()
+    })
+    if (typeof unreg3 === 'function') unlistenBpUpdate = unreg3
   }
 
   // 初始挂载时立即贴合窗口尺寸
@@ -146,14 +168,19 @@ function updateWindowSize() {
     if (isCollapsed.value) {
       overlayApi.setOverlaySize(240, 52)
     } else if (!isGsiActive.value) {
-      overlayApi.setOverlaySize(332, 220)
+      // 若存在 BP 识别结果，展开适配高度以展示克制建议
+      if (bpOverlayData.value && bpOverlayData.value.enemyHeroes?.length > 0) {
+        overlayApi.setOverlaySize(332, 290)
+      } else {
+        overlayApi.setOverlaySize(332, 220)
+      }
     } else {
       overlayApi.setOverlaySize(332, 330)
     }
   } catch {}
 }
 
-watch([isCollapsed, isGsiActive], () => {
+watch([isCollapsed, isGsiActive, bpOverlayData], () => {
   updateWindowSize()
 })
 
@@ -167,6 +194,11 @@ onUnmounted(() => {
   if (unlistenMouseThrough) {
     try {
       unlistenMouseThrough()
+    } catch {}
+  }
+  if (unlistenBpUpdate) {
+    try {
+      unlistenBpUpdate()
     } catch {}
   }
 })
@@ -259,21 +291,85 @@ onUnmounted(() => {
 
       <!-- 战况主体 (未折叠态) -->
       <div v-if="!isCollapsed" class="text-xs p-3 space-y-2.5">
-        <div
-          v-if="!isGsiActive"
-          class="p-3.5 text-center border border-amber-800/50 rounded-lg bg-amber-950/20 space-y-2"
-        >
-          <div class="flex justify-center">
-            <WifiOff class="text-amber-400 h-6 w-6" />
-          </div>
-          <div class="space-y-0.5">
-            <div class="text-xs text-amber-300 font-bold flex items-center justify-center space-x-1">
-              <Radio class="h-3.5 w-3.5 animate-pulse" />
-              <span>等待 GSI 接入</span>
+        <div v-if="!isGsiActive" class="space-y-2">
+          <!-- 赛前 BP 视觉识别实时战术卡片 (按 F10 盲按反馈) -->
+          <div
+            v-if="bpOverlayData && bpOverlayData.enemyHeroes?.length > 0"
+            class="p-2.5 border border-cyan-700/60 rounded-xl bg-slate-900/95 shadow-lg space-y-2"
+          >
+            <!-- 头部：阵营与更新时间 -->
+            <div class="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+              <span class="text-cyan-400 font-bold flex items-center gap-1">
+                <Sparkles class="w-3.5 h-3.5" />
+                BP 实时战况雷达
+              </span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                我方: {{ bpOverlayData.myFaction === 'radiant' ? '天辉' : '夜魇' }}
+              </span>
             </div>
-            <p class="text-xs text-slate-400 leading-relaxed">
-              请启动 Dota 2 客户端并进入比赛，系统将自动开始追踪真实英雄经济与买活状态。
-            </p>
+
+            <!-- 敌方已选英雄 -->
+            <div class="space-y-1">
+              <div class="text-[11px] text-slate-400 flex items-center justify-between">
+                <span>已识别敌方阵容 ({{ bpOverlayData.enemyHeroes.length }}人):</span>
+              </div>
+              <div class="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                <div
+                  v-for="eh in bpOverlayData.enemyHeroes"
+                  :key="eh.heroId"
+                  class="flex flex-col items-center shrink-0 w-12"
+                  :title="eh.heroName"
+                >
+                  <div class="w-10 h-7 rounded overflow-hidden border border-rose-500/50 bg-black">
+                    <img :src="getHeroIconUrl(eh.shortName)" :alt="eh.heroName" class="w-full h-full object-cover" />
+                  </div>
+                  <span class="text-[10px] text-slate-200 truncate w-full text-center mt-0.5">
+                    {{ eh.heroName }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 核心针对装建议 -->
+            <div v-if="bpOverlayData.counterItems?.length > 0" class="space-y-1 pt-1 border-t border-slate-800/80">
+              <div class="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+                <Swords class="w-3 h-3" />
+                <span>大数据针对性出装建议:</span>
+              </div>
+              <div class="space-y-1 max-h-24 overflow-y-auto pr-0.5">
+                <div
+                  v-for="ci in bpOverlayData.counterItems.slice(0, 3)"
+                  :key="ci.itemKey"
+                  class="flex items-center justify-between text-[11px] bg-slate-950/80 px-2 py-1 rounded border border-slate-800/80"
+                >
+                  <span class="text-amber-300 font-bold truncate max-w-[120px]">{{ ci.itemName }}</span>
+                  <span class="text-[10px] text-slate-400 truncate max-w-[150px] text-right">{{ ci.reason }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-[10px] text-slate-500 text-center pt-0.5 font-mono">
+              按 F10 可重新抓取并更新 BP 识别
+            </div>
+          </div>
+
+          <!-- 无 BP 识别数据时的等待空态守卫 -->
+          <div
+            v-else
+            class="p-3.5 text-center border border-amber-800/50 rounded-lg bg-amber-950/20 space-y-2"
+          >
+            <div class="flex justify-center">
+              <WifiOff class="text-amber-400 h-6 w-6" />
+            </div>
+            <div class="space-y-0.5">
+              <div class="text-xs text-amber-300 font-bold flex items-center justify-center space-x-1">
+                <Radio class="h-3.5 w-3.5 animate-pulse" />
+                <span>等待 GSI 接入</span>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                进入比赛后自动追踪经济。在选人阶段可随时按 <kbd class="px-1 py-0.5 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700">F10</kbd> 识别敌方英雄！
+              </p>
+            </div>
           </div>
         </div>
 
