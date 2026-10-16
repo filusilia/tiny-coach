@@ -31,6 +31,7 @@ import {
   getItemCdnUrl,
   getItemIconUrl,
 } from '@/utils/assetUrl.ts'
+import WindowControls from '@/components/layout/WindowControls.vue'
 import MatchupRecommendationPanel from './coach/MatchupRecommendationPanel.vue'
 import BpVisionCaptureCard from './coach/BpVisionCaptureCard.vue'
 
@@ -171,8 +172,11 @@ function getAdviceBadgeClass(severity: string) {
 
 <template>
   <div class="text-slate-100 bg-dota-bg flex flex-1 flex-col select-none overflow-hidden">
-    <!-- 1. 顶部实战对局状态栏 (纯实战信息展示与快捷操作) -->
-    <header class="px-5 border-b border-dota-border bg-dota-surface flex shrink-0 h-13 items-center justify-between">
+    <!-- 1. 顶部实战对局状态栏 (纯实战信息展示与快捷操作，整体置顶并支持窗口拖拽) -->
+    <header
+      class="px-5 border-b border-dota-border bg-dota-surface flex shrink-0 h-13 items-center justify-between"
+      style="--wails-draggable: drag"
+    >
       <div class="flex items-center space-x-3.5">
         <!-- GSI 状态指示 -->
         <div class="flex items-center space-x-2">
@@ -220,19 +224,23 @@ function getAdviceBadgeClass(severity: string) {
         </span>
       </div>
 
-      <!-- 右侧局内经济悬浮窗独立置顶呼出快捷按钮 -->
-      <button
-        class="text-xs font-bold px-3 py-1.5 border rounded-lg flex cursor-pointer shadow-sm transition-all items-center space-x-1.5"
-        :class="[
-          appStore.isOverlayRunning
-            ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-            : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700',
-        ]"
-        @click="appStore.toggleStandaloneOverlay"
-      >
-        <Shield class="h-3.5 w-3.5" />
-        <span>{{ appStore.isOverlayRunning ? '悬浮窗已启动' : '打开悬浮窗 (Alt+F2)' }}</span>
-      </button>
+      <!-- 右侧局内经济悬浮窗独立置顶呼出快捷按钮与窗口控制 -->
+      <div class="flex items-center space-x-2" style="--wails-draggable: no-drag">
+        <button
+          class="text-xs font-bold px-3 py-1.5 border rounded-lg flex cursor-pointer shadow-sm transition-all items-center space-x-1.5"
+          :class="[
+            appStore.isOverlayRunning
+              ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+              : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700',
+          ]"
+          @click="appStore.toggleStandaloneOverlay"
+        >
+          <Shield class="h-3.5 w-3.5" />
+          <span>{{ appStore.isOverlayRunning ? '悬浮窗已启动' : '打开悬浮窗 (Alt+F2)' }}</span>
+        </button>
+
+        <WindowControls />
+      </div>
     </header>
 
     <!-- 2. 实战战况核心面板主体 -->
@@ -511,31 +519,6 @@ function getAdviceBadgeClass(severity: string) {
         </div>
       </section>
 
-      <!-- 2.1 未接入对局时的安全空态看板 (严格遵守铁律 8 零伪造原则) -->
-      <section v-else class="p-8 text-center border border-slate-700/80 rounded-2xl bg-slate-900/60 shadow-xl space-y-4">
-        <div class="text-amber-400 mx-auto border border-slate-700 rounded-full bg-slate-800 flex h-16 w-16 shadow-inner items-center justify-center">
-          <Shield class="opacity-80 h-8 w-8" />
-        </div>
-        <div class="mx-auto max-w-xl space-y-1.5">
-          <h2 class="text-base text-slate-100 tracking-wide font-bold">
-            等待对局接入
-          </h2>
-          <p class="text-xs text-slate-300 leading-relaxed font-normal">
-            当您启动游戏并进入选人或正式比赛后，将自动呈现您实操英雄的血蓝战备、冷却节奏与全局战况。
-          </p>
-        </div>
-
-        <div class="pt-2 flex flex-wrap gap-3 items-center justify-center">
-          <div v-if="appStore.settings.dota_player_id" class="text-xs text-amber-300 px-3.5 py-1.5 border border-slate-800 rounded-lg bg-slate-950/80 flex items-center space-x-1.5">
-            <span class="text-slate-400">已绑定:</span>
-            <span class="font-bold font-mono">{{ appStore.settings.dota_player_name || appStore.settings.dota_player_id }}</span>
-          </div>
-          <div v-else class="text-xs text-slate-400 px-3.5 py-1.5 border border-slate-800 rounded-lg bg-slate-950/80">
-            <span>未绑定ID</span>
-          </div>
-        </div>
-      </section>
-
       <!-- 2.2 实时对局大数据针对性出装推荐面板 (优先消费 GSI 敌方英雄，BP 视觉识别敌方阵容自动无缝兜底补齐) -->
       <MatchupRecommendationPanel
         v-if="battle.connected && battle.heroId > 0 && battle.heroInternalName"
@@ -553,9 +536,6 @@ function getAdviceBadgeClass(severity: string) {
             <h2 class="text-sm text-amber-400 tracking-wide font-bold">
               AI 主动战术决策
             </h2>
-            <span class="text-xs text-slate-400 font-medium">
-              (10Hz GSI 毫秒快照实时主动裁定 · 纯自主战术流)
-            </span>
           </div>
 
           <span class="text-xs text-slate-400 font-mono">
@@ -566,8 +546,8 @@ function getAdviceBadgeClass(severity: string) {
         <!-- 真实空态守卫 (未产生战况时呈现) -->
         <div v-if="battleStore.advices.length === 0" class="text-xs text-slate-400 p-8 text-center border border-slate-700/80 rounded-2xl border-dashed bg-slate-950/40">
           <Sparkles class="text-slate-600 mx-auto mb-2 opacity-60 h-7 w-7" />
-          <p class="text-sm text-slate-300 font-medium">
-            战况就绪。比赛进行时系统将依据神符刷新、魔方、肉山控盾与买活储备毫秒级主动裁定告警与战术行动！
+          <p class="text-xs text-slate-400 font-medium">
+            战况就绪，等待实时战术事件触发
           </p>
         </div>
 

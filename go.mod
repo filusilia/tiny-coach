@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/getcharzp/go-speech v0.0.0-20260927110419-c1c5988184ec
-	github.com/wailsapp/wails/v3 v3.0.0-beta.29
+	github.com/wailsapp/wails/v3 v3.0.0-beta.30
 	golang.org/x/sys v0.49.0
 )
 

@@ -386,6 +386,10 @@ export interface AppSettings {
   voice_broadcast_mode: VoiceMode
   /** 各细分分类的独立播报偏好设置 */
   reminder_modes: Partial<Record<ReminderCategoryKey, BroadcastMode>>
+  /** 时间类战术事件提前提醒时间 (秒，0 ~ 30，默认 15) */
+  reminder_lead_time_seconds?: number
+  /** 各时间类战术事件独立提前提醒秒数字典 (如 rune_control: 15, tormentor_tactics: 20) */
+  reminder_advance_seconds?: Partial<Record<ReminderCategoryKey, number>>
   /** 语音播报音量大小 (0.0 ~ 1.0) */
   voice_volume: number
   /** 语音播报语速倍率 (0.5 ~ 2.0) */

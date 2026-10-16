@@ -1,9 +1,24 @@
 <script setup lang="ts">
-import { Minus, RefreshCw, Search, Square, X } from '@lucide/vue'
+import { RefreshCw, Search, X } from '@lucide/vue'
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import WindowControls from '@/components/layout/WindowControls.vue'
 import { useAppStore } from '@/stores'
 
 const appStore = useAppStore()
+const route = useRoute()
+
+// 仅在英雄库 (/heroes) 与装备库 (/items) 页面显示搜索框
+const showSearch = computed(() => {
+  const p = route?.path || ''
+  return p.startsWith('/heroes') || p.startsWith('/items')
+})
+
+// 实时教练 (/coach) 与赛后分析 (/analysis) 页面不需要顶部搜索框和刷新按钮
+const showRefresh = computed(() => {
+  const p = route?.path || ''
+  return !p.startsWith('/coach') && !p.startsWith('/analysis')
+})
 
 function onSearchInput(e: Event) {
   appStore.setSearchQuery((e.target as HTMLInputElement).value)
@@ -13,18 +28,6 @@ function onSearchInput(e: Event) {
 const isWailsFrameless = computed(() => {
   return typeof window !== 'undefined' && Boolean((window as any).runtime?.WindowMinimise && (window as any).__WAILS_FRAMELESS__)
 })
-
-function minimizeWindow() {
-  (window as any).runtime?.WindowMinimise()
-}
-
-function maximizeWindow() {
-  (window as any).runtime?.WindowToggleMaximise()
-}
-
-function closeWindow() {
-  (window as any).runtime?.Quit()
-}
 
 function reloadPage() {
   window.location.reload()
@@ -39,8 +42,8 @@ function reloadPage() {
       <span class="text-base text-dota-goldLight tracking-wide font-bold">神盾教练</span>
     </div>
 
-    <!-- 2. 搜索框 -->
-    <div class="max-w-sm w-80 relative">
+    <!-- 2. 搜索框 (仅在英雄库与物品库呈现，实时教练与赛后分析不呈现) -->
+    <div v-if="showSearch" class="max-w-sm w-80 relative">
       <input
         type="text"
         :value="appStore.searchQuery"
@@ -67,6 +70,7 @@ function reloadPage() {
     <!-- 4. 右侧动作按钮区 (功能按钮 + 条件渲染的窗口三键) -->
     <div class="flex items-center space-x-1">
       <button
+        v-if="showRefresh"
         title="刷新数据"
         class="text-dota-muted rounded flex h-7 w-7 transition-colors items-center justify-center hover:bg-dota-hover"
         @click="reloadPage"
@@ -74,29 +78,7 @@ function reloadPage() {
         <RefreshCw class="h-3.5 w-3.5" />
       </button>
 
-      <!-- 仅在无边框 Wails 窗口下渲染窗口三键；若原生窗口自带标题栏，自动隐藏以杜绝双标题栏 -->
-      <template v-if="isWailsFrameless">
-        <div class="mx-1 bg-dota-border h-3.5 w-[1px]" />
-
-        <button
-          class="text-dota-muted rounded flex h-7 w-7 transition-colors items-center justify-center hover:bg-dota-hover"
-          @click="minimizeWindow"
-        >
-          <Minus class="h-3.5 w-3.5" />
-        </button>
-        <button
-          class="text-dota-muted rounded flex h-7 w-7 transition-colors items-center justify-center hover:bg-dota-hover"
-          @click="maximizeWindow"
-        >
-          <Square class="h-3 w-3" />
-        </button>
-        <button
-          class="text-dota-muted rounded flex h-7 w-7 transition-colors items-center justify-center hover:text-white hover:bg-dota-red/80"
-          @click="closeWindow"
-        >
-          <X class="h-3.5 w-3.5" />
-        </button>
-      </template>
+      <WindowControls />
     </div>
   </header>
 </template>

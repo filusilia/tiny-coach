@@ -157,8 +157,6 @@ function handleUnbindPlayer() {
               <Check v-if="idCopied" class="text-emerald-400 h-3 w-3" />
               <Copy v-else class="h-3 w-3" />
             </button>
-            <span class="text-slate-600">·</span>
-            <span class="text-[11px] text-slate-400 hidden md:inline">赛后复盘与局内战绩已专属对齐</span>
           </div>
         </div>
       </div>

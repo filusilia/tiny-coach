@@ -504,15 +504,29 @@ class GsiRuleEngine {
       }
     }
 
+    // 获取各战术事件独立配置的提前秒数 (支持每个事件单独配置，兜底使用全局或预设)
+    const getAdvanceSec = (category: ReminderCategoryKey, fallback: number = 15): number => {
+      const specific = appStore.settings.reminder_advance_seconds?.[category]
+      if (typeof specific === 'number') {
+        return Math.max(0, Math.min(30, specific))
+      }
+      return Math.max(0, Math.min(30, appStore.settings.reminder_lead_time_seconds ?? fallback))
+    }
+
+    const runeLeadSec = getAdvanceSec('rune_control', 15)
+    const tormentorLeadSec = getAdvanceSec('tormentor_tactics', 20)
+    const roshanLeadSec = getAdvanceSec('roshan_tactics', 30)
+
     // 1.2 神符视野掌控 (rune_control) - 2/4/6/8 分钟河道强化神符
-    if (clockTime > 0 && clockTime % 120 >= 105 && clockTime % 120 <= 108) {
+    if (clockTime > 0 && (clockTime + runeLeadSec) % 120 >= 0 && (clockTime + runeLeadSec) % 120 <= 3) {
       if (this.isCooledDown('rune_control_river', 90)) {
-        const nextMin = Math.ceil(clockTime / 60)
+        const nextMin = Math.ceil((clockTime + runeLeadSec) / 60)
+        const leadText = runeLeadSec > 0 ? `，请提前 ${runeLeadSec} 秒推线并向符点集结！` : '，请迅速争夺符点！'
         triggerAlert(
           'rune_control',
           'RUNE_CONTROL_RIVER',
           '河道强化神符预警',
-          `即将迎来 ${nextMin} 分钟河道强化神符刷新，请提前 15 秒推线并向符点集结！`,
+          `即将迎来 ${nextMin} 分钟河道强化神符刷新${leadText}`,
           'Warning',
           '中单快速推线抢占高坡视野，辅助提前游走卡位护符。',
           'Solution Hierarchy: 双倍/急速神符可直接转化为边路游走击杀，切勿白白拱手送敌。',
@@ -521,14 +535,15 @@ class GsiRuleEngine {
     }
 
     // 1.3 智慧神符经验节点 (rune_control) - 7 / 14 / 21 分钟智慧神符
-    if (clockTime > 0 && (clockTime + 18) % 420 < 4) {
+    if (clockTime > 0 && (clockTime + runeLeadSec) % 420 < 4) {
       if (this.isCooledDown('rune_control_wisdom', 180)) {
-        const min = Math.floor((clockTime + 18) / 60)
+        const min = Math.floor((clockTime + runeLeadSec) / 60)
+        const leadText = runeLeadSec > 0 ? `即将在 ${runeLeadSec} 秒后于两边野区刷新` : '已在两边野区刷新'
         triggerAlert(
           'rune_control',
           'RUNE_CONTROL_WISDOM',
           '智慧神符争夺',
-          `智慧神符即将在 ${min} 分钟于两边野区刷新，全队海量经验节点！`,
+          `${min} 分钟智慧神符${leadText}，全队海量经验节点！`,
           'Info',
           '辅助提前靠拢己方智慧神符守护，有机会可组织偷取敌方神符。',
           'Solution Hierarchy: 智慧神符经验大幅拉近等级差，直接决定核心英雄关键天赋解锁速度。',
@@ -537,13 +552,14 @@ class GsiRuleEngine {
     }
 
     // 1.4 痛苦魔方战略节点 (tormentor_tactics) - 20:00 (1200s)
-    if (clockTime >= 1180 && clockTime <= 1185) {
+    if (clockTime >= (1200 - tormentorLeadSec) && clockTime <= (1200 - tormentorLeadSec + 4)) {
       if (this.isCooledDown('tormentor_tactics', 120)) {
+        const leadText = tormentorLeadSec > 0 ? `即将在 ${tormentorLeadSec} 秒后降临基地侧翼！` : '已降临基地侧翼！'
         triggerAlert(
           'tormentor_tactics',
           'TORMENTOR_SPAWN',
           '痛苦魔方刷新集结',
-          '痛苦魔方即将在 15 秒后降临基地侧翼！团队获取免费魔晶战术节点。',
+          `痛苦魔方${leadText}团队获取免费魔晶战术节点。`,
           'Warning',
           '提前在魔方区域插保护眼，核心清线后配合全队迅速打掉。',
           'Solution Hierarchy: 团队白送 1400 金币魔晶，尽早击杀可建立中盘技能形态质变。',
@@ -552,13 +568,13 @@ class GsiRuleEngine {
     }
 
     // 1.5 肉山刷新与控盾上高 (roshan_tactics)
-    if (map?.roshan_state_end_seconds && map.roshan_state_end_seconds <= 60 && map.roshan_state_end_seconds > 54) {
+    if (map?.roshan_state_end_seconds && map.roshan_state_end_seconds <= roshanLeadSec && map.roshan_state_end_seconds > Math.max(0, roshanLeadSec - 6)) {
       if (this.isCooledDown('roshan_tactics', 90)) {
         triggerAlert(
           'roshan_tactics',
           'ROSHAN_WINDOW',
           '肉山巢穴即将刷新',
-          '肉山将在 60 秒内进入刷新窗口！战场进入控盾争夺最高警戒期。',
+          `肉山将在 ${roshanLeadSec} 秒内进入刷新窗口！战场进入控盾争夺最高警戒期。`,
           'Critical',
           '排清肉山巢穴高台敌方侦查守卫，开雾占领三角区或准备反蹲。',
           'Solution Hierarchy: 检查全队核心大招与 BKB 冷却，带盾方将获得决定性上高推进主动权。',

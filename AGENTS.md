@@ -1,43 +1,53 @@
 # 神盾教练研发 Agent 开工铁律 (AGENTS.md)
 
-本文档是所有进入本仓库工作的代码 Agent 的**开工必读最高红线**。每一条均为不可逾越的开发原则，详细规范请点击对应链接查看。
+本文档为仓库最高开发红线，所有代码生成与架构修改必须 100% 遵循。
 
 ---
 
-## 核心开工铁律与底线原则
+## 一、 工程流与决策沉淀（进场与交付必做）
 
-1. **非平凡改动必写决策笔记**：涉及行为、架构、跨文件契约、流程与工具链、测试策略、落盘/网络/配置格式的非平凡改动前，必须遵循 `.agents/skills/write-notes-like-deepseek/SKILL.md` 编写或更新笔记（详见 [.agents/notes/README.md](.agents/notes/README.md)）；机械性小改（样式、格式化、打标、不改行为的补丁）可直接提交。
-2. **笔记检索与状态流转闭环**：动笔前先检索 `.agents/notes/` 下的同主题旧笔记，有归属则就地更新；新方案先放 `proposed/`，随代码落地同批转入 `implemented/`；新方案彻底取代旧决策时，必须同批归档旧篇并标明替代关系。
-3. **弃用方案强论证原则**：记录被放弃的备选方案时，必须先写出支持它的最强理由，再推演解释为什么最终不用。
-4. **开工检查与因果分析**：开工前必须先执行 `git status --short` 保护既有修改；拆解分析问题必须讲清完整的因果链路机制。
-5. **架构拓扑与前后端边界**：采用 **Wails v3 + Go + Vite + TypeScript (Vue 3)** 现代化极轻架构。前端负责电竞 HUD 视图渲染与状态展现，Go 后端负责单消费者 GSI 监听与系统服务/原生桥接，严格保持模块分层。
-6. **合规红线与非外挂原则**：严禁读取游戏内存、注入 DLL、Hook 渲染或模拟键鼠输入；实时数据仅允许接收本机 GSI HTTP POST。
-7. **严禁伪造模拟数据（零伪造原则）**：实时教练、战况看板与悬浮窗严禁在未建立真实对局连接时伪造任何虚拟英雄（如预设敌法师、假战局快照等）；当游戏未连接或英雄未就绪时，必须严格呈现真实的“等待 GSI 4444 端口接入”空态守卫。开发调试用的模拟器必须处于独立隐蔽的调试模块，绝不允许污染生产环境的默认上下文。
-8. **高频 GSI 后台处理与 UI 合并**：10Hz 快照由 Go 后端/前端规则引擎顺序消费，前端通过事件驱动合并最新状态，严禁阻塞 UI 渲染主线程。
-9. **数据服务单例与 Single-Flight**：外部请求统一调度，实施并发任务合并与 L1/L2 缓存，杜绝频繁请求封禁。
-10. **业务事实与核心 UI 防退化**：127 英雄中文名必须 100% 静态常数兜底，严守 1 级基础属性公式，严格维护官网 56x42 物品格与深色高对比悬浮卡。详见 [docs/HERO_AND_ITEM_DATA_SPEC.md](docs/HERO_AND_ITEM_DATA_SPEC.md)。
-11. **UI 零废话与 DOM 极简铁律**：所有页面、卡片、Tab 和模块头部**只允许渲染唯一主标题（Title）**，下方直接紧跟核心交互组件（表单/表格/按钮/图表）。**绝对禁止**脑补任何副标题（Subtitle）、模块简介（Description）、修饰性长句或营销文案（如：只准写“战术偏好与选手”，严禁在下方附加“个人账号指定·9类战术语音播报矩阵...”这类解释性小字）；代码中严禁渲染用于解释模块用途的次级灰色说明段落（如 `text-gray-400/500`）或向组件传入 `description/subtitle` 属性。
-12. **多窗口与组件生命周期闭环**：主窗口与独立置顶经济悬浮窗独立隔离，组件卸载时彻底注销定时器与事件监听器，杜绝内存与句柄泄漏。
-13. **数据脱敏与凭据安全**：Token、完整 Steam ID 严禁进入日志或模型 Prompt；敏感配置与凭据本地安全存储。
-14. **文档与代码绝对同步原则**：每次开发更新代码若影响已有架构拓扑、领域服务划分、发布产物、组件职责或契约参数，必须在同批次修改中同步更新对应文档（`docs/`、`README.md` 与 `tools/assets/`），严禁代码演进但文档留存过时信息。
-15. **自动化验证与打包闭环（提交前必跑）**：每次代码与笔记修改后，提交前必须依次跑通笔记校验（`npm run verify-notes`，红了先修再交）、前端全量构建验证（`pnpm build`）与一键打包验证。
+1. **开工保护与根因分析**：动手前必跑 `git status --short` 保护工作区；定位 Bug 必须先输出完整的因果链路分析。
+2. **决策笔记闭环（Agent Notes）**：
+  - **触发条件**：涉及架构、行为、跨文件契约、落盘/网络/配置或测试策略的非平凡改动，必须按 `.agents/skills/write-notes-like-deepseek/SKILL.md` 更新笔记（详见 [.agents/notes/README.md](.agents/notes/README.md)）；纯样式/格式化小改直接提交。
+  - **流转规范**：先检索 `.agents/notes/` 同主题旧篇就地更新；新方案入 `proposed/`，落地同批转 `implemented/`；废弃旧方案须同批归档并标明替代关系。
+  - **弃用论证**：记录被否决方案时，必须**先写支持它的最强理由**，再论证为何放弃。
+3. **文档同步与交付验证（提交前必跑）**：
+  - 改动若影响架构拓扑、服务划分、组件职责或契约参数，必须同批更新 `docs/`、`README.md` 与 `tools/assets/`。
+  - 提交前必须依次跑通：`npm run verify-notes`（红了先修） $\rightarrow$ `pnpm build` $\rightarrow$ 一键打包验证。
 
 ---
 
-## Wails v3 前后端交互专项准则
+## 二、 核心架构与业务红线
 
-1. **方法绑定是前端 → Go 的唯一通道**：前端调用 Go 必须且只能通过 Wails 方法绑定（`wails3 generate bindings` 生成），严禁手写 `invokeWails` 胶水代码猜测方法名（如 `main.App.XXX`、`services.SystemService.XXX` 盲试数组候选）；严禁遍历 `window.go` 命名空间树（Wails v3 已废弃该机制）；严禁直接调用 `window.wails.Call` 等未文档化的内部 API。所有绑定必须由 `wails3 generate bindings -names -ts` 生成，前端直接 `import` 生成函数调用。
-2. **服务注册命名规范与 `Route` 禁令**：Go 服务注册默认使用 `application.NewService()`，除非有明确的 HTTP 端点需求（如暴露 REST 路由给外部调用），否则**禁止**使用 `application.NewServiceWithOptions(..., Route: "/xxx")`。`Route` 字段会改变 Wails 生成的绑定命名空间，导致前端按 `services.SystemService.XXX` 调用时全部落空。服务必须保持默认命名空间，前端绑定名以 `wails3 generate bindings` 输出的 `.ts` 文件为准。
-3. **`main.App` 作为统一 IPC 门面的显式转发原则**：`main.App` 只嵌入 `internalApp.App`，不会自动继承 `SystemService`、`OverlayService` 等业务服务的方法。若前端需要以 `main.App.XXX` 稳定路径调用，必须在 `main.App` 上**显式添加转发方法**（如 `func (a *App) OpenCacheDirectory(dir string) error { return services.GetSystemService().OpenCacheDirectory(dir) }`），并在添加后**重新生成绑定**。禁止依赖“嵌入会自动传递方法绑定”的错误假设。
-4. **前后端职责分层铁律**：API 层（`system.ts`、`aiCoachService.ts` 等）**只负责调用后端并返回结果**，严禁在 API 层内部做状态持久化、二次跳转调用（如 `selectDirectoryDialog` 内部又调 `setCacheDirectory`）；Store 层（Pinia）负责状态管理与持久化（写入 `settings`、调用 `persistSettings`）；UI 层只调用 Store 并处理 Toast 展示。跨层职责混用是“选完没反应”“成功后报错”类问题的头号根因。
-5. **事件系统方向约束**：Go → 前端推送统一使用 `app.Event.Emit(name, data...)` + 前端 `Events.On(name, callback)`；前端 → Go **必须通过方法绑定调用 Go 方法**，Wails v3 不支持前端直接 `emit` 事件给后端。组件卸载时必须注销所有 `Events.On` 监听器，防止内存与句柄泄漏（呼应核心铁律第 12 条）。
-6. **原生 API 使用规范（对话框与资源管理器）**：选择文件夹使用 `app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).PromptForSingleSelection()`；选择文件在 `OpenFile()` 上追加 `AddFilter(DisplayName, Pattern)`；在资源管理器中打开目录使用 `app.OpenFileManager(path, false)`。**禁止**手写 `exec.Command("explorer.exe", path)`、禁止 PowerShell `FolderBrowserDialog` 兜底脚本绕过官方 API。官方 API 不满足的极端场景必须沉淀为 Agent Note 并给出被否决方案的完整论证。
-7. **错误处理与取消语义统一**：Go 端返回 `(value, error)`，`error` 非空时前端 Promise 会 reject；用户取消对话框属于正常流程，Go 端应返回 `("", nil)` 而非抛错，前端统一按“空字符串 = 用户取消”处理，不得将取消误判为系统异常并 `throw`。针对脱离 Wails 容器的纯浏览器预览降级分支，**禁止在捕获到环境缺失/IPC 异常后直接 `throw` 阻断后续降级逻辑**，必须逐级 `try/catch` 记录日志并平滑回退。
-8. **构建标签与调试通道完整性**：Wails v3 构建必须包含 `desktop,production` 及项目实际使用的所有 build tags（如 `wails`、`bindings`，以 `//go:build` 注释为准），打包脚本中的 `-tags` 必须与源文件一致，禁止在未核对源文件 build tag 的情况下臆测。调试构建禁止使用 `-H windowsgui`，必须保留控制台输出以观察 IPC 绑定、服务注册、panic 与原生调用错误；正式构建可使用 `-H windowsgui` 静默日志，但 CI 必须同时产出带控制台的 debug 版本用于问题定位。
-9. **绑定名唯一事实来源（Single Source of Truth）**：前端任何调用 Go 方法的位置，其方法名必须直接引用 `frontend/bindings/` 下由 `wails3 generate bindings -names -ts` 生成模块导出的函数，严禁在业务代码中硬编码字符串方法名。当出现“未找到后端方法”类错误时，**第一步动作**是打开生成的 `.ts` 文件核对 `$Call.ByName("...")` 中的真实 FQN，而非盲目增加猜测分支。
+1. **合规与零伪造铁律（CRITICAL）**：
+  - **非外挂底线**：严禁读内存、注入 DLL、Hook 渲染或模拟键鼠；实时数据仅限接收本机 GSI HTTP POST（4444 端口）。
+  - **零伪造数据**：未建立真实对局连接时，严禁伪造任何虚拟英雄（如预设敌法师）或假快照，必须严格渲染“等待 GSI 4444 端口接入”空态守卫。模拟器必须隔离在独立调试模块，严禁污染生产默认上下文。
+2. **性能、缓存与安全**：
+  - **高频消费**：10Hz GSI 快照由后端/前端规则引擎顺序消费并通过事件驱动合并状态，严禁阻塞 UI 渲染主线程。
+  - **外部请求**：统一走单例与 Single-Flight 并发合并 + L1/L2 缓存。
+  - **数据脱敏**：Token 与完整 Steam ID 严禁进入日志或 Prompt，敏感凭据仅限本地安全存储。
+3. **UI 零废话与核心防退化**：
+  - **DOM 极简铁律**：所有页面、卡片、Tab 头部**只准渲染唯一主标题（Title）**，下方直跟交互控件。**严禁**脑补任何副标题（Subtitle）、模块简介（Description）或营销修饰语（如：只准写`战术偏好与选手`，严禁附加`个人账号指定·9类战术语音...`）；代码中严禁出现解释用途的次级灰色文本节点（如 `text-gray-400/500`）或向组件传入 `description/subtitle` 属性。
+  - **业务防退化**：127 英雄中文名 100% 静态常数兜底，严守 1 级基础属性公式，维护官网 56x42 物品格与深色高对比悬浮卡（详见 [docs/HERO_AND_ITEM_DATA_SPEC.md](docs/HERO_AND_ITEM_DATA_SPEC.md)）。
 
 ---
 
-## 总结：Wails v3 交互口诀
+## 三、 Wails v3 架构与前后端交互准则
 
-> **服务用 `NewService`，绑定靠 `generate`，前端 `import` 直调，不猜名字不手写胶水；API 只拿数据，Store 管状态，UI 管展示；Go → 前端走 `Event`，前端 → Go 走绑定；`Route` 不乱加，`main.App` 要显式转发；取消返空不抛错，调试去 `windowsgui`。**
+1. **前后端单向分层职责**：
+  - **Go 后端**：负责单消费者 GSI 监听、系统服务与原生桥接。
+  - **API 层 (`*.ts`)**：仅负责调用后端并返回数据，**严禁**在内部做状态持久化或串联调用其他业务方法。
+  - **Store 层 (Pinia)**：负责状态管理与持久化（`settings` / `persistSettings`）。
+  - **UI 层 (Vue 3)**：仅调用 Store 与触发 Toast，主窗口与置顶悬浮窗严格隔离。
+2. **IPC 绑定唯一通道（Single Source of Truth）**：
+  - **前端 $\rightarrow$ Go**：必须且只能通过 `wails3 generate bindings -names -ts` 生成的 `frontend/bindings/` 模块直接 `import` 调用。**严禁**手写 `invokeWails` 猜测方法名、严禁硬编码 FQN 字符串、严禁调用 `window.go` 或 `window.wails.Call`。报“未找到后端方法”时，第一步必须核对生成 `.ts` 文件中的 `$Call.ByName`。
+  - **Go $\rightarrow$ 前端**：统一走 `app.Event.Emit` + 前端 `Events.On`（Wails v3 不支持前端向后端 `emit`）。组件卸载（`onUnmounted`）时**必须注销**所有 `Events.On` 与定时器，严防内存/句柄泄漏。
+3. **Go 服务注册与 `main.App` 显式门面**：
+  - 服务注册默认用 `application.NewService()`，无明确外部 REST 需求**严禁**使用 `NewServiceWithOptions(..., Route: "/xxx")`（会篡改绑定命名空间）。
+  - `main.App` 不会自动继承业务 Service 的绑定方法；若需从 `main.App.XXX` 调用，必须在 `main.App` 上**显式编写转发方法**并重新生成绑定。
+4. **原生 API、取消语义与降级规范**：
+  - **原生对话框**：选目录用 `app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).PromptForSingleSelection()`；选文件追加 `AddFilter`；打开目录用 `app.OpenFileManager(path, false)`。**严禁**手写 `exec.Command("explorer.exe")` 或 PowerShell 兜底脚本（极端受限场景须先写 Agent Note 论证）。
+  - **取消与降级语义**：用户取消对话框时 Go 端必须返回 `("", nil)` 而非 `error`，前端按空字符串静默处理，严禁抛错。纯浏览器预览环境（非 Wails 容器）捕获到 IPC 缺失时，必须 `try/catch` 记录日志并平滑降级，严禁直接 `throw` 阻断流程。
+5. **构建 Tags 与调试通道**：
+  - 打包脚本 `-tags` 必须与源文件 `//go:build` 注释严格对齐（含 `desktop,production,wails,bindings` 等）。
+  - 调试构建**严禁**加 `-H windowsgui`（必须保留控制台输出观测 IPC 与 panic）；正式构建可静默，但 CI 必须同步产出带控制台的 Debug 包。

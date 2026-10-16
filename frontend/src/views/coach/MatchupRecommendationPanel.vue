@@ -12,12 +12,10 @@ import type { HeroMatchupRecommendation } from '@/api/types'
 import {
   AlertCircle,
   Check,
-  Database,
   RefreshCw,
   ShieldAlert,
   Sparkles,
   Swords,
-  TrendingUp,
 } from '@lucide/vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { playerApi } from '@/api'
@@ -197,23 +195,9 @@ function adjustTooltipPosition(mouseX: number, mouseY: number) {
     <div class="pb-2.5 border-b border-slate-800/80 flex items-center justify-between">
       <div class="flex items-center space-x-2">
         <Sparkles class="text-amber-400 h-4 w-4" />
-        <h2 class="text-xs text-amber-400 tracking-wide font-extrabold flex gap-1.5 items-center">
-          大数据动态出装 · 实战针对推荐
+        <h2 class="text-xs text-amber-400 tracking-wide font-extrabold">
+          针对性出装
         </h2>
-        <span
-          v-if="recommendation?.source === 'opendota'"
-          class="text-2xs text-emerald-400 font-bold px-1.5 py-0.2 border border-emerald-500/40 rounded bg-emerald-500/10 flex items-center space-x-1"
-        >
-          <TrendingUp class="h-2.5 w-2.5" />
-          <span>OpenDota 高分段大数据</span>
-        </span>
-        <span
-          v-else-if="recommendation?.source === 'cache'"
-          class="text-2xs text-cyan-400 font-bold px-1.5 py-0.2 border border-cyan-500/40 rounded bg-cyan-500/10 flex items-center space-x-1"
-        >
-          <Database class="h-2.5 w-2.5" />
-          <span>本地真实历史缓存</span>
-        </span>
       </div>
 
       <button
@@ -263,9 +247,6 @@ function adjustTooltipPosition(mouseX: number, mouseY: number) {
           <ShieldAlert class="text-rose-400 h-3.5 w-3.5" />
           <span>本局敌方高危威胁克制源</span>
         </span>
-        <span class="text-2xs text-slate-500 font-mono">
-          根据对抗大数据历史胜率裁定
-        </span>
       </div>
 
       <div class="pt-0.5 flex flex-wrap gap-2">
@@ -310,7 +291,6 @@ function adjustTooltipPosition(mouseX: number, mouseY: number) {
       <div class="flex items-center space-x-2">
         <Swords class="text-amber-400 h-4 w-4" />
         <span class="text-xs text-amber-300 font-extrabold">本局专属针对性质变装</span>
-        <span class="text-2xs text-slate-400 font-medium">(针对本局敌方阵容特质动态加权)</span>
       </div>
 
       <div class="gap-2.5 grid grid-cols-1 md:grid-cols-2">
@@ -367,7 +347,6 @@ function adjustTooltipPosition(mouseX: number, mouseY: number) {
     <div class="pt-1 border-t border-slate-800/80 space-y-2">
       <div class="text-xs text-slate-400 font-bold flex items-center justify-between">
         <span>全服大数据出装阶梯</span>
-        <span class="text-2xs text-slate-500">官网 56x42 规格 · 悬停查看详情</span>
       </div>
 
       <div class="gap-2 grid grid-cols-2 lg:grid-cols-4">

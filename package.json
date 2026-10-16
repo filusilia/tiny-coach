@@ -9,11 +9,11 @@
     "typecheck": "pnpm --filter frontend typecheck",
     "package": "pwsh -NoProfile -File ./tools/package-release.ps1",
     "preview": "pnpm --filter frontend preview",
-    "verify-notes": "node scripts/verify-agent-notes.cjs",
-    "archive-note": "npx tsx scripts/archive-agent-note.ts"
+    "verify-notes": "npx tsx .agents/skills/write-notes-like-deepseek/scripts/verify-agent-note-tree.ts && npx tsx .agents/skills/write-notes-like-deepseek/scripts/verify-agent-note-format.ts && npx tsx .agents/skills/write-notes-like-deepseek/scripts/verify-archived-agent-notes.ts",
+    "archive-note": "npx tsx .agents/skills/write-notes-like-deepseek/scripts/archive-agent-note.ts"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.5",
     "lamejs": "^1.2.1"
   }
 }

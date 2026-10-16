@@ -63,7 +63,7 @@ function handleSelect(val: BroadcastMode) {
         modelValue === 1
           ? 'bg-dota-cyan/20 text-dota-cyan border border-dota-cyan/40 shadow-xs'
           : 'text-dota-subtle hover:text-dota-text hover:bg-dota-hover/50 border border-transparent',
-      ]" title="仅文字通报（屏幕气泡，TTS静音）"
+      ]" title="仅文字"
       @click="handleSelect(1)"
     >
       <FileText :class="size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'" />
@@ -82,7 +82,7 @@ function handleSelect(val: BroadcastMode) {
         modelValue === 2
           ? 'bg-dota-gold/20 text-dota-gold border border-dota-gold/40 shadow-xs font-semibold'
           : 'text-dota-subtle hover:text-dota-text hover:bg-dota-hover/50 border border-transparent',
-      ]" title="语音+文字播报（屏幕气泡 + MeloTTS 超保真朗读）"
+      ]" title="语音+文字"
       @click="handleSelect(2)"
     >
       <Volume2 :class="size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'" />

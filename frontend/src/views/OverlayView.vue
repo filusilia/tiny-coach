@@ -360,15 +360,12 @@ onUnmounted(() => {
           <!-- 无推荐出装数据时的真实等待空态守卫 (严格遵守铁律 8 零伪造原则) -->
           <div
             v-else
-            class="p-3 text-center border border-slate-800 rounded-lg bg-slate-900/50 space-y-1.5"
+            class="p-3 text-center border border-slate-800 rounded-lg bg-slate-900/50 space-y-1"
           >
             <div class="text-xs text-amber-300 font-bold flex items-center justify-center space-x-1.5">
               <Radio class="h-3.5 w-3.5 animate-pulse" />
               <span>等待 GSI 接入</span>
             </div>
-            <p class="text-xs text-slate-400 leading-relaxed">
-              进入比赛后自动追踪经济。在选人阶段可随时按 <kbd class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700">F10</kbd> 生成推荐出装！
-            </p>
           </div>
         </div>
 
@@ -448,7 +445,6 @@ onUnmounted(() => {
                 <Swords class="w-3.5 h-3.5" />
                 <span>{{ isSupportRole ? '辅助克制推荐' : '针对出装推荐' }}</span>
               </span>
-              <span class="text-[10px] text-slate-400 font-mono">已出装自动过滤</span>
             </div>
             <div class="space-y-1 max-h-28 overflow-y-auto pr-0.5">
               <div

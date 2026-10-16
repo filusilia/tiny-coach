@@ -87,6 +87,7 @@ export const useAppStore = defineStore('app', () => {
     auto_start_gsi: true,
     smart_coach_enabled: true,
     voice_broadcast_mode: 2,
+    reminder_lead_time_seconds: 15,
     voice_volume: 100,
     voice_speed: 1.0,
     voice_name: 'MeloTTS 超保真拟人',
@@ -119,6 +120,12 @@ export const useAppStore = defineStore('app', () => {
     ai_endpoint: defaultEndpoint,
     ai_api_key: defaultApiKey,
     ai_model: defaultModel,
+    reminder_advance_seconds: {
+      rune_control: 15,
+      tormentor_tactics: 20,
+      roshan_tactics: 30,
+      ...(initialSaved.reminder_advance_seconds || {}),
+    },
     reminder_modes: {
       ...DEFAULT_REMINDER_MODES,
       ...(initialSaved.reminder_modes || {}),

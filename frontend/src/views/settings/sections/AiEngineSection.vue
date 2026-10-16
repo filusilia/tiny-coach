@@ -175,11 +175,11 @@ function onModelInputFocus() {
 </script>
 
 <template>
-  <section class="p-5 border border-slate-700/80 rounded-2xl bg-slate-900/90 select-none antialiased shadow-xl space-y-4">
+  <section class="p-4 border border-slate-700/80 rounded-2xl bg-slate-900/90 select-none antialiased shadow-xl space-y-3">
     <!-- 顶部标题与模式切换 -->
-    <div class="flex flex-col gap-2.5 justify-between sm:flex-row sm:items-center">
-      <div class="flex items-center space-x-3">
-        <BrainCircuit class="text-amber-400 shrink-0 h-5 w-5" />
+    <div class="flex flex-col gap-2 justify-between sm:flex-row sm:items-center">
+      <div class="flex items-center space-x-2.5">
+        <BrainCircuit class="text-amber-400 shrink-0 h-4.5 w-4.5" />
         <div>
           <h2 class="text-sm text-slate-100 font-bold">
             战术大模型引擎配置
@@ -381,9 +381,6 @@ function onModelInputFocus() {
       <Zap class="text-amber-400 mx-auto h-7 w-7" />
       <div class="text-xs text-slate-200 font-bold">
         已启用纯规则战术模式
-      </div>
-      <div class="text-2xs text-slate-400 mx-auto max-w-md">
-        零模型依赖，完全基于本地实时 GSI 战况事件硬编码规则计算，提供毫秒级、零性能开销的战术提醒。
       </div>
     </div>
 

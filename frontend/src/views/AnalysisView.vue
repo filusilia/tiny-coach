@@ -20,8 +20,8 @@ import { gameDataService } from '@/services/gameDataService.ts'
 import { fetchMatchDetails, fetchPlayerRecentMatchesList } from '@/services/playerProfileService.ts'
 import { useAppStore } from '@/stores/app.ts'
 import { useAnalysisStats } from '@/views/analysis/composables/useAnalysisStats.ts'
+import WindowControls from '@/components/layout/WindowControls.vue'
 import MatchDetailPanel from '@/views/analysis/MatchDetailPanel.vue'
-import MatchSearchBar from '@/views/analysis/MatchSearchBar.vue'
 import PlayerProfileBanner from '@/views/analysis/PlayerProfileBanner.vue'
 import RecentMatchList from '@/views/analysis/RecentMatchList.vue'
 
@@ -172,6 +172,18 @@ async function fetchPlayerRecentMatches(accountId: string) {
   } finally {
     loadingRecent.value = false
   }
+}
+
+/**
+ * 刷新拉取玩家战绩与个人档案
+ */
+async function handleRefreshPlayerData() {
+  if (!appStore.settings.dota_player_id) return
+  await Promise.all([
+    fetchPlayerRecentMatches(appStore.settings.dota_player_id),
+    syncPlayerProfile(appStore.settings.dota_player_id),
+  ])
+  appStore.showToast('战绩与个人资料已成功刷新！', 'success')
 }
 
 /**
@@ -347,6 +359,18 @@ defineExpose({
 
 <template>
   <div class="text-slate-100 bg-dota-bg flex flex-1 flex-col select-none overflow-hidden">
+    <!-- 顶部窗口控制与无缝拖拽栏 (内容整体上移置顶，无全局TitleBar) -->
+    <div
+      class="h-9 px-4 border-b border-slate-800/60 bg-slate-900/40 backdrop-blur shrink-0 flex items-center justify-between select-none"
+      style="--wails-draggable: drag"
+    >
+      <div class="flex items-center space-x-2">
+        <div class="h-2 w-2 rounded-full bg-amber-400"></div>
+        <span class="text-xs text-slate-300 font-bold tracking-wider uppercase">赛后战局深度分析</span>
+      </div>
+      <WindowControls class="ml-auto" />
+    </div>
+
     <!-- 主视口内容区 (紧凑布局，无顶部冗余标题) -->
     <div class="p-4 flex-1 overflow-y-auto space-y-4 sm:p-5">
       <!-- 模式 A：比赛全景独立详情页 (点击比赛列表或搜索后打开新详情页) -->
@@ -375,15 +399,7 @@ defineExpose({
 
       <!-- 模式 B：近期战绩历史列表与玩家大盘主视图 -->
       <div v-else class="space-y-4">
-        <!-- 1. 比赛搜索输入栏组件 (极简紧凑无外框卡片) -->
-        <MatchSearchBar
-          v-model="searchMatchId"
-          :searching="searching"
-          :search-error="searchError"
-          @search="handleSearchMatch()"
-        />
-
-        <!-- 2. 玩家战术身份档案、雷达大盘与高频英雄池 (单卡片紧凑一体化) -->
+        <!-- 玩家战术身份档案、雷达大盘与近期英雄池 (单卡片紧凑一体化) -->
         <PlayerProfileBanner
           v-if="appStore.settings.dota_player_id"
           :name="playerProfile.name || appStore.settings.dota_player_name || ''"
@@ -395,9 +411,9 @@ defineExpose({
           :top-heroes="topHeroes"
           :recent-heroes="recentHeroes"
           :filter-hero-id="filterHeroId"
-          @refresh="fetchPlayerRecentMatches(appStore.settings.dota_player_id)"
           @select-hero="(hid) => (filterHeroId = filterHeroId === hid ? null : hid)"
           @clear-filter="filterHeroId = null"
+          @refresh="handleRefreshPlayerData"
         />
 
         <!-- 2.1 未绑定账号的真实空态守卫 (零伪造规范) -->

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AlertCircle, CheckCircle2, Info, X } from '@lucide/vue'
-import { defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import Sidebar from '@/components/layout/Sidebar.vue'
 import TitleBar from '@/components/layout/TitleBar.vue'
 import { useGsiStream } from '@/composables/useGsiStream.ts'
@@ -13,6 +14,13 @@ import { checkIsOverlayWindow } from '@/utils/windowMode.ts'
 const OverlayView = defineAsyncComponent(() => import('@/views/OverlayView.vue'))
 
 const appStore = useAppStore()
+const route = useRoute()
+
+// 实时教练 (/coach) 与赛后分析 (/analysis) 页面不需要顶部搜索标题栏，内容卡片整体上移置顶
+const showGlobalTitleBar = computed(() => {
+  const p = route?.path || ''
+  return !p.startsWith('/coach') && !p.startsWith('/analysis')
+})
 
 // 独立悬浮窗判定 (支持 URL 参数 window=overlay 或 mode=overlay 识别独立子窗口)
 const isStandaloneOverlay = ref(checkIsOverlayWindow())
@@ -79,8 +87,8 @@ onMounted(async () => {
       </div>
     </transition>
 
-    <!-- 顶部标题栏 -->
-    <TitleBar />
+    <!-- 顶部标题栏 (仅在非教练与非分析页面显示，实时教练与赛后分析整体上移置顶) -->
+    <TitleBar v-if="showGlobalTitleBar" />
 
     <!-- 下方主容器 (侧边栏 + 路由视口) -->
     <div class="flex flex-1 overflow-hidden">

@@ -20,24 +20,29 @@ import {
   Info,
   Keyboard,
   Plus,
+  Radio,
   RefreshCw,
   Search,
   ShieldAlert,
   Sparkles,
   Swords,
   Trash2,
+  User,
   X,
 } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import SmartImage from '@/components/common/SmartImage.vue'
 import { HERO_CHINESE_NAMES, HERO_SHORT_NAMES } from '@/data/heroNames'
-import { useVisionStore } from '@/stores'
+import { activeBattleContext } from '@/services/gsiRuleEngine'
+import { useAppStore, useVisionStore } from '@/stores'
 import { getHeroCdnUrl, getHeroIconUrl, getItemIconUrl } from '@/utils/assetUrl'
 
 defineOptions({
   name: 'BpVisionCaptureCard',
 })
 
+const appStore = useAppStore()
+const battle = activeBattleContext
 const visionStore = useVisionStore()
 const isExpanded = ref(true)
 
@@ -117,29 +122,73 @@ async function selectHeroForSlot(heroId: number | null) {
   <div class="bp-vision-card border border-slate-700/60 bg-slate-900/85 backdrop-blur-md rounded-xl p-4 shadow-xl transition-all space-y-3 relative">
     <!-- 1. 头部栏：标题、快捷键徽章与操作控制组 -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
-          <Camera class="w-4 h-4" />
-        </div>
-        <div>
-          <div class="flex items-center gap-2 flex-wrap">
-            <h3 class="text-sm font-bold text-slate-100 tracking-wide">
-              对战识别
-            </h3>
-            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono font-semibold bg-cyan-950/60 text-cyan-300 border border-cyan-700/40">
-              <Keyboard class="w-3.5 h-3.5" />
-              F10
-            </span>
-            <span
-              v-if="visionStore.isHotkeyActive"
-              class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-emerald-950/60 text-emerald-300 border border-emerald-700/40"
-              title="全局 F10 热键已在后台 OS 线程锁定监听，可在游戏内盲按触发 (带 600ms 连按防抖)"
-            >
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              全局热键就绪
-            </span>
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+            <Camera class="w-4 h-4" />
           </div>
+          <h3 class="text-sm font-bold text-slate-100 tracking-wide">
+            对战识别
+          </h3>
         </div>
+
+        <!-- 绑定选手身份简要信息 -->
+        <div
+          v-if="appStore.settings.dota_player_id"
+          class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800 text-xs"
+          title="当前绑定的个人选手账号"
+        >
+          <div class="w-4 h-4 rounded-full overflow-hidden bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0">
+            <img
+              v-if="appStore.settings.dota_player_avatar"
+              :src="appStore.settings.dota_player_avatar"
+              :alt="appStore.settings.dota_player_name"
+              class="w-full h-full object-cover"
+            />
+            <User v-else class="w-2.5 h-2.5 text-slate-400" />
+          </div>
+          <span class="text-slate-200 font-semibold truncate max-w-[90px]">
+            {{ appStore.settings.dota_player_name || '已绑定选手' }}
+          </span>
+          <span class="text-slate-500 font-mono text-[11px]">
+            #{{ appStore.settings.dota_player_id }}
+          </span>
+        </div>
+
+        <!-- GSI 对局接入状态指示器 (未接入等待接入，接入后图标变绿) -->
+        <div
+          class="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold border transition-all"
+          :class="[
+            battle.connected
+              ? 'border-emerald-600/50 bg-emerald-950/70 text-emerald-300'
+              : 'border-slate-800 bg-slate-950/70 text-slate-400',
+          ]"
+          :title="battle.connected ? '已接入真实 Dota2 对局 (4444 端口 GSI 实时通信)' : '等待 Dota2 对局启动接入 (4444 端口)'"
+        >
+          <Radio
+            class="w-3.5 h-3.5 transition-colors"
+            :class="[
+              battle.connected
+                ? 'text-emerald-400'
+                : 'text-amber-500/90 animate-pulse',
+            ]"
+          />
+          <span>{{ battle.connected ? '已接入对局' : '等待接入' }}</span>
+        </div>
+
+        <!-- F10 快捷键 -->
+        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono font-semibold bg-cyan-950/60 text-cyan-300 border border-cyan-700/40">
+          <Keyboard class="w-3.5 h-3.5" />
+          F10
+        </span>
+        <span
+          v-if="visionStore.isHotkeyActive"
+          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-emerald-950/60 text-emerald-300 border border-emerald-700/40 hidden md:inline-flex"
+          title="全局 F10 热键已在后台 OS 线程锁定监听，可在游戏内盲按触发"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          热键就绪
+        </span>
       </div>
 
       <!-- 控制按钮组 -->

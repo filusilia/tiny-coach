@@ -87,9 +87,9 @@ async function handleClearCache() {
 </script>
 
 <template>
-  <section class="p-5 border border-slate-700/80 rounded-2xl bg-slate-900/90 select-none shadow-xl space-y-4">
-    <div class="flex items-center space-x-3">
-      <Database class="text-amber-400 h-5 w-5" />
+  <section class="p-4 border border-slate-700/80 rounded-2xl bg-slate-900/90 select-none shadow-xl space-y-3">
+    <div class="flex items-center space-x-2.5">
+      <Database class="text-amber-400 h-4.5 w-4.5" />
       <div>
         <h2 class="text-sm text-slate-100 font-bold">
           数据缓存与本地文件目录
@@ -97,7 +97,7 @@ async function handleClearCache() {
       </div>
     </div>
 
-    <div class="p-3.5 border border-slate-800 rounded-xl bg-slate-950/60 space-y-3">
+    <div class="p-3 border border-slate-800 rounded-xl bg-slate-950/60 space-y-2.5">
       <div>
         <label class="text-xs text-slate-300 font-bold mb-1 block">当前数据存储绝对路径</label>
         <div class="flex flex-col gap-2 sm:flex-row">
@@ -134,9 +134,6 @@ async function handleClearCache() {
             <span v-if="iconCacheStats" class="text-xs text-emerald-400 font-mono px-1.5 py-0.2 border border-emerald-500/30 rounded bg-emerald-950/60">
               已缓存英雄: {{ iconCacheStats.cached_heroes }} | 装备: {{ iconCacheStats.cached_items }}
             </span>
-          </div>
-          <div class="text-xs text-slate-400">
-            默认优先加载本地缓存文件，离线秒级呈现；缺失时自动落盘并由官方 CDN 兜底。
           </div>
         </div>
         <button
