@@ -33,7 +33,6 @@ const activeTab = ref<SettingsTabKey>('tactics')
 interface SettingsTabCard {
   key: SettingsTabKey
   title: string
-  subtitle: string
   icon: any
 }
 
@@ -41,13 +40,11 @@ const tabCards: SettingsTabCard[] = [
   {
     key: 'tactics',
     title: '战术偏好与选手',
-    subtitle: '个人账号指定 · 9类战术语音播报矩阵与发音试听',
     icon: Volume2,
   },
   {
     key: 'system',
     title: 'AI 引擎与系统',
-    subtitle: '大模型推理 · 局内独立悬浮窗 · 离线缓存与合规',
     icon: BrainCircuit,
   },
 ]
@@ -113,9 +110,6 @@ onMounted(async () => {
               ]"
             >
               {{ card.title }}
-            </div>
-            <div class="text-xs text-slate-400 mt-0.5 truncate">
-              {{ card.subtitle }}
             </div>
           </div>
 

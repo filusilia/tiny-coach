@@ -4,7 +4,8 @@
  * 遵循开工铁律第 8 条（零伪造原则）：
  * 1. 严禁在未建立真实对局连接时伪造任何虚拟英雄、经济差或战局时间；
  * 2. 当 GSI 未连接或英雄未就绪时，严格呈现“等待 GSI 4444 端口接入”真实空态守卫；
- * 3. 游戏建立连接后，全量呈现由统一权威源 battleStore 派发的真实快照数据。
+ * 3. 游戏建立连接后，全量呈现由统一权威源 battleStore 派发的真实快照数据；
+ * 4. 纯化设计：悬浮窗中绝不展示敌方阵容，仅保留【我的经济基础信息】与【推荐出装】。
  */
 
 import {
@@ -13,10 +14,8 @@ import {
   Minimize2,
   Radio,
   Shield,
-  Sparkles,
   Swords,
   Unlock,
-  WifiOff,
   X,
 } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -24,7 +23,8 @@ import { overlayApi } from '@/api'
 import type { BpOverlaySyncPayload } from '@/services/vision/types'
 import { useAppStore } from '@/stores/app.ts'
 import { useBattleStore } from '@/stores/battle.ts'
-import { getHeroIconUrl } from '@/utils/assetUrl'
+import { getItemIconUrl } from '@/utils/assetUrl'
+import { filterRoleAndOwnedRecommendations } from '@/utils/itemRecommendationFilter'
 
 defineOptions({ name: 'OverlayView' })
 
@@ -33,6 +33,24 @@ const battleStore = useBattleStore()
 
 /** 实时 BP 智能推荐情报 */
 const bpOverlayData = ref<BpOverlaySyncPayload | null>(null)
+
+/** 原始推荐出装 */
+const rawCounterItems = computed(() => {
+  return bpOverlayData.value?.counterItems || []
+})
+
+/**
+ * 针对性推荐出装过滤列表：
+ * 1. 自动过滤局内已拥有或已升级的装备，已出装备不再重复推荐；
+ * 2. 智能识别辅助/核心分路，辅助分路严禁推荐输出装，只推荐辅助克制装。
+ */
+const counterItems = computed(() => {
+  return filterRoleAndOwnedRecommendations(
+    rawCounterItems.value,
+    battleStore.ownedItemNames,
+    battleStore.isSupportRole,
+  )
+})
 
 /** 悬浮窗折叠状态 */
 const isCollapsed = ref(false)
@@ -77,14 +95,11 @@ async function handleClose() {
   } catch {}
 }
 
-// 统一数据源：直接从 battleStore 获取权威战况派生状态
+// 统一数据源：直接从 battleStore 获取权威战况派生状态 (零伪造真实经济指标)
 const isGsiActive = computed<boolean>(() => battleStore.isGsiActive)
 const heroName = computed<string>(() => battleStore.heroName)
-const heroLevel = computed<number>(() => battleStore.heroLevel)
-const heroHpPercent = computed<number>(() => battleStore.heroHpPercent)
-const heroManaPercent = computed<number>(() => battleStore.heroManaPercent)
+const isSupportRole = computed<boolean>(() => battleStore.isSupportRole)
 const currentGold = computed<number>(() => battleStore.currentGold)
-const kdaString = computed<string>(() => battleStore.kdaString)
 const gpm = computed<number>(() => battleStore.gpm)
 const xpm = computed<number>(() => battleStore.xpm)
 const formattedGameTime = computed<string>(() => battleStore.formattedGameTime)
@@ -107,7 +122,7 @@ function onStorageChange(e: StorageEvent) {
     } else {
       try {
         const parsed = JSON.parse(e.newValue)
-        bpOverlayData.value = parsed && Array.isArray(parsed.enemyHeroes) && parsed.enemyHeroes.length > 0 ? parsed : null
+        bpOverlayData.value = parsed && (parsed.counterItems?.length > 0 || parsed.enemyHeroes?.length > 0) ? parsed : null
         updateWindowSize()
       } catch {}
     }
@@ -126,6 +141,17 @@ onMounted(async () => {
 
   // 跨窗口同步 1：Storage 兼容兜底
   window.addEventListener('storage', onStorageChange)
+
+  // 初始读取 localStorage 中已有的出装建议
+  try {
+    const cached = localStorage.getItem('aegis_bp_overlay')
+    if (cached) {
+      const parsed = JSON.parse(cached)
+      if (parsed && (parsed.counterItems?.length > 0 || parsed.enemyHeroes?.length > 0)) {
+        bpOverlayData.value = parsed
+      }
+    }
+  } catch {}
 
   // 跨窗口同步 2：Wails 原生事件总线实时广播响应
   const win = window as any
@@ -153,7 +179,7 @@ onMounted(async () => {
 
     const unreg3 = win.wails.Events.On('overlay:bp-update', (payload: any) => {
       const data = payload?.data ?? payload
-      bpOverlayData.value = data && Array.isArray(data.enemyHeroes) && data.enemyHeroes.length > 0 ? data : null
+      bpOverlayData.value = data && (data.counterItems?.length > 0 || data.enemyHeroes?.length > 0) ? data : null
       updateWindowSize()
     })
     if (typeof unreg3 === 'function') unlistenBpUpdate = unreg3
@@ -168,14 +194,19 @@ function updateWindowSize() {
     if (isCollapsed.value) {
       overlayApi.setOverlaySize(240, 52)
     } else if (!isGsiActive.value) {
-      // 若存在 BP 识别结果，展开适配高度以展示克制建议
-      if (bpOverlayData.value && bpOverlayData.value.enemyHeroes?.length > 0) {
-        overlayApi.setOverlaySize(332, 290)
-      } else {
+      // 未连入 GSI：若有推荐出装展示出装，否则展示紧凑空态
+      if (counterItems.value.length > 0) {
         overlayApi.setOverlaySize(332, 220)
+      } else {
+        overlayApi.setOverlaySize(332, 150)
       }
     } else {
-      overlayApi.setOverlaySize(332, 330)
+      // GSI 已连接：仅保留基础经济与过滤后的推荐出装
+      if (counterItems.value.length > 0) {
+        overlayApi.setOverlaySize(332, 295)
+      } else {
+        overlayApi.setOverlaySize(332, 175)
+      }
     }
   } catch {}
 }
@@ -246,7 +277,7 @@ onUnmounted(() => {
           </span>
           <span
             v-if="isGsiActive"
-            class="text-2xs text-emerald-400 font-mono px-1 py-0.2 border border-emerald-800/60 rounded bg-emerald-950"
+            class="text-xs text-emerald-400 font-mono px-1.5 py-0.2 border border-emerald-800/60 rounded bg-emerald-950"
           >
             {{ formattedGameTime }}
           </span>
@@ -291,126 +322,76 @@ onUnmounted(() => {
 
       <!-- 战况主体 (未折叠态) -->
       <div v-if="!isCollapsed" class="text-xs p-3 space-y-2.5">
+        <!-- 分支 A：对局未接入 (等待 GSI 连接) -->
         <div v-if="!isGsiActive" class="space-y-2">
-          <!-- 赛前 BP 视觉识别实时战术卡片 (按 F10 盲按反馈) -->
+          <!-- 若存在推荐出装建议 (即使未开局亦可查看针对性出装) -->
           <div
-            v-if="bpOverlayData && bpOverlayData.enemyHeroes?.length > 0"
-            class="p-2.5 border border-cyan-700/60 rounded-xl bg-slate-900/95 shadow-lg space-y-2"
+            v-if="counterItems.length > 0"
+            class="p-2.5 border border-amber-500/40 rounded-xl bg-slate-900/95 shadow-lg space-y-2"
           >
-            <!-- 头部：阵营与更新时间 -->
             <div class="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
-              <span class="text-cyan-400 font-bold flex items-center gap-1">
-                <Sparkles class="w-3.5 h-3.5" />
-                BP 实时战况雷达
+              <span class="text-amber-400 font-bold flex items-center gap-1.5">
+                <Swords class="w-3.5 h-3.5" />
+                <span>{{ isSupportRole ? '辅助克制出装' : '针对推荐出装' }}</span>
               </span>
-              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                我方: {{ bpOverlayData.myFaction === 'radiant' ? '天辉' : '夜魇' }}
+              <span class="text-xs text-slate-400 font-mono">
+                已出装自动过滤
               </span>
             </div>
 
-            <!-- 敌方已选英雄 -->
-            <div class="space-y-1">
-              <div class="text-[11px] text-slate-400 flex items-center justify-between">
-                <span>已识别敌方阵容 ({{ bpOverlayData.enemyHeroes.length }}人):</span>
-              </div>
-              <div class="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                <div
-                  v-for="eh in bpOverlayData.enemyHeroes"
-                  :key="eh.heroId"
-                  class="flex flex-col items-center shrink-0 w-12"
-                  :title="eh.heroName"
-                >
-                  <div class="w-10 h-7 rounded overflow-hidden border border-rose-500/50 bg-black">
-                    <img :src="getHeroIconUrl(eh.shortName)" :alt="eh.heroName" class="w-full h-full object-cover" />
+            <!-- 针对性出装列表 (绝无敌方阵容展示) -->
+            <div class="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+              <div
+                v-for="ci in counterItems.slice(0, 4)"
+                :key="ci.itemKey"
+                class="flex items-center justify-between text-xs bg-slate-950/80 p-1.5 rounded border border-slate-800/80"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <div class="w-7 h-5 rounded overflow-hidden border border-amber-500/40 bg-black shrink-0">
+                    <img :src="getItemIconUrl(ci.itemKey)" :alt="ci.itemName" class="w-full h-full object-cover" />
                   </div>
-                  <span class="text-[10px] text-slate-200 truncate w-full text-center mt-0.5">
-                    {{ eh.heroName }}
-                  </span>
+                  <span class="text-amber-300 font-bold truncate max-w-[110px]">{{ ci.itemName }}</span>
                 </div>
+                <span class="text-xs text-slate-400 truncate max-w-[150px] text-right" :title="ci.reason">{{ ci.reason }}</span>
               </div>
-            </div>
-
-            <!-- 核心针对装建议 -->
-            <div v-if="bpOverlayData.counterItems?.length > 0" class="space-y-1 pt-1 border-t border-slate-800/80">
-              <div class="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
-                <Swords class="w-3 h-3" />
-                <span>大数据针对性出装建议:</span>
-              </div>
-              <div class="space-y-1 max-h-24 overflow-y-auto pr-0.5">
-                <div
-                  v-for="ci in bpOverlayData.counterItems.slice(0, 3)"
-                  :key="ci.itemKey"
-                  class="flex items-center justify-between text-[11px] bg-slate-950/80 px-2 py-1 rounded border border-slate-800/80"
-                >
-                  <span class="text-amber-300 font-bold truncate max-w-[120px]">{{ ci.itemName }}</span>
-                  <span class="text-[10px] text-slate-400 truncate max-w-[150px] text-right">{{ ci.reason }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="text-[10px] text-slate-500 text-center pt-0.5 font-mono">
-              按 F10 可重新抓取并更新 BP 识别
             </div>
           </div>
 
-          <!-- 无 BP 识别数据时的等待空态守卫 -->
+          <!-- 无推荐出装数据时的真实等待空态守卫 (严格遵守铁律 8 零伪造原则) -->
           <div
             v-else
-            class="p-3.5 text-center border border-amber-800/50 rounded-lg bg-amber-950/20 space-y-2"
+            class="p-3 text-center border border-slate-800 rounded-lg bg-slate-900/50 space-y-1.5"
           >
-            <div class="flex justify-center">
-              <WifiOff class="text-amber-400 h-6 w-6" />
+            <div class="text-xs text-amber-300 font-bold flex items-center justify-center space-x-1.5">
+              <Radio class="h-3.5 w-3.5 animate-pulse" />
+              <span>等待 GSI 接入</span>
             </div>
-            <div class="space-y-0.5">
-              <div class="text-xs text-amber-300 font-bold flex items-center justify-center space-x-1">
-                <Radio class="h-3.5 w-3.5 animate-pulse" />
-                <span>等待 GSI 接入</span>
-              </div>
-              <p class="text-xs text-slate-400 leading-relaxed">
-                进入比赛后自动追踪经济。在选人阶段可随时按 <kbd class="px-1 py-0.5 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700">F10</kbd> 识别敌方英雄！
-              </p>
-            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              进入比赛后自动追踪经济。在选人阶段可随时按 <kbd class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700">F10</kbd> 生成推荐出装！
+            </p>
           </div>
         </div>
 
-        <!-- GSI 已连接：渲染真实快照数据 -->
-        <div v-else class="space-y-2.5">
-          <!-- 操纵英雄与血蓝状态 -->
-          <div class="p-2.5 border border-slate-800 rounded-lg bg-slate-900/80 space-y-1.5">
-            <div class="flex items-center justify-between">
-              <div class="text-slate-100 font-bold flex items-center space-x-1.5">
-                <span class="text-amber-400">{{ heroName }}</span>
-                <span class="text-xs text-slate-400 font-mono">Lv.{{ heroLevel }}</span>
-              </div>
-              <span class="text-xs text-emerald-300 font-mono font-semibold">
-                {{ kdaString }}
-              </span>
-            </div>
-
-            <!-- 生命值与魔法值条 -->
-            <div class="space-y-1">
-              <div class="rounded-full bg-slate-800 h-1.5 w-full overflow-hidden">
-                <div
-                  class="rounded-full bg-emerald-500 h-full transition-all duration-300"
-                  :style="{ width: `${heroHpPercent}%` }"
-                />
-              </div>
-              <div class="rounded-full bg-slate-800 h-1.5 w-full overflow-hidden">
-                <div
-                  class="rounded-full bg-cyan-500 h-full transition-all duration-300"
-                  :style="{ width: `${heroManaPercent}%` }"
-                />
-              </div>
-            </div>
+        <!-- 分支 B：GSI 已接入 (纯化经济基础指标 + 推荐出装) -->
+        <div v-else class="space-y-2">
+          <!-- 1. 英雄名称与分路识别指示 -->
+          <div class="flex items-center justify-between px-1 text-xs">
+            <span class="text-amber-400 font-bold tracking-wide truncate max-w-[140px]">{{ heroName }}</span>
+            <span
+              class="px-1.5 py-0.2 rounded text-[10px] font-mono border"
+              :class="isSupportRole ? 'bg-cyan-950/80 text-cyan-300 border-cyan-800/60' : 'bg-amber-950/80 text-amber-300 border-amber-800/60'"
+            >
+              {{ isSupportRole ? '辅助分路' : '核心输出' }}
+            </span>
           </div>
 
-          <!-- 真实经济与打钱效率 -->
+          <!-- 2. 真实经济三联大格 (金币储备、GPM、XPM) -->
           <div class="gap-2 grid grid-cols-3">
             <div class="p-2 text-center border border-slate-800 rounded-lg bg-slate-900/80">
               <div class="text-xs text-slate-400">
                 当前储备
               </div>
-              <div class="text-sm text-amber-400 tracking-tight font-bold font-mono">
+              <div class="text-sm text-amber-400 tracking-tight font-extrabold font-mono">
                 {{ currentGold }}
               </div>
             </div>
@@ -432,9 +413,10 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- 真实买活监控 (严守 Valve 实际买活算法) -->
+          <!-- 3. 真实买活监控评估 -->
           <div
-            class="p-2.5 border rounded-lg bg-slate-900/80 space-y-1" :class="[
+            class="p-2.5 border rounded-lg bg-slate-900/80 space-y-1"
+            :class="[
               canBuyback ? 'border-emerald-700/60' : 'border-rose-900/50',
             ]"
           >
@@ -453,6 +435,35 @@ onUnmounted(() => {
               <span>买活成本: {{ buybackCost }}</span>
               <span v-if="buybackCooldown > 0" class="text-rose-400">冷却中 ({{ buybackCooldown }}s)</span>
               <span v-else class="text-emerald-400">冷却就绪</span>
+            </div>
+          </div>
+
+          <!-- 4. 推荐出装 (自动剔除已出装，仅推荐对应分路装) -->
+          <div
+            v-if="counterItems.length > 0"
+            class="p-2.5 border border-amber-500/30 rounded-lg bg-slate-900/90 space-y-1.5"
+          >
+            <div class="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+              <span class="text-amber-400 font-bold flex items-center gap-1.5">
+                <Swords class="w-3.5 h-3.5" />
+                <span>{{ isSupportRole ? '辅助克制推荐' : '针对出装推荐' }}</span>
+              </span>
+              <span class="text-[10px] text-slate-400 font-mono">已出装自动过滤</span>
+            </div>
+            <div class="space-y-1 max-h-28 overflow-y-auto pr-0.5">
+              <div
+                v-for="ci in counterItems.slice(0, 3)"
+                :key="ci.itemKey"
+                class="flex items-center justify-between text-xs bg-slate-950/80 px-2 py-1 rounded border border-slate-800/80"
+              >
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <div class="w-6 h-4.5 rounded overflow-hidden border border-amber-500/40 bg-black shrink-0">
+                    <img :src="getItemIconUrl(ci.itemKey)" :alt="ci.itemName" class="w-full h-full object-cover" />
+                  </div>
+                  <span class="text-amber-300 font-bold truncate max-w-[100px]">{{ ci.itemName }}</span>
+                </div>
+                <span class="text-xs text-slate-400 truncate max-w-[140px] text-right" :title="ci.reason">{{ ci.reason }}</span>
+              </div>
             </div>
           </div>
         </div>

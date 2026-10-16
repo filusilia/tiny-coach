@@ -1,5 +1,6 @@
 import type { VoiceMode } from '@/types'
 import { ttsApi } from '@/api'
+import { findPresetAudio } from '@/data/presetAudios.ts'
 import { useAppStore } from '@/stores'
 
 /**
@@ -142,14 +143,22 @@ class SpeechService {
           // 停止上一句音频播报，防声音堆叠
           this.stop()
 
-          // 超保真拟人使用 MeloTTS 原生离线推理：双参数契约 (cleanText, rate)
-          const audioUrl = await ttsApi.synthesizeSpeech(cleanText, rate)
-          if (!audioUrl) {
+          // 1. Fast-Path 快速通道：优先尝试从 5 大类离线预置高频音频中匹配
+          // 命中即可享受 0ms 秒开、0% CPU/NPU 消耗的电竞级原生发音体验
+          const presetAudioUrl = findPresetAudio(text) || findPresetAudio(cleanText)
+          let finalAudioUrl = presetAudioUrl
+
+          // 2. 未命中预置音频时，无缝回退至本地 MeloTTS 离线模型实时合成
+          if (!finalAudioUrl) {
+            finalAudioUrl = await ttsApi.synthesizeSpeech(cleanText, rate)
+          }
+
+          if (!finalAudioUrl) {
             resolve()
             return
           }
 
-          const audio = new Audio(audioUrl)
+          const audio = new Audio(finalAudioUrl)
           this.currentAudio = audio
           audio.volume = Math.max(0, Math.min(1, volume / 100))
 
@@ -169,7 +178,7 @@ class SpeechService {
 
           await audio.play()
         } catch (err) {
-          console.warn('[SpeechService] MeloTTS 播报失败或未就绪:', err)
+          console.warn('[SpeechService] 播报失败或未就绪:', err)
           resolve()
         }
       })()

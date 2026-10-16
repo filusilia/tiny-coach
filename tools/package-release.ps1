@@ -197,6 +197,15 @@ if (Test-Path $ortSrc) {
     Write-Host "    已将端侧 ONNX Runtime WebAssembly 运行时同步至 release/ort/" -ForegroundColor Green
 }
 
+# 复制高频离线预置音效资源 (audio/)
+$audioSrc = Join-Path $repoRoot 'audio'
+$audioDest = Join-Path $releaseDir 'audio'
+if (Test-Path $audioSrc) {
+    if (-not (Test-Path $audioDest)) { New-Item -ItemType Directory -Path $audioDest -Force | Out-Null }
+    Get-ChildItem -Path $audioSrc | Copy-Item -Destination $audioDest -Recurse -Force
+    Write-Host "    已将高频预置离线语音资源同步至 release/audio/" -ForegroundColor Green
+}
+
 # ------------------------------------------------------------
 # [5/5] 安全加固：解除 Windows 区域锁定与 Authenticode 代码签名
 # ------------------------------------------------------------

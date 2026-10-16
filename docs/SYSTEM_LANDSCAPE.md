@@ -54,7 +54,7 @@ graph TB
             V_Items["ItemsView.vue (56x42 物品图鉴 DAG / 悬浮装备卡自适应 / 7.41f 目录)"]
             V_Analysis["AnalysisView.vue (赛后复盘 / 五维雷达图 / 优势走势曲线 / AI点评)"]
             V_Settings["SettingsView.vue (AI引擎切换 / 语音播报 / 存储管理 / 玩家绑定)"]
-            V_Overlay["OverlayView.vue (局内独立置顶经济与战局悬浮窗 / BP雷达同步)"]
+            V_Overlay["OverlayView.vue (局内独立置顶悬浮窗 / 个人经济基础与推荐出装纯化)"]
         end
 
         TitleBar & Sidebar --> Views

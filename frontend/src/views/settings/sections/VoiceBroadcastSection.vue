@@ -54,9 +54,6 @@ async function testCurrentVoice() {
               9 大战略事件
             </span>
           </h2>
-          <p class="text-xs text-slate-300 mt-0.5">
-            Dota 2 核心战术维度的提醒档位：关闭告警、仅 HUD 文本横幅、AI 拟真语音朗读
-          </p>
         </div>
       </div>
 

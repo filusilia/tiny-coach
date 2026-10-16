@@ -124,30 +124,27 @@ async function selectHeroForSlot(heroId: number | null) {
         <div>
           <div class="flex items-center gap-2 flex-wrap">
             <h3 class="text-sm font-bold text-slate-100 tracking-wide">
-              BP 视觉感知与智能克制参谋
+              对战识别
             </h3>
-            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-950/60 text-cyan-300 border border-cyan-700/40">
-              <Keyboard class="w-3 h-3" />
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono font-semibold bg-cyan-950/60 text-cyan-300 border border-cyan-700/40">
+              <Keyboard class="w-3.5 h-3.5" />
               F10
             </span>
             <span
               v-if="visionStore.isHotkeyActive"
-              class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-950/60 text-emerald-300 border border-emerald-700/40"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-emerald-950/60 text-emerald-300 border border-emerald-700/40"
               title="全局 F10 热键已在后台 OS 线程锁定监听，可在游戏内盲按触发 (带 600ms 连按防抖)"
             >
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               全局热键就绪
             </span>
           </div>
-          <p class="text-xs text-slate-400 mt-0.5">
-            突破 GSI 赛前选人盲区 · 顶部 18% ROI 极速穿透 · 智能阵营自动研判
-          </p>
         </div>
       </div>
 
       <!-- 控制按钮组 -->
       <div class="flex items-center gap-1.5 flex-wrap self-end sm:self-auto">
-        <!-- 阵营切换按钮 (落实要求 1) -->
+        <!-- 阵营切换按钮 -->
         <button
           type="button"
           class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors border shadow-sm"
@@ -159,16 +156,16 @@ async function selectHeroForSlot(heroId: number | null) {
           title="点击切换我方归属视角 (天辉 ⇄ 夜魇)，自动反转敌我阵容并刷新克制出装"
           @click="visionStore.toggleMyFaction"
         >
-          <ArrowLeftRight class="w-3 h-3" />
+          <ArrowLeftRight class="w-3.5 h-3.5" />
           <span>我方: {{ visionStore.myFaction === 'radiant' ? '天辉军团' : '夜魇军团' }}</span>
         </button>
 
-        <!-- 一键清空重置 (当存在历史/测试数据时可一键清空回归纯净空态) -->
+        <!-- 一键清空重置 -->
         <button
           v-if="visionStore.lastDetection || visionStore.lastCapture"
           type="button"
           class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors border border-rose-900/70 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 shadow-sm"
-          title="清空当前 BP 视觉识别槽位与推荐，恢复纯净空态"
+          title="清空当前对战识别槽位与推荐，恢复纯净空态"
           @click="visionStore.clearDetection"
         >
           <Trash2 class="w-3.5 h-3.5 text-rose-400" />
@@ -211,44 +208,29 @@ async function selectHeroForSlot(heroId: number | null) {
       <span>{{ visionStore.errorMessage || visionStore.detectionError }}</span>
     </div>
 
-    <!-- 展开区域：指标流、10 英雄槽位微调展台与克制推荐 -->
+    <!-- 展开区域：识别状态、10 英雄槽位微调展台与克制推荐 -->
     <div v-show="isExpanded" class="pt-2 border-t border-slate-800/80 space-y-3">
-      <!-- 2. 毫秒级性能指标条 -->
+      <!-- 2. 识别状态反馈条 (已移除物理屏幕等调试信息，保持清晰简洁) -->
       <div
-        v-if="visionStore.lastCapture?.success || visionStore.lastDetection"
-        class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 bg-slate-950/50 rounded-lg px-3 py-1.5 border border-slate-800/60 font-mono"
+        v-if="visionStore.isDetecting || visionStore.lastDetection"
+        class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 bg-slate-950/50 rounded-lg px-3 py-1.5 border border-slate-800/60 font-mono"
       >
-        <div class="flex items-center gap-3 flex-wrap">
-          <span v-if="visionStore.lastCapture?.screenWidth">
-            物理屏幕: <strong class="text-slate-200">{{ visionStore.lastCapture.screenWidth }}×{{ visionStore.lastCapture.screenHeight }}</strong>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-300 font-sans font-medium">识别状态:</span>
+          <span v-if="visionStore.isDetecting" class="inline-flex items-center gap-1 text-cyan-300 animate-pulse">
+            <Cpu class="w-3.5 h-3.5 animate-spin" />
+            ONNX 端侧推理中...
           </span>
-          <span v-if="visionStore.lastCapture?.cropWidth" class="text-slate-600">|</span>
-          <span v-if="visionStore.lastCapture?.cropWidth">
-            ROI 裁剪: <strong class="text-cyan-300">{{ visionStore.lastCapture.cropWidth }}×{{ visionStore.lastCapture.cropHeight }}</strong>
-          </span>
-          <span v-if="visionStore.lastCapture?.durationMs !== undefined" class="text-slate-600">|</span>
-          <span v-if="visionStore.lastCapture?.durationMs !== undefined">
-            GDI 截屏: <strong class="text-emerald-400">{{ visionStore.lastCapture.durationMs }}ms</strong>
+          <span v-else-if="visionStore.lastDetection" class="text-emerald-400 flex items-center gap-1 font-sans">
+            <CheckCircle2 class="w-3.5 h-3.5" />
+            识别完成
           </span>
         </div>
 
-        <div class="flex items-center gap-3">
-          <span v-if="visionStore.isDetecting" class="inline-flex items-center gap-1 text-cyan-300 animate-pulse">
-            <Cpu class="w-3 h-3 animate-spin" />
-            ONNX 推理中...
-          </span>
-          <template v-else-if="visionStore.lastDetection">
-            <span>预处理: <strong class="text-slate-300">{{ visionStore.lastDetection.preprocessDurationMs }}ms</strong></span>
-            <span class="text-slate-600">|</span>
-            <span class="text-emerald-300">
-              模型推理: <strong class="text-emerald-400">{{ visionStore.lastDetection.inferenceDurationMs }}ms</strong>
-            </span>
-            <span class="text-slate-600">|</span>
-            <span class="inline-flex items-center gap-1 text-amber-300">
-              <CheckCircle2 class="w-3 h-3 text-emerald-400" />
-              总耗时 {{ visionStore.lastDetection.totalDurationMs }}ms
-            </span>
-          </template>
+        <div v-if="visionStore.lastDetection" class="flex items-center gap-3">
+          <span>模型推理: <strong class="text-emerald-400 font-bold">{{ visionStore.lastDetection.inferenceDurationMs }}ms</strong></span>
+          <span class="text-slate-600">|</span>
+          <span>总耗时: <strong class="text-slate-200 font-bold">{{ visionStore.lastDetection.totalDurationMs }}ms</strong></span>
         </div>
       </div>
 
@@ -264,7 +246,7 @@ async function selectHeroForSlot(heroId: number | null) {
               天辉阵营 (Radiant 1-5)
             </span>
             <span
-              class="text-[10px] px-1.5 py-0.2 rounded font-mono"
+              class="text-xs px-2 py-0.5 rounded font-mono font-medium"
               :class="visionStore.myFaction === 'radiant' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/60' : 'bg-slate-900 text-slate-400 border border-slate-700/40'"
             >
               {{ visionStore.myFaction === 'radiant' ? '★ 我方阵容' : '敌方阵容' }}
@@ -273,7 +255,7 @@ async function selectHeroForSlot(heroId: number | null) {
 
           <div class="flex items-center gap-2">
             <span
-              class="text-[10px] px-1.5 py-0.2 rounded font-mono"
+              class="text-xs px-2 py-0.5 rounded font-mono font-medium"
               :class="visionStore.myFaction === 'dire' ? 'bg-rose-950 text-rose-300 border border-rose-700/60' : 'bg-slate-900 text-slate-400 border border-slate-700/40'"
             >
               {{ visionStore.myFaction === 'dire' ? '★ 我方阵容' : '敌方阵容' }}
@@ -312,10 +294,10 @@ async function selectHeroForSlot(heroId: number | null) {
                     class="w-full h-full object-cover"
                   />
                 </div>
-                <div class="text-[11px] font-bold text-slate-100 truncate w-full" :title="slot.heroName">
+                <div class="text-xs font-bold text-slate-100 truncate w-full" :title="slot.heroName">
                   {{ slot.heroName }}
                 </div>
-                <span class="text-[9px] font-mono text-emerald-300 bg-emerald-900/60 px-1 rounded">
+                <span class="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-900/60 px-1 rounded">
                   {{ Math.round(slot.confidence * 100) }}%
                 </span>
                 <!-- 悬停微调操作按钮 -->
@@ -328,7 +310,7 @@ async function selectHeroForSlot(heroId: number | null) {
                   <X class="w-2.5 h-2.5" />
                 </button>
               </div>
-              <div v-else class="text-[10px] text-slate-500 flex flex-col items-center gap-0.5 group-hover:text-emerald-400">
+              <div v-else class="text-xs text-slate-400 flex flex-col items-center gap-0.5 group-hover:text-emerald-400">
                 <Plus class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
                 <span>#{{ idx + 1 }} 添加</span>
               </div>
@@ -357,10 +339,10 @@ async function selectHeroForSlot(heroId: number | null) {
                     class="w-full h-full object-cover"
                   />
                 </div>
-                <div class="text-[11px] font-bold text-slate-100 truncate w-full" :title="slot.heroName">
+                <div class="text-xs font-bold text-slate-100 truncate w-full" :title="slot.heroName">
                   {{ slot.heroName }}
                 </div>
-                <span class="text-[9px] font-mono text-rose-300 bg-rose-900/60 px-1 rounded">
+                <span class="text-[10px] font-mono font-bold text-rose-300 bg-rose-900/60 px-1 rounded">
                   {{ Math.round(slot.confidence * 100) }}%
                 </span>
                 <button
@@ -372,7 +354,7 @@ async function selectHeroForSlot(heroId: number | null) {
                   <X class="w-2.5 h-2.5" />
                 </button>
               </div>
-              <div v-else class="text-[10px] text-slate-500 flex flex-col items-center gap-0.5 group-hover:text-rose-400">
+              <div v-else class="text-xs text-slate-400 flex flex-col items-center gap-0.5 group-hover:text-rose-400">
                 <Plus class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
                 <span>#{{ idx + 1 }} 添加</span>
               </div>
@@ -398,15 +380,15 @@ async function selectHeroForSlot(heroId: number | null) {
             <RefreshCw class="w-3 h-3 animate-spin" />
             克制推导中...
           </span>
-          <span v-else class="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
-            <CheckCircle2 class="w-3 h-3" />
+          <span v-else class="text-xs text-emerald-400 font-mono flex items-center gap-1">
+            <CheckCircle2 class="w-3.5 h-3.5" />
             已实时同步置顶悬浮窗
           </span>
         </div>
 
         <!-- 针对性装备推荐横向卡片 -->
         <div v-if="visionStore.matchupRecommendation.counterItems?.length > 0" class="space-y-1.5">
-          <div class="text-[11px] text-slate-300 font-semibold flex items-center gap-1">
+          <div class="text-xs text-slate-200 font-semibold flex items-center gap-1">
             <ShieldAlert class="w-3.5 h-3.5 text-rose-400" />
             <span>针对性质变装备建议：</span>
           </div>
@@ -421,7 +403,7 @@ async function selectHeroForSlot(heroId: number | null) {
               </div>
               <div class="min-w-0 flex-1">
                 <div class="text-xs font-bold text-amber-300 truncate">{{ item.itemName }}</div>
-                <div class="text-[10px] text-slate-400 truncate" :title="item.reason">{{ item.reason }}</div>
+                <div class="text-xs text-slate-400 truncate" :title="item.reason">{{ item.reason }}</div>
               </div>
             </div>
           </div>
@@ -429,12 +411,12 @@ async function selectHeroForSlot(heroId: number | null) {
 
         <!-- 敌方核心高危威胁分析 -->
         <div v-if="visionStore.matchupRecommendation.threatHeroes?.length > 0" class="space-y-1 pt-1 border-t border-slate-800/80">
-          <div class="text-[11px] text-slate-400">敌方核心机制威胁源：</div>
+          <div class="text-xs text-slate-300 font-medium">敌方核心机制威胁源：</div>
           <div class="flex flex-wrap gap-2">
             <div
               v-for="th in visionStore.matchupRecommendation.threatHeroes"
               :key="th.heroId"
-              class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-rose-950/40 border border-rose-900/60 text-[11px]"
+              class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-rose-950/40 border border-rose-900/60 text-xs"
             >
               <span class="text-rose-300 font-bold">{{ th.heroName }}</span>
               <span class="text-slate-400">({{ th.threatDesc }})</span>
@@ -453,8 +435,8 @@ async function selectHeroForSlot(heroId: number | null) {
           alt="DOTA2 顶部英雄槽位截图"
           class="w-full h-auto max-h-40 object-contain object-top block"
         />
-        <div class="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/80 backdrop-blur-sm border border-slate-700 text-[10px] text-slate-300 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-          <Eye class="w-3 h-3 text-cyan-400" />
+        <div class="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/80 backdrop-blur-sm border border-slate-700 text-xs text-slate-300 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+          <Eye class="w-3.5 h-3.5 text-cyan-400" />
           <span>顶部 18% 英雄框捕获视图</span>
         </div>
       </div>

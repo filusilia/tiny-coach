@@ -49,6 +49,7 @@ var dotaItemIdToKey = map[int]string{
 	29:   "boots",
 	34:   "magic_stick",
 	36:   "magic_wand",
+	37:   "ghost",
 	38:   "clarity",
 	41:   "bottle",
 	42:   "ward_observer",
@@ -160,6 +161,7 @@ var dotaItemIdToChinese = map[int]string{
 	16:   "铁树枝干",
 	29:   "速度之靴 (草鞋)",
 	36:   "魔杖 (大魔棒)",
+	37:   "幽魂权杖 (绿杖)",
 	44:   "树之祭祀 (吃树)",
 	48:   "远行鞋 (飞鞋)",
 	50:   "相位鞋",
@@ -167,6 +169,8 @@ var dotaItemIdToChinese = map[int]string{
 	73:   "护腕",
 	75:   "怨灵系带",
 	77:   "空灵挂件",
+	79:   "梅肯斯姆",
+	90:   "洞察烟斗 (笛子)",
 	96:   "邪恶镰刀 (羊刀)",
 	98:   "紫怨",
 	100:  "神圣法杖 / 吹风杖 (风杖)",
@@ -191,14 +195,18 @@ var dotaItemIdToChinese = map[int]string{
 	166:  "黯灭",
 	170:  "疯狂面具",
 	172:  "净魂之刃 (散失)",
+	206:  "阿托斯之棍",
 	208:  "深渊之刃 (大晕锤)",
 	210:  "天堂之戟",
 	220:  "永恒之盘 (盘子)",
 	225:  "否决挂饰",
 	226:  "莲花宝珠",
+	229:  "太阳纹章",
+	231:  "卫士胫甲 (大鞋)",
 	249:  "白银之锋 (大隐刀)",
 	250:  "血棘",
 	252:  "回音战刃 (连击刀)",
+	254:  "微光披风",
 	267:  "魂之灵龛 (大灵龛)",
 	655:  "缚灵索",
 	1021: "散灵刀",
@@ -496,67 +504,205 @@ func (s *PlayerService) generateCounterItems(myHeroId int, enemyHeroIds []int, t
 		}
 	}
 
-	// 1. 强控 / 法爆 -> 黑皇杖 (116)
-	if hasStunOrBurst {
-		counterMap[116] = models.RecommendedItem{
-			ItemID:     116,
-			ItemKey:    "black_king_bar",
-			ItemName:   getItemChineseNameById(116),
-			Category:   "counter",
-			Popularity: 98,
-			Reason:     "敌方存在强力控制/高法术爆发，中期核心团战防秒必出",
-		}
-	}
+	isSupport := isSupportHero(myHeroId)
 
-	// 2. 闪避 / 强被动 -> 金箍棒 (135) 或 白银之锋 (249)
-	if hasEvasionOrPassive {
-		counterMap[135] = models.RecommendedItem{
-			ItemID:     135,
-			ItemKey:    "monkey_king_bar",
-			ItemName:   getItemChineseNameById(135),
-			Category:   "counter",
-			Popularity: 92,
-			Reason:     "敌方存在幻影刺客/风行者等物理闪避，克制 MISS 必出克制装",
-		}
-		counterMap[249] = models.RecommendedItem{
-			ItemID:     249,
-			ItemKey:    "silver_edge",
-			ItemName:   getItemChineseNameById(249),
-			Category:   "counter",
-			Popularity: 85,
-			Reason:     "破除敌方强力被动技能 (如钢背兽/幽鬼/小狗)，隐身偷人质变",
-		}
-	}
+	if isSupport {
+		// ══════════════════════════════════════════════════════════════
+		// 辅助分路针对装 (Support Counter Matrix)
+		// 严禁推荐任何金箍棒、大隐刀、冰眼、否决、血棘等大哥输出装
+		// ══════════════════════════════════════════════════════════════
 
-	// 3. 高回复 / 肉盾 -> 斯嘉蒂之眼 (158/160) 或 否决 (225)
-	if hasRegenOrTank {
-		counterMap[158] = models.RecommendedItem{
-			ItemID:     158,
-			ItemKey:    "skadi",
-			ItemName:   getItemChineseNameById(158),
-			Category:   "counter",
-			Popularity: 88,
-			Reason:     "大幅削弱敌方生命恢复与吸血效果，提供高额三维与减速缠绕",
+		// 1. 强控 / 法爆 / 范围伤害 -> 微光披风 (254) / 洞察烟斗 (90) / 永恒之盘 (220)
+		if hasStunOrBurst {
+			counterMap[254] = models.RecommendedItem{
+				ItemID:     254,
+				ItemKey:    "glimmer_cape",
+				ItemName:   getItemChineseNameById(254),
+				Category:   "counter",
+				Popularity: 98,
+				Reason:     "敌方高法术爆发/强控制，提供隐身与300点魔法护盾，救人与防秒核心装",
+				Role:       "support",
+			}
+			counterMap[90] = models.RecommendedItem{
+				ItemID:     90,
+				ItemKey:    "pipe",
+				ItemName:   getItemChineseNameById(90),
+				Category:   "counter",
+				Popularity: 90,
+				Reason:     "全队抵御法术 AOE 伤害护盾，团战辅助克制法系秒杀必备",
+				Role:       "support",
+			}
+			counterMap[220] = models.RecommendedItem{
+				ItemID:     220,
+				ItemKey:    "aeon_disk",
+				ItemName:   getItemChineseNameById(220),
+				Category:   "counter",
+				Popularity: 88,
+				Reason:     "生命告急时强驱散并伤害免疫2.5秒，防军团决斗/虚空大/刺客突脸强秒",
+				Role:       "support",
+			}
 		}
-		counterMap[225] = models.RecommendedItem{
-			ItemID:     225,
-			ItemKey:    "nullifier",
-			ItemName:   getItemChineseNameById(225),
-			Category:   "counter",
-			Popularity: 82,
-			Reason:     "持续驱散敌方盘子/绿杖/吹风/微光等保命救人道具",
-		}
-	}
 
-	// 4. 高机动位移 / 逃生 -> 紫怨/血棘 (250) 或 缚灵索 (655)
-	if hasHighMobility {
-		counterMap[250] = models.RecommendedItem{
-			ItemID:     250,
-			ItemKey:    "bloodthorn",
-			ItemName:   getItemChineseNameById(250),
-			Category:   "counter",
-			Popularity: 86,
-			Reason:     "针对蓝猫/帕克/敌法师等高机动英雄，提供瞬间沉默禁魔与必中暴击",
+		// 2. 闪避 / 强被动 / 物理突脸核心 -> 天堂之戟 (210) / 幽魂权杖 (37) / 原力法杖 (102)
+		if hasEvasionOrPassive {
+			counterMap[210] = models.RecommendedItem{
+				ItemID:     210,
+				ItemKey:    "heavens_halberd",
+				ItemName:   getItemChineseNameById(210),
+				Category:   "counter",
+				Popularity: 95,
+				Reason:     "缴械敌方物理核心（如PA/拍拍/巨魔）使其无法普攻，无法被驱散保核神装",
+				Role:       "support",
+			}
+			counterMap[37] = models.RecommendedItem{
+				ItemID:     37,
+				ItemKey:    "ghost",
+				ItemName:   getItemChineseNameById(37),
+				Category:   "counter",
+				Popularity: 92,
+				Reason:     "物理免疫4秒，辅助防敌方刺客物理平A突脸秒杀第一神器",
+				Role:       "support",
+			}
+			counterMap[102] = models.RecommendedItem{
+				ItemID:     102,
+				ItemKey:    "force_staff",
+				ItemName:   getItemChineseNameById(102),
+				Category:   "counter",
+				Popularity: 89,
+				Reason:     "位移救被切队友或自保拉开距离，克制近战粘人与控制框",
+				Role:       "support",
+			}
+		}
+
+		// 3. 高回复 / 肉盾 -> 魂之灵龛 / 大骨灰 (267)
+		if hasRegenOrTank {
+			counterMap[267] = models.RecommendedItem{
+				ItemID:     267,
+				ItemKey:    "spirit_vessel",
+				ItemName:   getItemChineseNameById(267),
+				Category:   "counter",
+				Popularity: 96,
+				Reason:     "辅助克制高回复与肉核核心神器，百分比扣血并削减45%生命恢复与吸血",
+				Role:       "support",
+			}
+		}
+
+		// 4. 高机动位移 / 逃生 -> 阿托斯之棍 (206) / 吹风 (100)
+		if hasHighMobility {
+			counterMap[206] = models.RecommendedItem{
+				ItemID:     206,
+				ItemKey:    "rod_of_atos",
+				ItemName:   getItemChineseNameById(206),
+				Category:   "counter",
+				Popularity: 90,
+				Reason:     "超远距离2秒缠绕，锁死敌方蓝猫/帕克/敌法等位移，配合队友集火",
+				Role:       "support",
+			}
+			counterMap[100] = models.RecommendedItem{
+				ItemID:     100,
+				ItemKey:    "cyclone",
+				ItemName:   getItemChineseNameById(100),
+				Category:   "counter",
+				Popularity: 86,
+				Reason:     "留人吹起打断，亦可自吹规避集火与驱散负面状态",
+				Role:       "support",
+			}
+		}
+
+		// 若未命中任何特定极端类型，至少给出通用保核救人装 (微光 254、推推 102)
+		if len(counterMap) == 0 {
+			counterMap[254] = models.RecommendedItem{
+				ItemID:     254,
+				ItemKey:    "glimmer_cape",
+				ItemName:   getItemChineseNameById(254),
+				Category:   "counter",
+				Popularity: 85,
+				Reason:     "对线与中期必备保人防法伤道具，隐身护盾兼备",
+				Role:       "support",
+			}
+			counterMap[102] = models.RecommendedItem{
+				ItemID:     102,
+				ItemKey:    "force_staff",
+				ItemName:   getItemChineseNameById(102),
+				Category:   "counter",
+				Popularity: 82,
+				Reason:     "全期通用救队友或自保位移防近身",
+				Role:       "support",
+			}
+		}
+	} else {
+		// ══════════════════════════════════════════════════════════════
+		// 核心大哥分路针对装 (Core/Carry Counter Matrix)
+		// ══════════════════════════════════════════════════════════════
+
+		// 1. 强控 / 法爆 -> 黑皇杖 (116)
+		if hasStunOrBurst {
+			counterMap[116] = models.RecommendedItem{
+				ItemID:     116,
+				ItemKey:    "black_king_bar",
+				ItemName:   getItemChineseNameById(116),
+				Category:   "counter",
+				Popularity: 98,
+				Reason:     "敌方存在强力控制/高法术爆发，中期核心团战防秒必出",
+				Role:       "core",
+			}
+		}
+
+		// 2. 闪避 / 强被动 -> 金箍棒 (135) 或 白银之锋 (249)
+		if hasEvasionOrPassive {
+			counterMap[135] = models.RecommendedItem{
+				ItemID:     135,
+				ItemKey:    "monkey_king_bar",
+				ItemName:   getItemChineseNameById(135),
+				Category:   "counter",
+				Popularity: 92,
+				Reason:     "敌方存在幻影刺客/风行者等物理闪避，克制 MISS 必出克制装",
+				Role:       "core",
+			}
+			counterMap[249] = models.RecommendedItem{
+				ItemID:     249,
+				ItemKey:    "silver_edge",
+				ItemName:   getItemChineseNameById(249),
+				Category:   "counter",
+				Popularity: 85,
+				Reason:     "破除敌方强力被动技能 (如钢背兽/幽鬼/小狗)，隐身偷人质变",
+				Role:       "core",
+			}
+		}
+
+		// 3. 高回复 / 肉盾 -> 斯嘉蒂之眼 (158/160) 或 否决 (225)
+		if hasRegenOrTank {
+			counterMap[158] = models.RecommendedItem{
+				ItemID:     158,
+				ItemKey:    "skadi",
+				ItemName:   getItemChineseNameById(158),
+				Category:   "counter",
+				Popularity: 88,
+				Reason:     "大幅削弱敌方生命恢复与吸血效果，提供高额三维与减速缠绕",
+				Role:       "core",
+			}
+			counterMap[225] = models.RecommendedItem{
+				ItemID:     225,
+				ItemKey:    "nullifier",
+				ItemName:   getItemChineseNameById(225),
+				Category:   "counter",
+				Popularity: 82,
+				Reason:     "持续驱散敌方盘子/绿杖/吹风/微光等保命救人道具",
+				Role:       "core",
+			}
+		}
+
+		// 4. 高机动位移 / 逃生 -> 紫怨/血棘 (250) 或 缚灵索 (655)
+		if hasHighMobility {
+			counterMap[250] = models.RecommendedItem{
+				ItemID:     250,
+				ItemKey:    "bloodthorn",
+				ItemName:   getItemChineseNameById(250),
+				Category:   "counter",
+				Popularity: 86,
+				Reason:     "针对蓝猫/帕克/敌法师等高机动英雄，提供瞬间沉默禁魔与必中暴击",
+				Role:       "core",
+			}
 		}
 	}
 
@@ -658,4 +804,50 @@ func getHeroThreatFeatureDesc(id int) string {
 		return "高机动性位移 / 瞬间逃生"
 	}
 	return "常规对位战力"
+}
+
+// supportHeroIds 包含官方角色定位中以辅助为主的英雄数字 ID 集合 (37+位典型辅助英雄)
+var supportHeroIds = map[int]bool{
+	3:   true, // 祸乱之源 Bane
+	5:   true, // 水晶室女 Crystal Maiden
+	7:   true, // 撼地者 Earthshaker
+	16:  true, // 沙王 Sand King
+	20:  true, // 复仇之魂 Vengeful Spirit
+	26:  true, // 莱恩 Lion
+	27:  true, // 暗影萨满 Shadow Shaman
+	30:  true, // 巫医 Witch Doctor
+	31:  true, // 巫妖 Lich
+	37:  true, // 术士 Warlock
+	40:  true, // 剧毒术士 Venomancer
+	50:  true, // 戴泽 Dazzle
+	57:  true, // 全能骑士 Omniknight
+	58:  true, // 魅惑魔女 Enchantress
+	64:  true, // 杰奇洛 Jakiro
+	66:  true, // 陈 Chen
+	68:  true, // 远古冰魄 Ancient Apparition
+	79:  true, // 暗影恶魔 Shadow Demon
+	83:  true, // 树精卫士 Treant Protector
+	84:  true, // 食人魔魔法师 Ogre Magi
+	85:  true, // 不朽尸王 Undying
+	86:  true, // 拉比克 Rubick
+	87:  true, // 干扰者 Disruptor
+	90:  true, // 光之守卫 Keeper of the Light
+	91:  true, // 艾欧 Io
+	92:  true, // 维萨吉 Visage
+	101: true, // 天怒法师 Skywrath Mage
+	103: true, // 上古巨神 Elder Titan
+	105: true, // 工程师 Techies
+	110: true, // 凤凰 Phoenix
+	111: true, // 神谕者 Oracle
+	112: true, // 寒冬飞龙 Winter Wyvern
+	119: true, // 邪影芳灵 Dark Willow
+	121: true, // 天涯墨客 Grimstroke
+	123: true, // 森海飞霞 Hoodwink
+	128: true, // 电炎绝手 Snapfire
+	131: true, // 百戏大王 Ringmaster
+	155: true, // 朗戈 Largo
+}
+
+func isSupportHero(heroId int) bool {
+	return supportHeroIds[heroId]
 }

@@ -90,20 +90,24 @@ flowchart TD
 
 ---
 
-## 4. Go 原生离线 MeloTTS 语音子系统
+## 4. 离线语音子系统（预置 Fast-Path + 本地 MeloTTS 双通道架构）
 
-系统采用纯 Go 原生离线 TTS 方案，彻底移除对外部云端服务与大型 Python 环境的依赖：
+系统采用双通道混合离线语音方案，兼顾极速 0ms 响应与全场景语义覆盖：
 
 ```mermaid
-flowchart LR
-    Text["输入中文提醒文本"] --> Lexicon["电竞词表与分词器 (lexicon.txt / tokens.txt)"]
+flowchart TD
+    Text["输入战术播报文本"] --> Matcher{"Fast-Path 预置离线音频匹配\n(5大类核心基础内容)"}
+    Matcher -- "命中预置切片 (地图资源/倒计时/事件/连杀/等级)" --> Preset["读取外置高保真压缩 MP3 (audio/preset/)\n0ms 延迟 · 0% 算力占用"]
+    Matcher -- "未命中 (个性化战术出装/AI解释)" --> Lexicon["分词与电竞词表标准化"]
     Lexicon --> CAPI["ONNX Runtime C-API (onnxruntime.dll)"]
-    CAPI --> Acoustic["MeloTTS 声学模型推理 (model.onnx)"]
-    Acoustic --> AudioData["生成标准 PCM / WAV 音频流"]
-    AudioData --> Frontend["前端 HTMLAudioElement 播放 (支持防声音堆叠与即刻打断)"]
+    CAPI --> Acoustic["本地 MeloTTS 声学模型推理 (model.onnx)"]
+    Acoustic --> WavData["生成标准 PCM / WAV 音频流"]
+    Preset & WavData --> Play["前端 HTMLAudioElement 播放\n(音量控制/防堆叠/实时打断)"]
 ```
 
 ### 关键运行保障：
+- **0ms 免生成 Fast-Path**：地图资源刷新（赏金符/智慧符/莲花池/功能符/狂石/中立装备）、战略倒计时、系统战场事件（比赛开始/团灭/肉山/塔防/买活）、连杀多杀（双杀至暴走）、等级质变（6/12/15/18/25/30级）等高频固定事件，命中直接播放高音质外置 MP3（仅 ~3.28MB），彻底免除神经网络合成等待与 CPU 占用；
+- **全动态语义兜底**：复杂长文本或个性战术建议平滑流转给纯 Go 原生离线 MeloTTS 神经网络合成，实现 100% 语音覆盖；
 - **热身启动**：服务初始化时自动进行 1 次极简音频推理热身（Warmup），消除对局中初次播报的冷启动延迟；
 - **并发互斥保护**：内部采用互斥锁保护单次模型推理流水线，避免并发重入造成 ONNX Runtime 崩溃；
 - **发音纠错**：内置电竞专用词表（如“大晕锤”、“黑皇杖”、“跳刀”、“圣剑”等），确保英雄与物品术语发音准确标准。

@@ -184,9 +184,6 @@ function onModelInputFocus() {
           <h2 class="text-sm text-slate-100 font-bold">
             战术大模型引擎配置
           </h2>
-          <p class="text-xs text-slate-300">
-            支持本地 Ollama、远程标准 Response API 与 本地纯规则引擎
-          </p>
         </div>
       </div>
 

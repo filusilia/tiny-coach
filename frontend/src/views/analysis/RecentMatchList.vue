@@ -124,12 +124,12 @@ function getHeroName(heroId: number): string {
           <!-- 英雄名与比赛 ID -->
           <div class="flex flex-col">
             <div class="flex items-center space-x-1.5">
-              <span class="text-xs text-slate-100 font-bold transition-colors group-hover:text-amber-300">
+              <span class="text-sm text-slate-100 font-extrabold transition-colors group-hover:text-amber-300">
                 {{ getHeroName(m.hero_id) }}
               </span>
-              <!-- 胜负标识徽章 -->
+              <!-- 胜负标识徽章 (稍微调小，精致紧凑) -->
               <span
-                class="text-2xs font-bold font-mono px-1.5 py-0.2 rounded"
+                class="text-[10px] font-bold font-mono px-1 py-0.5 rounded leading-none shrink-0"
                 :class="m.radiant_win === (m.player_slot < 128)
                   ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-700/50'
                   : 'bg-rose-950/80 text-rose-400 border border-rose-700/50'"

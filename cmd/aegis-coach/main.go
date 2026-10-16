@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -282,9 +283,9 @@ func showExitConfirmDialog(win *application.WebviewWindow) bool {
 	return ret == 6
 }
 
-// externalAssetMiddleware 拦截前端对 /models/ 与 /ort/ 外部资源的请求，
+// externalAssetMiddleware 拦截前端对 /models/、/ort/ 与 /audio/ 外部资源的请求，
 // 优先从 release/ 发行目录或当前工作目录下的对应实体文件夹直接提供，
-// 从而实现大型 AI 视觉权重与 Wasm 推理运行时的完全拆分与独立热更新，彻底释放 exe 体积。
+// 从而实现大型 AI 视觉权重、Wasm 推理运行时与预置高频音频的完全拆分与独立热更新，彻底释放 exe 体积。
 func externalAssetMiddleware(next http.Handler) http.Handler {
 	exePath, err := os.Executable()
 	var exeDir string
@@ -293,10 +294,16 @@ func externalAssetMiddleware(next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		reqPath := filepath.Clean(r.URL.Path)
+		// 严禁使用 filepath.Clean 处理 URL，否则在 Windows 下会将 /ort/ 变为 \ort\ 导致 HasPrefix 失败
+		reqPath := path.Clean(r.URL.Path)
 
-		// 仅拦截 /models/ 和 /ort/ 外部资源目录
-		if strings.HasPrefix(reqPath, "/models/") || strings.HasPrefix(reqPath, "/ort/") {
+		// 注入跨域隔离头，确保 WebAssembly 共享内存与 JSEP 运行时具备完整支持
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
+
+		// 拦截 /models/、/ort/ 与 /audio/ 外部资源目录
+		if strings.HasPrefix(reqPath, "/models/") || strings.HasPrefix(reqPath, "/ort/") || strings.HasPrefix(reqPath, "/audio/") {
 			candidates := []string{
 				filepath.Join(exeDir, filepath.FromSlash(reqPath)),
 				filepath.Join(".", filepath.FromSlash(reqPath)),
@@ -307,6 +314,10 @@ func externalAssetMiddleware(next http.Handler) http.Handler {
 						w.Header().Set("Content-Type", "application/wasm")
 					} else if strings.HasSuffix(candidate, ".mjs") || strings.HasSuffix(candidate, ".js") {
 						w.Header().Set("Content-Type", "application/javascript")
+					} else if strings.HasSuffix(candidate, ".mp3") {
+						w.Header().Set("Content-Type", "audio/mpeg")
+					} else if strings.HasSuffix(candidate, ".wav") {
+						w.Header().Set("Content-Type", "audio/wav")
 					}
 					http.ServeFile(w, r, candidate)
 					return

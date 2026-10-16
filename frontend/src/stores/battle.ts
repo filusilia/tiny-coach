@@ -90,6 +90,49 @@ export const useBattleStore = defineStore('battle', () => {
   /** 是否满足立即买活条件 */
   const canBuyback = computed<boolean>(() => activeBattleContext.canBuyback)
 
+  /** 官方典型辅助英雄 ID 常数集合 (37+ 位纯辅助英雄) */
+  const supportHeroIds = new Set([
+    3, 5, 7, 16, 20, 26, 27, 30, 31, 37, 40, 50, 57, 58, 64, 66, 68, 79,
+    83, 84, 85, 86, 87, 90, 91, 92, 101, 103, 105, 110, 111, 112, 119,
+    121, 123, 128, 131, 155,
+  ])
+
+  /** 全量已拥有装备类名集合 (用于出装推荐过滤已购物品) */
+  const ownedItemNames = computed<string[]>(() => activeBattleContext.allOwnedItemNames || [])
+
+  /**
+   * 智能分路与角色识别：判定当前操控英雄是否处于辅助分路 (4/5号位)
+   * 1. 英雄先验：若属于官方经典辅助英雄表，直接确立为辅助位；
+   * 2. 局内动态遥测：若携带补刀斧则为核心；若携带真假眼/雾/秘法/微光/大骨灰或低补刀，则确立为辅助。
+   */
+  const isSupportRole = computed<boolean>(() => {
+    const heroId = currentHeroId.value
+    if (heroId > 0 && supportHeroIds.has(heroId)) {
+      return true
+    }
+    const items = ownedItemNames.value
+    // 携带补刀斧则为大哥/核心分路
+    if (items.some(n => n.includes('quelling_blade'))) {
+      return false
+    }
+    // 购买辅助类特定起手与辅助装
+    const hasSupportItem = items.some(n =>
+      n.includes('ward_observer') || n.includes('ward_sentry')
+      || n.includes('smoke_of_deceit') || n.includes('glimmer_cape')
+      || n.includes('force_staff') || n.includes('spirit_vessel')
+      || n.includes('urn_of_shadows') || n.includes('tranquil_boots')
+      || n.includes('arcane_boots') || n.includes('pavise'),
+    )
+    if (hasSupportItem) {
+      return true
+    }
+    // 比赛进行 3 分钟后，若正补极少 (< 12) 且 GPM 低于 380，研判为辅助分路
+    if (clockTime.value > 180 && activeBattleContext.lastHits <= 12 && gpm.value < 380) {
+      return true
+    }
+    return false
+  })
+
   /** 更新连接状态 */
   function setGsiConnected(connected: boolean) {
     activeBattleContext.connected = connected
@@ -129,6 +172,8 @@ export const useBattleStore = defineStore('battle', () => {
     buybackCost,
     buybackCooldown,
     canBuyback,
+    ownedItemNames,
+    isSupportRole,
     setGsiConnected,
     addAdvice,
     clearAdvices,

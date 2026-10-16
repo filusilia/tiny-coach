@@ -192,6 +192,7 @@ export interface RecommendedItem {
   popularity: number
   reason: string
   winRate?: number
+  role?: 'support' | 'core' | 'all'
 }
 
 export interface HeroMatchupRecommendation {

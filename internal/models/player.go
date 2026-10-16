@@ -71,6 +71,7 @@ type RecommendedItem struct {
 	Popularity int     `json:"popularity"` // 购买频次权重
 	Reason     string  `json:"reason"`     // 针对性出装理由
 	WinRate    float64 `json:"winRate,omitempty"`
+	Role       string  `json:"role,omitempty"` // "support" (辅助) | "core" (核心输出) | "all" (通用)
 }
 
 // HeroMatchupRecommendation 基于对局双方阵容的大数据针对性出装推荐全景

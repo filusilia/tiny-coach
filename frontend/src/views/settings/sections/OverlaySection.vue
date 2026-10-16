@@ -34,9 +34,6 @@ function onAutoOverlayChange(e: Event) {
         <h2 class="text-sm text-slate-100 font-bold">
           局内独立置顶经济悬浮窗
         </h2>
-        <p class="text-xs text-slate-400">
-          配置置顶半透明电竞 HUD 的外观透明度、自动弹出行为及鼠标穿透观战策略
-        </p>
       </div>
     </div>
 

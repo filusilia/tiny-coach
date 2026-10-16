@@ -499,6 +499,11 @@ export class RecommendedItem {
     "reason": string;
     "winRate"?: number;
 
+    /**
+     * "support" (辅助) | "core" (核心输出) | "all" (通用)
+     */
+    "role"?: string;
+
     /** Creates a new RecommendedItem instance. */
     constructor($$source: Partial<RecommendedItem> = {}) {
         if (!("itemId" in $$source)) {

@@ -120,6 +120,8 @@ export interface ActiveBattleContext {
   enemyHeroIds: number[]
   /** 玩家当前所属阵营 ('radiant' | 'dire' | '') */
   playerTeam: 'radiant' | 'dire' | ''
+  /** 玩家所有槽位中已持有的装备类名列表 (包含物品栏、背包、储藏处、中立等) */
+  allOwnedItemNames: string[]
 }
 
 /**
@@ -165,6 +167,7 @@ export const activeBattleContext = reactive<ActiveBattleContext>({
   hasScepter: false,
   hasShard: false,
   enemyHeroIds: [],
+  allOwnedItemNames: [],
 })
 
 /**
@@ -237,6 +240,8 @@ class GsiRuleEngine {
   private prevBkbCooldown: number | null = null
   /** 标记当前对局是否已自动弹出过一次独立悬浮窗 */
   private hasAutoLaunchedOverlay = false
+  /** 上一帧英雄等级记录，用于捕捉等级质变 (6, 12, 15, 18, 25, 30) */
+  private prevHeroLevel = 0
 
   // ─────────────────────────────────────────────────────────────────────────────
   // 事件订阅职责声明（单一消费者铁律）
@@ -382,8 +387,9 @@ class GsiRuleEngine {
       activeBattleContext.backpack = backpackItems
       activeBattleContext.neutralItem = neutral
 
-      // 判断是否装备或吃掉神杖/魔晶
+      // 判断是否装备或吃掉神杖/魔晶与全量已拥有装备同步
       const allItemNames = Object.values(snapshot.items).map(i => i.name || '')
+      activeBattleContext.allOwnedItemNames = allItemNames.filter(n => Boolean(n) && n !== 'empty')
       activeBattleContext.hasScepter = Boolean(
         (hero as any).aghanims_scepter
         || allItemNames.some(name => name.includes('ultimate_scepter')),
@@ -476,6 +482,7 @@ class GsiRuleEngine {
     // 离开对局时重置标志，下一场比赛可再次自动拉起
     if (gameState === 'DOTA_GAMERULES_STATE_POST_GAME' || gameState === 'DOTA_GAMERULES_STATE_DISCONNECT') {
       this.hasAutoLaunchedOverlay = false
+      this.prevHeroLevel = 0
     }
 
     // ==========================================
@@ -609,7 +616,182 @@ class GsiRuleEngine {
     }
     this.prevBkbCooldown = bkbCooldown
 
-    // 储备金钱突破大件质变线 (如跳刀 2250 / 核心装 4000)
+    // 1.8 英雄等级质变里程碑 (macro_tempo) - 6 / 12 / 15 / 18 / 25 / 30 级 (极简纯事实)
+    const currentHeroLevel = hero?.level ?? 0
+    if (this.prevHeroLevel > 0 && currentHeroLevel > this.prevHeroLevel) {
+      if (currentHeroLevel === 6 && this.isCooledDown('hero_level_6', 300)) {
+        triggerAlert(
+          'macro_tempo',
+          'LEVEL_UP_6',
+          '英雄升到6级',
+          '英雄升到 6 级，终极大招就绪。',
+          'Critical',
+          '呼叫队友发动第一轮大招越塔或击杀，掌控比赛第一节奏。',
+        )
+      } else if (currentHeroLevel === 12 && this.isCooledDown('hero_level_12', 300)) {
+        triggerAlert(
+          'macro_tempo',
+          'LEVEL_UP_12',
+          '英雄升到12级',
+          '英雄升到 12 级，二级大招就绪。',
+          'Info',
+          '积极抱团推进二塔，逼迫敌方在劣势地形接团。',
+        )
+      } else if (currentHeroLevel === 15 && this.isCooledDown('hero_level_15', 300)) {
+        triggerAlert(
+          'macro_tempo',
+          'LEVEL_UP_15',
+          '英雄升到15级',
+          '英雄升到 15 级，关键天赋树解锁。',
+          'Info',
+          '根据对局逆顺风挑选克制天赋，巩固战场优势。',
+        )
+      } else if (currentHeroLevel === 18 && this.isCooledDown('hero_level_18', 300)) {
+        triggerAlert(
+          'macro_tempo',
+          'LEVEL_UP_18',
+          '英雄升到18级',
+          '英雄升到 18 级，满级大招正面决战。',
+          'Warning',
+          '控下肉山盾准备终结比赛，不给敌方核心拖后期翻盘机会。',
+        )
+      } else if (currentHeroLevel === 25 && this.isCooledDown('hero_level_25', 300)) {
+        triggerAlert(
+          'macro_tempo',
+          'LEVEL_UP_25',
+          '英雄升到25级',
+          '英雄升到 25 级，终极质变天赋解锁。',
+          'Critical',
+          '带盾带奶强推敌方三路高地，决胜团战一击制胜。',
+        )
+      } else if (currentHeroLevel === 30 && this.isCooledDown('hero_level_30', 300)) {
+        triggerAlert(
+          'macro_tempo',
+          'LEVEL_UP_30',
+          '英雄升到30级',
+          '英雄升到 30 级满级，全天赋树已全部激活。',
+          'Critical',
+          '注意留足买活备用金，阵亡第一时间买活反打。',
+        )
+      }
+    }
+    this.prevHeroLevel = currentHeroLevel
+
+    // 1.9 地图资源：赏金神符刷新 (rune_control) - 逢 3 分钟 (极简纯事实)
+    if (clockTime > 0 && clockTime % 180 >= 170 && clockTime % 180 <= 173) {
+      if (this.isCooledDown('bounty_rune_refresh', 90)) {
+        triggerAlert(
+          'rune_control',
+          'BOUNTY_RUNE_PREP',
+          '赏金神符即将刷新',
+          '赏金神符即将在 10 秒后刷新。',
+          'Info',
+          '边路或辅助顺路踩符，积少成多拉开团队经济。',
+        )
+      }
+    }
+
+    // 1.11 地图资源：莲花池刷新 (rune_control) - 2:50/3:00 与 5:50/6:00
+    if (clockTime >= 168 && clockTime <= 172) {
+      if (this.isCooledDown('lotus_pool_prep1', 90)) {
+        triggerAlert(
+          'rune_control',
+          'LOTUS_POOL_PREP1',
+          '莲花池刷新',
+          '边路莲花池即将在 3 分钟产出疗伤莲花，控制线权采集莲花！',
+          'Info',
+        )
+      }
+    } else if (clockTime >= 348 && clockTime <= 352) {
+      if (this.isCooledDown('lotus_pool_prep2', 90)) {
+        triggerAlert(
+          'rune_control',
+          'LOTUS_POOL_PREP2',
+          '第二轮莲花即将产出，注意控线争夺',
+          '第二轮莲花即将在 6 分钟产出，注意控线争夺采摘！',
+          'Info',
+        )
+      }
+    }
+
+    // 1.11 地图资源：狂石系统 (macro_tempo) - 0:50 准备 / 1:00 启动 (极简纯事实)
+    if (clockTime >= 48 && clockTime <= 52) {
+      if (this.isCooledDown('kuangshi_prep', 60)) {
+        triggerAlert(
+          'macro_tempo',
+          'KUANGSHI_PREP',
+          '一分钟，狂石系统启动',
+          '狂石即将在 1:00 启动。',
+          'Info',
+        )
+      }
+    } else if (clockTime >= 59 && clockTime <= 62) {
+      if (this.isCooledDown('kuangshi_act', 60)) {
+        triggerAlert(
+          'macro_tempo',
+          'KUANGSHI_ACT',
+          '狂石系统启动',
+          '狂石系统已启动。',
+          'Info',
+        )
+      }
+    }
+
+    // 1.12 中立装备掉落阶梯 (item_timing_threat) - 7:00, 15:00, 25:00, 35:00, 60:00 (极简纯事实)
+    if (clockTime >= 420 && clockTime <= 424) {
+      if (this.isCooledDown('neutral_tier_1', 120)) {
+        triggerAlert(
+          'item_timing_threat',
+          'NEUTRAL_T1',
+          '中立装备已掉落',
+          '第一级中立装备已解锁掉落。',
+          'Info',
+        )
+      }
+    }
+ else if (clockTime >= 900 && clockTime <= 904) {
+      if (this.isCooledDown('neutral_tier_2', 120)) {
+        triggerAlert(
+          'item_timing_threat',
+          'NEUTRAL_T2',
+          '15:00 T2中立装备！打造装备！',
+          '15 分钟节点，第二级(T2)中立装备解锁掉落，全队属性大幅跃升！',
+          'Info',
+        )
+      }
+    } else if (clockTime >= 1500 && clockTime <= 1504) {
+      if (this.isCooledDown('neutral_tier_3', 120)) {
+        triggerAlert(
+          'item_timing_threat',
+          'NEUTRAL_T3',
+          '25:00 T3中立装备！',
+          '25 分钟节点，第三级(T3)中立装备解锁，关键战力加持！',
+          'Info',
+        )
+      }
+    } else if (clockTime >= 2100 && clockTime <= 2104) {
+      if (this.isCooledDown('neutral_tier_4', 120)) {
+        triggerAlert(
+          'item_timing_threat',
+          'NEUTRAL_T4',
+          '35:00 T4中立装备！后期大件的补强！',
+          '35 分钟后期节点，第四级(T4)中立装备解锁！',
+          'Warning',
+        )
+      }
+    } else if (clockTime >= 3600 && clockTime <= 3604) {
+      if (this.isCooledDown('neutral_tier_5', 120)) {
+        triggerAlert(
+          'item_timing_threat',
+          'NEUTRAL_T5',
+          '60:00 T5终极中立装备！决定胜负！',
+          '60 分钟决胜终局，第五级(T5)神级中立装备降临！',
+          'Critical',
+        )
+      }
+    }
+
+    // 1.14 储备金钱突破大件质变线 (如跳刀 2250 / 核心装 4000)
     if (player?.gold && player.gold >= 4200) {
       if (this.isCooledDown('item_timing_gold', 180)) {
         triggerAlert(

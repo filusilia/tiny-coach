@@ -94,9 +94,6 @@ async function handleClearCache() {
         <h2 class="text-sm text-slate-100 font-bold">
           数据缓存与本地文件目录
         </h2>
-        <p class="text-xs text-slate-400">
-          管理英雄静态图谱、战局 GSI 快照日志、赛后复盘分析数据及本地 GGUF 模型存储路径
-        </p>
       </div>
     </div>
 

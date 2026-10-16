@@ -157,6 +157,7 @@ export const useVisionStore = defineStore('vision', () => {
         itemKey: it.itemKey,
         itemName: it.itemName,
         reason: it.reason,
+        role: it.role,
       })),
       threatHeroes: (rec?.threatHeroes || []).map(th => ({
         heroId: th.heroId,

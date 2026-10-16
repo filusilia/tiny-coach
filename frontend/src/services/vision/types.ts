@@ -42,7 +42,7 @@ export interface BpOverlaySyncPayload {
   myFaction: 'radiant' | 'dire'
   enemyHeroes: { heroId: number, heroName: string, shortName: string }[]
   myHeroes: { heroId: number, heroName: string, shortName: string }[]
-  counterItems: { itemKey: string, itemName: string, reason: string }[]
+  counterItems: { itemKey: string, itemName: string, reason: string, role?: 'support' | 'core' | 'all' }[]
   threatHeroes: { heroId: number, heroName: string, winRate: number, threatDesc: string }[]
   updatedAt: number
 }

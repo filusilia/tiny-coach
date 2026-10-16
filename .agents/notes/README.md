@@ -35,6 +35,10 @@
 | **架构** | [坚决拒绝离线假数据兜底与真实纯净数据流保障](architecture/2026-10-10-zero-offline-fallback-and-pure-real-data-enforcement.md) | `implemented` | 零伪造原则 / OpenDota / 推荐出装 / 状态机治理 | 彻底移除后端伪造离线出装代码与前端手写出装；OpenDota 拉取失败直接暴露错误或旧真实缓存；界面严格基于加载中/真实数据/真实空态三态流转，保障数据 100% 真实纯净 |
 | **架构/体验** | [坚决拔除 AI 复盘规则降级伪造与英雄战绩池统一合并重构](architecture/2026-10-10-zero-fake-ai-review-and-hero-pool-consolidation.md) | `implemented` | AI 复盘 / 零伪造 / 高频英雄 / 近期使用 / Segmented Control | 拔除全部假复盘规则模板，无 AI 直接置灰不可用；合并高频主力与近期使用至统一面板并支持分段切换与联动筛选；清理档案冗余空白占位 |
 | **架构/视觉** | [游戏原生截图与 BP 阶段视觉辅助架构规划](architecture/2026-10-14-game-screen-capture-and-bp-vision-architecture-design.md) | `implemented` | 原生截图 / 视觉识别 / BP 对位 / ONNX Web | 基于 Win32 GDI 顶部 ROI 极速截图配合前端 ONNX Runtime Web 端侧推理；解决 BP 阶段 GSI 选人盲区；保持零 CGO 与纯净轻量架构 |
+| **缺陷/窗口** | [局内悬浮窗点击无响应与透明隐形根因修复（主线程预热热备与 DWM 分层样式解耦）](bug-fix/2026-10-14-overlay-window-prewarm-and-dwm-layered-style-fix.md) | `implemented` | 悬浮窗 / 主线程预热 / DWM 分层 / DirectComposition | 彻底根除跨协程创建导致的 COM 崩溃与二次打开失效；解耦 DirectComposition 与 WsExLayered，修复窗口被误判为 0 Alpha 隐形缺陷 |
+| **架构/性能** | [视觉模型资源全量拆分外置与全仓 UTF-8 无 BOM / Unix LF 规范统一](architecture/2026-10-15-vision-models-externalization-and-full-repo-lf-unification.md) | `implemented` | 视觉模型拆分 / 静态分发中间件 / 打包瘦身 / LF 换行符统一 | 将 YOLOv8 与 ONNX Wasm 移出前端嵌入，通过静态中间件原生流式读取；打包体积由 77MB 骤降至 23MB；全仓归一化为 UTF-8 无 BOM 与 Unix LF 规范 |
+| **缺陷/体验** | [ONNX Runtime WebAssembly 运行时穿透修复与教练复盘视觉重构](bug-fix/2026-10-15-onnx-wasm-backend-resolution-and-ui-clarity-enhancement.md) | `implemented` | 目标检测 / WASM 运行时 / 实时教练 / 赛后复盘 / UI 排版 | 修复 Windows 路径分隔符与 COOP/COEP 导致的 ONNX 报错；实时教练更名为对战识别并移除物理屏幕与提问框，转向 AI 自主战术决策；赛后复盘高频卡片合并入顶部资料卡并微调排版 |
+| **架构/体验** | [局内置顶雷达悬浮窗纯化重构：剔除敌方阵容、聚焦基础经济与针对出装](architecture/2026-10-15-overlay-radar-pure-economy-and-recommendation-streamline.md) | `implemented` | 悬浮窗 / 经济雷达 / 针对性出装 / 尺寸收敛 / 视觉减负 | 彻底剔除悬浮窗中敌方阵容头像与列表；局内局外全流程常驻基础经济与推荐出装；高度动态收敛杜绝黑洞 |
 
 ---
 

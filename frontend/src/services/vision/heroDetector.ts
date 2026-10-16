@@ -31,9 +31,11 @@ export async function ensureSession(): Promise<ort.InferenceSession> {
     return sessionLoadingPromise
   }
 
-  // 严格遵守工程要求 2：显式配置 wasmPaths 与 numThreads=1，防止 WebView2 缺少 SharedArrayBuffer 报错
-  ort.env.wasm.wasmPaths = '/ort/'
+  // 显式配置规范 wasmPaths 与 numThreads=1、proxy=false，规避 relative base URL 异常与 Worker 争用
+  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''
+  ort.env.wasm.wasmPaths = origin ? `${origin}/ort/` : '/ort/'
   ort.env.wasm.numThreads = 1
+  ort.env.wasm.proxy = false
 
   sessionLoadingPromise = (async () => {
     try {

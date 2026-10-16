@@ -9,7 +9,7 @@
 
 import type { ItemMeta, OpenDotaMatchDetail } from '@/api/types'
 import type { MatchReviewResult } from '@/services/aiCoachService.ts'
-import type { HeroUsageItem } from '@/views/analysis/TopHeroesPanel.vue'
+import type { HeroUsageItem } from '@/views/analysis/PlayerProfileBanner.vue'
 import { Activity, User } from '@lucide/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -24,7 +24,6 @@ import MatchDetailPanel from '@/views/analysis/MatchDetailPanel.vue'
 import MatchSearchBar from '@/views/analysis/MatchSearchBar.vue'
 import PlayerProfileBanner from '@/views/analysis/PlayerProfileBanner.vue'
 import RecentMatchList from '@/views/analysis/RecentMatchList.vue'
-import TopHeroesPanel from '@/views/analysis/TopHeroesPanel.vue'
 
 defineOptions({ name: 'AnalysisView' })
 
@@ -384,7 +383,7 @@ defineExpose({
           @search="handleSearchMatch()"
         />
 
-        <!-- 2. 玩家战术身份档案、雷达大盘与场均胜率 (单卡片紧凑一体化) -->
+        <!-- 2. 玩家战术身份档案、雷达大盘与高频英雄池 (单卡片紧凑一体化) -->
         <PlayerProfileBanner
           v-if="appStore.settings.dota_player_id"
           :name="playerProfile.name || appStore.settings.dota_player_name || ''"
@@ -393,7 +392,12 @@ defineExpose({
           :loading="loadingRecent"
           :stats-overview="statsOverview"
           :radar-dimensions="radarDimensions"
+          :top-heroes="topHeroes"
+          :recent-heroes="recentHeroes"
+          :filter-hero-id="filterHeroId"
           @refresh="fetchPlayerRecentMatches(appStore.settings.dota_player_id)"
+          @select-hero="(hid) => (filterHeroId = filterHeroId === hid ? null : hid)"
+          @clear-filter="filterHeroId = null"
         />
 
         <!-- 2.1 未绑定账号的真实空态守卫 (零伪造规范) -->
@@ -403,7 +407,7 @@ defineExpose({
         >
           <User class="text-slate-600 mb-1 h-10 w-10" />
           <p class="text-xs text-slate-300 font-medium">尚未配置绑定的 Dota 2 玩家数字 ID</p>
-          <p class="text-2xs text-slate-500">前往【基础设置】绑定您的 32 位好友 ID，即可在此自动生成近期胜率、战术五维雷达图与常用英雄池</p>
+          <p class="text-xs text-slate-500">前往【基础设置】绑定您的 32 位好友 ID，即可在此自动生成近期胜率、战术五维雷达图与常用英雄池</p>
         </div>
 
         <!-- 战绩载入中状态 -->
@@ -415,29 +419,15 @@ defineExpose({
           <p class="text-xs font-mono">正在从 OpenDota 同步玩家近期真实天梯战报...</p>
         </div>
 
-        <!-- 3. 下半区：常用英雄池 (左) + 近期对局历史列表 (右) 双栏紧凑对称排布 -->
-        <div v-else-if="recentMatches.length > 0" class="gap-4 grid grid-cols-1 items-start xl:grid-cols-12">
-          <!-- 常用英雄池与近期使用合并面板 (占 4 列) -->
-          <div class="flex flex-col xl:col-span-4">
-            <TopHeroesPanel
-              :top-heroes="topHeroes"
-              :recent-heroes="recentHeroes"
-              :filter-hero-id="filterHeroId"
-              @select-hero="(hid) => (filterHeroId = filterHeroId === hid ? null : hid)"
-              @clear-filter="filterHeroId = null"
-            />
-          </div>
-
-          <!-- 近期对局历史卡片列表 (占 8 列) -->
-          <div class="flex flex-col xl:col-span-8">
-            <RecentMatchList
-              :matches="displayedRecentMatches"
-              :total-matches-count="recentMatches.length"
-              :selected-match-id="searchMatchId"
-              :loading-detail="searching"
-              @select-match="handleSearchMatch"
-            />
-          </div>
+        <!-- 3. 下半区：近期天梯比赛历史卡片大盘 (全宽网格呈现，体验开阔清晰) -->
+        <div v-else-if="recentMatches.length > 0">
+          <RecentMatchList
+            :matches="displayedRecentMatches"
+            :total-matches-count="recentMatches.length"
+            :selected-match-id="searchMatchId"
+            :loading-detail="searching"
+            @select-match="handleSearchMatch"
+          />
         </div>
 
         <!-- 战绩无公开数据的真实兜底 -->
