@@ -1,0 +1,212 @@
+[
+  {
+    "key": "preset_bounty",
+    "file": "preset_bounty.mp3",
+    "rawBytes": 150460,
+    "compressedBytes": 21002
+  },
+  {
+    "key": "preset_cd_1",
+    "file": "preset_cd_1.mp3",
+    "rawBytes": 178108,
+    "compressedBytes": 24764
+  },
+  {
+    "key": "preset_cd_11",
+    "file": "preset_cd_11.mp3",
+    "rawBytes": 187324,
+    "compressedBytes": 26018
+  },
+  {
+    "key": "preset_cd_12",
+    "file": "preset_cd_12.mp3",
+    "rawBytes": 185276,
+    "compressedBytes": 25705
+  },
+  {
+    "key": "preset_cd_14",
+    "file": "preset_cd_14.mp3",
+    "rawBytes": 186300,
+    "compressedBytes": 25705
+  },
+  {
+    "key": "preset_cd_15",
+    "file": "preset_cd_15.mp3",
+    "rawBytes": 188348,
+    "compressedBytes": 26018
+  },
+  {
+    "key": "preset_cd_16",
+    "file": "preset_cd_16.mp3",
+    "rawBytes": 190396,
+    "compressedBytes": 26331
+  },
+  {
+    "key": "preset_cd_18",
+    "file": "preset_cd_18.mp3",
+    "rawBytes": 194492,
+    "compressedBytes": 26958
+  },
+  {
+    "key": "preset_cd_20",
+    "file": "preset_cd_20.mp3",
+    "rawBytes": 190396,
+    "compressedBytes": 26331
+  },
+  {
+    "key": "preset_cd_25",
+    "file": "preset_cd_25.mp3",
+    "rawBytes": 202684,
+    "compressedBytes": 27899
+  },
+  {
+    "key": "preset_cd_3",
+    "file": "preset_cd_3.mp3",
+    "rawBytes": 175036,
+    "compressedBytes": 24137
+  },
+  {
+    "key": "preset_cd_35",
+    "file": "preset_cd_35.mp3",
+    "rawBytes": 206780,
+    "compressedBytes": 28526
+  },
+  {
+    "key": "preset_cd_6",
+    "file": "preset_cd_6.mp3",
+    "rawBytes": 188348,
+    "compressedBytes": 26018
+  },
+  {
+    "key": "preset_cd_60",
+    "file": "preset_cd_60.mp3",
+    "rawBytes": 191420,
+    "compressedBytes": 26645
+  },
+  {
+    "key": "preset_cd_7",
+    "file": "preset_cd_7.mp3",
+    "rawBytes": 179132,
+    "compressedBytes": 24764
+  },
+  {
+    "key": "preset_cd_8",
+    "file": "preset_cd_8.mp3",
+    "rawBytes": 182204,
+    "compressedBytes": 25391
+  },
+  {
+    "key": "preset_cd_laye",
+    "file": "preset_cd_laye.mp3",
+    "rawBytes": 138172,
+    "compressedBytes": 19122
+  },
+  {
+    "key": "preset_kuangshi",
+    "file": "preset_kuangshi.mp3",
+    "rawBytes": 119740,
+    "compressedBytes": 16614
+  },
+  {
+    "key": "preset_level_12",
+    "file": "preset_level_12.mp3",
+    "rawBytes": 135100,
+    "compressedBytes": 18808
+  },
+  {
+    "key": "preset_level_15",
+    "file": "preset_level_15.mp3",
+    "rawBytes": 132028,
+    "compressedBytes": 18495
+  },
+  {
+    "key": "preset_level_18",
+    "file": "preset_level_18.mp3",
+    "rawBytes": 135100,
+    "compressedBytes": 18808
+  },
+  {
+    "key": "preset_level_25",
+    "file": "preset_level_25.mp3",
+    "rawBytes": 142268,
+    "compressedBytes": 19749
+  },
+  {
+    "key": "preset_level_30",
+    "file": "preset_level_30.mp3",
+    "rawBytes": 141244,
+    "compressedBytes": 19749
+  },
+  {
+    "key": "preset_level_6",
+    "file": "preset_level_6.mp3",
+    "rawBytes": 126908,
+    "compressedBytes": 17868
+  },
+  {
+    "key": "preset_lotus",
+    "file": "preset_lotus.mp3",
+    "rawBytes": 127932,
+    "compressedBytes": 17868
+  },
+  {
+    "key": "preset_neutral",
+    "file": "preset_neutral.mp3",
+    "rawBytes": 125884,
+    "compressedBytes": 17554
+  },
+  {
+    "key": "preset_rune_river",
+    "file": "preset_rune_river.mp3",
+    "rawBytes": 156604,
+    "compressedBytes": 21629
+  },
+  {
+    "key": "preset_sys_buyback",
+    "file": "preset_sys_buyback.mp3",
+    "rawBytes": 96188,
+    "compressedBytes": 13479
+  },
+  {
+    "key": "preset_sys_enemywipe",
+    "file": "preset_sys_enemywipe.mp3",
+    "rawBytes": 87996,
+    "compressedBytes": 12539
+  },
+  {
+    "key": "preset_sys_roshan_kill",
+    "file": "preset_sys_roshan_kill.mp3",
+    "rawBytes": 106428,
+    "compressedBytes": 15047
+  },
+  {
+    "key": "preset_sys_roshan_window",
+    "file": "preset_sys_roshan_window.mp3",
+    "rawBytes": 111548,
+    "compressedBytes": 15673
+  },
+  {
+    "key": "preset_sys_start",
+    "file": "preset_sys_start.mp3",
+    "rawBytes": 87996,
+    "compressedBytes": 12539
+  },
+  {
+    "key": "preset_sys_teamwipe",
+    "file": "preset_sys_teamwipe.mp3",
+    "rawBytes": 97212,
+    "compressedBytes": 13793
+  },
+  {
+    "key": "preset_sys_tower_defense",
+    "file": "preset_sys_tower_defense.mp3",
+    "rawBytes": 106428,
+    "compressedBytes": 15047
+  },
+  {
+    "key": "preset_wisdom",
+    "file": "preset_wisdom.mp3",
+    "rawBytes": 143292,
+    "compressedBytes": 20062
+  }
+]
